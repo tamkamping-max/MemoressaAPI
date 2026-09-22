@@ -75,7 +75,10 @@ packages/
 ## ASP.NET
 ScaffoldingReadMe.txt
 
-## Flutter (MemoressaApp - keep source, ignore build artifacts)
+## Flutter (MemoressaApp - separate repo clone, ignore entirely in API repo)
+MemoressaApp/
+
+## Flutter build artifacts (if partially tracked)
 MemoressaApp/.dart_tool/
 MemoressaApp/.flutter-plugins
 MemoressaApp/.flutter-plugins-dependencies
