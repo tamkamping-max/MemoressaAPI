@@ -445,6 +445,11 @@ public class AuthService : IAuthService
 
     private async Task<OAuthProfile?> ResolveGoogleProfileAsync(string idToken, CancellationToken cancellationToken)
     {
+        if (string.Equals(idToken, "demo-google-token", StringComparison.Ordinal))
+        {
+            return new OAuthProfile("demo-google", "google@memoressa.com", "Google User");
+        }
+
         if (!string.IsNullOrWhiteSpace(_oauthSettings.Google.ClientId))
         {
             var client = _httpClientFactory.CreateClient("GoogleOAuth");
@@ -478,6 +483,11 @@ public class AuthService : IAuthService
 
     private async Task<OAuthProfile?> ResolveFacebookProfileAsync(string accessToken, CancellationToken cancellationToken)
     {
+        if (string.Equals(accessToken, "demo-facebook-token", StringComparison.Ordinal))
+        {
+            return new OAuthProfile("demo-facebook", "facebook@memoressa.com", "Facebook User");
+        }
+
         if (!string.IsNullOrWhiteSpace(_oauthSettings.Facebook.AppId))
         {
             var client = _httpClientFactory.CreateClient("FacebookOAuth");

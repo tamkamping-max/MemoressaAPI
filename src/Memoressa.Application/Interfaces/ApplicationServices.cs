@@ -100,6 +100,14 @@ public interface IFriendService
     Task<ServiceResult> DeleteFriendAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
+public interface IJournalTagService
+{
+    Task<ServiceResult<IReadOnlyList<JournalTagDto>>> GetTagsAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<JournalTagDto>> CreateTagAsync(CreateJournalTagRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult<JournalTagDto>> UpdateTagAsync(Guid id, UpdateJournalTagRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult> DeleteTagAsync(Guid id, CancellationToken cancellationToken = default);
+}
+
 public interface ISharedAlbumService
 {
     Task<ServiceResult<IReadOnlyList<SharedAlbumDto>>> GetAlbumsAsync(CancellationToken cancellationToken = default);

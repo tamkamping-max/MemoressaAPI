@@ -84,6 +84,26 @@ public record UpdateFriendRequestDto
     [JsonPropertyName("frameLinked")] public bool? FrameLinked { get; init; }
 }
 
+public record JournalTagDto
+{
+    [JsonPropertyName("id")] public Guid Id { get; init; }
+    [JsonPropertyName("labelKey")] public string LabelKey { get; init; } = string.Empty;
+    [JsonPropertyName("colorArgb")] public int ColorArgb { get; init; }
+    [JsonPropertyName("isCustom")] public bool IsCustom { get; init; } = true;
+}
+
+public record CreateJournalTagRequestDto
+{
+    [JsonPropertyName("labelKey")] public string LabelKey { get; init; } = string.Empty;
+    [JsonPropertyName("colorArgb")] public int ColorArgb { get; init; }
+}
+
+public record UpdateJournalTagRequestDto
+{
+    [JsonPropertyName("labelKey")] public string? LabelKey { get; init; }
+    [JsonPropertyName("colorArgb")] public int? ColorArgb { get; init; }
+}
+
 public record SharedAlbumDto
 {
     [JsonPropertyName("id")] public Guid Id { get; init; }

@@ -40,6 +40,7 @@ public interface IMemoressaDbContext
     DbSet<TodayHighlightCache> TodayHighlightCaches { get; }
     DbSet<AiChatSession> AiChatSessions { get; }
     DbSet<AiChatMessage> AiChatMessages { get; }
+    DbSet<JournalTag> JournalTags { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

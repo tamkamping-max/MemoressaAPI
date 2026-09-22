@@ -72,6 +72,8 @@ public record FrameCommentDto
     [JsonPropertyName("userId")] public Guid UserId { get; init; }
     [JsonPropertyName("message")] public string Message { get; init; } = string.Empty;
     [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
+    [JsonPropertyName("authorName")] public string? AuthorName { get; init; }
+    [JsonPropertyName("authorAvatarUrl")] public string? AuthorAvatarUrl { get; init; }
 }
 
 public record AddFrameCommentRequestDto

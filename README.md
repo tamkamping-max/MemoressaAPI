@@ -121,6 +121,9 @@ For production at scale, you can swap presigned GET for **CloudFront signed URLs
 | Key | Description |
 |-----|-------------|
 | `Ai:OpenAiApiKey` | OpenAI API key |
+| `Ai:ChatModel` | OpenAI model for AI Agent chat (default `gpt-4o-mini`) |
+| `Ai:AgentMaxHistoryMessages` | Multi-turn history sent to OpenAI |
+| `Ai:AgentMaxContextMemories` | Max memory candidates in RAG context |
 | `Ai:OpenAiBaseUrl` | OpenAI-compatible base URL |
 | `Ai:VisionModel` | Vision model name |
 | `Ai:EnableVisionBatch` | Enable batch vision processing |
@@ -316,6 +319,19 @@ Requires `Ai:OpenAiApiKey`. When the key is missing, the API falls back to searc
 | PUT | `/{id}` | Update friend |
 | DELETE | `/{id}` | Delete friend |
 
+### Journal Tags — `api/v1/journal-tags`
+
+User-scoped custom journal tags (built-in tags remain client-side). Returns only tags stored for the authenticated user.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | List custom journal tags |
+| POST | `/` | Create custom tag (`labelKey`, `colorArgb`) |
+| PUT | `/{id}` | Update tag |
+| DELETE | `/{id}` | Delete tag |
+
+`FrameCommentDto` also includes `authorName` and `authorAvatarUrl` (populated from the comment author's profile).
+
 ### Shared Albums — `api/v1/shared-albums`
 
 | Method | Path | Description |
@@ -366,6 +382,28 @@ Application errors return JSON:
 ```
 
 Unhandled exceptions are caught by `ExceptionHandlingMiddleware` and returned as HTTP 500 with the same shape.
+
+## Flutter App — Remote API Toggle
+
+The Flutter client (`MemoressaApp/`) ships with a REST layer that is **off by default** (local mock data). Enable it at build time:
+
+```bash
+flutter run \
+  --dart-define=USE_REMOTE_API=true \
+  --dart-define=API_BASE_URL=http://10.0.2.2:5000
+```
+
+When enabled, these formerly mock areas call the REST API:
+
+| Feature | Endpoints |
+|---------|-----------|
+| Auth / OAuth | `POST /api/v1/auth/login`, `/oauth/google`, `/oauth/facebook` |
+| Friends | `GET/POST/PUT /api/v1/friends` |
+| Journal tags | `GET/POST /api/v1/journal-tags` (+ built-in tags client-side) |
+| Frame comments | `GET/POST /api/v1/frame/playback-packages/{id}/comments` |
+| Frame playback | `GET /api/v1/frame/devices/{deviceId}/playback-packages` |
+
+OAuth still uses placeholder tokens (`demo-google-token`, `demo-facebook-token`) until native SDKs are wired; the API accepts these in dev when real Google/Facebook credentials are not configured.
 
 ## Build & Test
 

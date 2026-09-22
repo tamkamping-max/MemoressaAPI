@@ -43,6 +43,7 @@ public class MemoressaDbContext : DbContext, IMemoressaDbContext
     public DbSet<TodayHighlightCache> TodayHighlightCaches => Set<TodayHighlightCache>();
     public DbSet<AiChatSession> AiChatSessions => Set<AiChatSession>();
     public DbSet<AiChatMessage> AiChatMessages => Set<AiChatMessage>();
+    public DbSet<JournalTag> JournalTags => Set<JournalTag>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

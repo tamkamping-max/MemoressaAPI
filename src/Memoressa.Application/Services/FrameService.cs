@@ -81,6 +81,7 @@ public class FrameService : IFrameService
         }
 
         var comments = await _db.FrameComments.AsNoTracking()
+            .Include(c => c.User)
             .Where(c => c.PackageId == packageId)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -116,6 +117,11 @@ public class FrameService : IFrameService
 
         _db.FrameComments.Add(comment);
         await _db.SaveChangesAsync(cancellationToken);
-        return ServiceResult<FrameCommentDto>.Ok(comment.ToDto());
+
+        var saved = await _db.FrameComments.AsNoTracking()
+            .Include(c => c.User)
+            .FirstAsync(c => c.Id == comment.Id, cancellationToken);
+
+        return ServiceResult<FrameCommentDto>.Ok(saved.ToDto());
     }
 }

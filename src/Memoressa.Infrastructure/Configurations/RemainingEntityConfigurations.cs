@@ -134,3 +134,15 @@ public class AiChatMessageConfiguration : IEntityTypeConfiguration<AiChatMessage
         builder.HasIndex(x => new { x.SessionId, x.CreatedAt });
     }
 }
+
+public class JournalTagConfiguration : IEntityTypeConfiguration<JournalTag>
+{
+    public void Configure(EntityTypeBuilder<JournalTag> builder)
+    {
+        builder.ToTable("journal_tags");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.LabelKey).HasMaxLength(128).IsRequired();
+        builder.HasIndex(x => x.OwnerUserId);
+        builder.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}

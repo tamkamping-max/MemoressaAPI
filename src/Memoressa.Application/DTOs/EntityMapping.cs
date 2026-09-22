@@ -151,6 +151,16 @@ public static class EntityMapping
         PackageId = comment.PackageId,
         UserId = comment.UserId,
         Message = comment.Message,
-        CreatedAt = comment.CreatedAt
+        CreatedAt = comment.CreatedAt,
+        AuthorName = comment.User?.Nickname ?? comment.User?.Email,
+        AuthorAvatarUrl = comment.User?.AvatarUrl
+    };
+
+    public static JournalTagDto ToDto(this JournalTag tag) => new()
+    {
+        Id = tag.Id,
+        LabelKey = tag.LabelKey,
+        ColorArgb = tag.ColorArgb,
+        IsCustom = tag.IsCustom
     };
 }

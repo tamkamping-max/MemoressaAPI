@@ -396,3 +396,12 @@ public class AiChatMessage : Entity
     public string? MatchReasonKeysJson { get; set; }
     public AiChatSession Session { get; set; } = null!;
 }
+
+public class JournalTag : Entity
+{
+    public Guid OwnerUserId { get; set; }
+    public string LabelKey { get; set; } = string.Empty;
+    public int ColorArgb { get; set; }
+    public bool IsCustom { get; set; } = true;
+    public UserAccount Owner { get; set; } = null!;
+}
