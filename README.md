@@ -9,7 +9,7 @@ The solution follows a layered architecture:
 ```
 Memoressa.Api            → HTTP controllers, middleware, auth, Swagger
 Memoressa.Application    → Business logic, DTOs, service interfaces
-Memoressa.Infrastructure → EF Core, PostgreSQL, S3, JWT, email, AI orchestration
+Memoressa.Infrastructure → EF Core mapping, PostgreSQL, S3, JWT, email, AI orchestration
 Memoressa.Domain         → Entities and enums
 ```
 
@@ -28,11 +28,15 @@ Requests flow through middleware (exception handling, internal API key validatio
 docker compose up -d
 ```
 
-2. Apply database migrations (from repo root):
+2. Apply database schema (from repo root):
 
 ```bash
-dotnet ef database update --project src/Memoressa.Infrastructure --startup-project src/Memoressa.Api
+./database/apply.sh
 ```
+
+   On a **fresh** `docker compose` volume, SQL under `database/migrations/` is also applied automatically via `docker-entrypoint-initdb.d`.
+
+   For an empty database in one shot: `psql -f database/schema.sql`
 
 3. Run the API:
 
@@ -42,7 +46,7 @@ dotnet run --project src/Memoressa.Api
 
 4. Open Swagger UI: `https://localhost:7xxx/swagger` (port shown in console output)
 
-In Development, the API also attempts `Database.Migrate()` on startup when migration files exist.
+Schema is defined by **SQL files** in `database/migrations/` (see `database/README.md`). EF Core maps entities only; the API does not run `Database.Migrate()` on startup.
 
 ## Configuration
 
@@ -403,7 +407,7 @@ When enabled, these formerly mock areas call the REST API:
 | Auth / OAuth | `POST /api/v1/auth/login`, `/oauth/google`, `/oauth/facebook` |
 | Friends | `GET/POST/PUT /api/v1/friends` |
 | Journal tags | `GET/POST /api/v1/journal-tags` (+ built-in tags client-side) |
-| Frame comments | `GET/POST /api/v1/frame/playback-packages/{id}/comments` |
+| Frame comments | `GET/POST /api/v1/frame/playback-packages/{guid}/comments` (+ `POST .../playback-packages/ensure` for `remote_pkg_*`) |
 | Frame playback | `GET /api/v1/frame/devices/{deviceId}/playback-packages` |
 
 OAuth still uses placeholder tokens (`demo-google-token`, `demo-facebook-token`) until native SDKs are wired; the API accepts these in dev when real Google/Facebook credentials are not configured.
@@ -419,6 +423,11 @@ dotnet test
 
 ```
 /workspace
+├── database/
+│   ├── migrations/        # Incremental .sql schema (source of truth)
+│   ├── schema.sql         # Full schema (greenfield)
+│   ├── apply.sh           # Apply migrations to PostgreSQL
+│   └── README.md
 ├── docker-compose.yml
 ├── Memoressa.sln
 ├── src/
@@ -431,16 +440,22 @@ dotnet test
 └── MemoressaApp/          # Flutter mobile app (separate client)
 ```
 
-## Migrations
+## Database schema
 
-Create a new migration:
+PostgreSQL schema lives in **`database/migrations/*.sql`**, not in EF Core migrations.
+
+| File | Contents |
+|------|----------|
+| `001_initial.sql` | Users, families, photos, memories, frame, uploads, … |
+| `002_ai_chat_sessions.sql` | AI agent chat |
+| `003_journal_tags.sql` | Journal tags |
+| `004_frame_package_external_id.sql` | Frame package `external_id` |
+
+After changing SQL, update `Memoressa.Domain` entities and `Infrastructure/Configurations` to match, then deploy SQL before/with the API.
 
 ```bash
-dotnet ef migrations add <MigrationName> --project src/Memoressa.Infrastructure --startup-project src/Memoressa.Api
+./database/apply.sh
+# or: psql -f database/schema.sql
 ```
 
-Apply migrations:
-
-```bash
-dotnet ef database update --project src/Memoressa.Infrastructure --startup-project src/Memoressa.Api
-```
+Do **not** use `dotnet ef migrations add` / `dotnet ef database update`.

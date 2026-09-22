@@ -3,10 +3,8 @@ using System.Text.Json;
 using Memoressa.Api.Middleware;
 using Memoressa.Application;
 using Memoressa.Infrastructure;
-using Memoressa.Infrastructure.Data;
 using Memoressa.Infrastructure.Options;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -122,20 +120,6 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<MemoressaDbContext>();
-    if (db.Database.IsRelational())
-    {
-        db.Database.Migrate();
-    }
-}
-
-if (app.Environment.IsEnvironment("Testing"))
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<MemoressaDbContext>();
-    db.Database.EnsureCreated();
 }
 
 app.UseCors("DevCors");

@@ -11,6 +11,7 @@ services:
       POSTGRES_PASSWORD: memoressa
     volumes:
       - memoressa_pgdata:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U memoressa -d memoressa"]
       interval: 5s
