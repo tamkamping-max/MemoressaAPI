@@ -66,15 +66,25 @@ Local development uses **MySQL 8** (`Database:Target` = **`Local`** in `appsetti
 docker compose up -d
 ```
 
-2. Run the API (Development environment auto-creates MySQL schema via EF on first run):
+2. Apply MySQL schema (from repo root):
+
+```bash
+./database/mysql/apply.sh
+```
+
+   On a **fresh** `docker compose` volume, `database/mysql/schema.sql` is applied automatically via `docker-entrypoint-initdb.d`.
+
+   For an empty database in one shot: `mysql ... < database/mysql/schema.sql`
+
+3. Run the API:
 
 ```bash
 dotnet run --project src/Memoressa.Api
 ```
 
-3. Open Swagger UI: `https://localhost:7xxx/swagger` (port shown in console output)
+4. Open Swagger UI: `https://localhost:7xxx/swagger` (port shown in console output)
 
-For RDS, schema is defined by **SQL files** in `database/migrations/` (see `database/README.md`). EF Core maps entities only; the API does not run `Database.Migrate()` on startup.
+Local schema is defined by **SQL files** in `database/mysql/migrations/` (see `database/mysql/README.md`). EF Core maps entities only; the API does not run `Database.Migrate()` on startup.
 
 ## Configuration
 
@@ -472,7 +482,11 @@ dotnet test
 │   ├── migrations/        # Incremental .sql schema for RDS PostgreSQL
 │   ├── schema.sql         # Full schema (greenfield RDS apply)
 │   ├── apply.sh           # Apply migrations to PostgreSQL
-│   ├── mysql/README.md    # Local MySQL dev notes
+│   ├── mysql/
+│   │   ├── migrations/    # Incremental .sql schema for local MySQL
+│   │   ├── schema.sql     # Full schema (greenfield local apply)
+│   │   ├── apply.sh       # Apply migrations to MySQL
+│   │   └── README.md
 │   └── README.md
 ├── docker-compose.yml
 ├── Memoressa.sln
@@ -488,22 +502,22 @@ dotnet test
 
 ## Database schema
 
-**RDS (release):** PostgreSQL schema lives in **`database/migrations/*.sql`**, not in EF Core migrations.
+**RDS (release):** PostgreSQL schema in **`database/migrations/*.sql`**.
 
-**Local (dev):** MySQL schema is created by EF `EnsureCreated()` on first Development run when `Database:Target=Local`.
+**Local (dev):** MySQL schema in **`database/mysql/migrations/*.sql`**.
 
-| File | Contents |
-|------|----------|
-| `001_initial.sql` | Users, families, photos, memories, frame, uploads, … |
-| `002_ai_chat_sessions.sql` | AI agent chat |
-| `003_journal_tags.sql` | Journal tags |
-| `004_frame_package_external_id.sql` | Frame package `external_id` |
+| PostgreSQL (RDS) | MySQL (local) | Contents |
+|------------------|---------------|----------|
+| `database/migrations/001_initial.sql` | `database/mysql/migrations/001_initial.sql` | Users, families, photos, memories, frame, uploads, … |
+| `002_ai_chat_sessions.sql` | `002_ai_chat_sessions.sql` | AI agent chat |
+| `003_journal_tags.sql` | `003_journal_tags.sql` | Journal tags |
+| `004_frame_package_external_id.sql` | `004_frame_package_external_id.sql` | Frame package `external_id` |
 
-After changing SQL, update `Memoressa.Domain` entities and `Infrastructure/Configurations` to match, then deploy SQL before/with the API.
+After changing schema, update **both** SQL trees, then `Memoressa.Domain` entities and `Infrastructure/Configurations`, then deploy SQL before/with the API.
 
 ```bash
-./database/apply.sh
+./database/mysql/apply.sh    # local MySQL
+./database/apply.sh          # RDS PostgreSQL
+# or: mysql ... < database/mysql/schema.sql
 # or: psql -f database/schema.sql
 ```
-
-Do **not** use `dotnet ef migrations add` / `dotnet ef database update`.

@@ -1,18 +1,52 @@
-# Local MySQL (development)
+# Local MySQL schema (development)
 
 When `Database:Target` is **`Local`**, the API uses **MySQL 8** via Pomelo EF Core.
 
-## Schema
+**Schema source of truth (local):** the `.sql` files in `database/mysql/migrations/`, not EF Core migrations.
 
-- **Release (RDS):** PostgreSQL schema from `database/migrations/*.sql`
-- **Local (MySQL):** schema is created automatically on first `dotnet run` in Development (`DatabaseBootstrap` → `EnsureCreated`)
+## Layout
 
-Keep entity mappings aligned with the PostgreSQL SQL when you change the schema.
+| File | Description |
+|------|-------------|
+| `migrations/001_initial.sql` | Core tables (mirrors PostgreSQL `database/migrations/001_initial.sql`) |
+| `migrations/002_ai_chat_sessions.sql` | AI agent chat tables |
+| `migrations/003_journal_tags.sql` | Journal tag table |
+| `migrations/004_frame_package_external_id.sql` | `frame_playback_packages.ExternalId` |
+| `schema.sql` | Full schema (greenfield apply) |
+| `apply.sh` | Apply incremental migrations via `mysql` client |
 
-## Docker
+When you change the schema, update **both** PostgreSQL (`database/migrations/`) and MySQL (`database/mysql/migrations/`) SQL, then update C# entities / EF configurations.
+
+## Docker (recommended)
 
 ```bash
 docker compose up -d
+```
+
+On a **fresh** volume, `database/mysql/schema.sql` is applied automatically via `docker-entrypoint-initdb.d`.
+
+## Manual apply
+
+```bash
+docker compose up -d
+./database/mysql/apply.sh
+# or greenfield:
+mysql -h 127.0.0.1 -P 3306 -u memoressa -pmemoressa memoressa < database/mysql/schema.sql
+```
+
+Environment variables for `apply.sh`:
+
+| Variable | Default |
+|----------|---------|
+| `MYSQL_HOST` | `localhost` |
+| `MYSQL_PORT` | `3306` |
+| `MYSQL_USER` | `memoressa` |
+| `MYSQL_PASSWORD` | `memoressa` |
+| `MYSQL_DATABASE` | `memoressa` |
+
+Then run the API:
+
+```bash
 dotnet run --project src/Memoressa.Api
 ```
 
@@ -22,7 +56,7 @@ Default connection (`appsettings.Development.json`):
 Server=localhost;Port=3306;Database=memoressa;User=memoressa;Password=memoressa
 ```
 
-## Switch to RDS from local machine
+## Point local API at RDS instead
 
 Set in `appsettings.Development.json` or environment:
 
@@ -30,4 +64,4 @@ Set in `appsettings.Development.json` or environment:
 "Database": { "Target": "Rds" }
 ```
 
-and configure `ConnectionStrings:PostgreSql` with your RDS endpoint + SSL.
+and configure `ConnectionStrings:PostgreSql` with your RDS endpoint + SSL. Use `database/apply.sh` for PostgreSQL schema.

@@ -1,6 +1,4 @@
-using Memoressa.Infrastructure.Data;
 using Memoressa.Infrastructure.Options;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -11,30 +9,26 @@ namespace Memoressa.Infrastructure;
 public static class DatabaseBootstrap
 {
     /// <summary>
-    /// Local MySQL: create schema from EF model on first dev run.
-    /// RDS PostgreSQL: schema must be applied via database/migrations/*.sql (never auto-created here).
+    /// Local MySQL and RDS PostgreSQL schemas are applied via SQL scripts
+    /// (<c>database/mysql/*.sql</c> or <c>database/migrations/*.sql</c>), not at API startup.
     /// </summary>
-    public static void EnsureDevelopmentSchema(IHost host)
+    public static void LogDatabaseTarget(IHost host)
     {
-        if (!host.Services.GetRequiredService<IHostEnvironment>().IsDevelopment())
-        {
-            return;
-        }
-
         var configuration = host.Services.GetRequiredService<IConfiguration>();
-        if (DatabaseConnection.UsesPostgreSql(configuration))
-        {
-            return;
-        }
-
-        using var scope = host.Services.CreateScope();
-        var logger = scope.ServiceProvider
+        var logger = host.Services
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("DatabaseBootstrap");
-        var db = scope.ServiceProvider.GetRequiredService<MemoressaDbContext>();
 
-        logger.LogInformation(
-            "Database:Target=Local — ensuring MySQL schema via EF (RDS release uses database/migrations SQL instead)");
-        db.Database.EnsureCreated();
+        var target = DatabaseConnection.ResolveTarget(configuration);
+        if (target == DatabaseTarget.Local)
+        {
+            logger.LogInformation(
+                "Database:Target=Local (MySQL). Apply schema with ./database/mysql/apply.sh if tables are missing.");
+        }
+        else
+        {
+            logger.LogInformation(
+                "Database:Target=Rds (PostgreSQL). Apply schema with ./database/apply.sh if tables are missing.");
+        }
     }
 }

@@ -1,7 +1,7 @@
 # Memoressa PostgreSQL Schema (RDS / release)
 
 **Production database:** Amazon **RDS PostgreSQL** (`Database:Target` = **`Rds`**).  
-**Local development database:** **MySQL 8** (`Database:Target` = **`Local`**) — see [`mysql/README.md`](mysql/README.md).
+**Local development database:** **MySQL 8** (`Database:Target` = **`Local`**) — schema in [`mysql/migrations/`](mysql/migrations/) and [`mysql/README.md`](mysql/README.md).
 
 **Schema source of truth (RDS only):** the `.sql` files in `database/migrations/`, not EF Core.
 
@@ -72,14 +72,13 @@ Do **not** use `dotnet ef database update`.
 
 ## Local development (optional)
 
-Local dev uses **MySQL** via Docker (`docker compose up -d`), not these PostgreSQL scripts:
+Local dev uses **MySQL** via Docker (`docker compose up -d`), schema from **`database/mysql/migrations/*.sql`**:
 
 ```bash
-docker compose up -d    # MySQL on :3306
-dotnet run --project src/Memoressa.Api   # Database:Target=Local → EnsureCreated
+docker compose up -d    # MySQL on :3306; fresh volume auto-applies mysql/schema.sql
+./database/mysql/apply.sh   # existing volume / re-apply migrations
+dotnet run --project src/Memoressa.Api
 ```
-
-See [`mysql/README.md`](mysql/README.md). Use the PostgreSQL scripts in this folder **only for RDS**.
 
 ## Adding a schema change
 
