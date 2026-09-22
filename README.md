@@ -1,8 +1,14 @@
 # Memoressa API
 
-REST API backend for the Memoressa family memory platform, built with ASP.NET Core 8 and PostgreSQL.
+REST API backend for the Memoressa family memory platform, built with ASP.NET Core 8 and **Amazon RDS PostgreSQL** (production).
 
 ## Architecture
+
+```
+EC2 REST API  ──►  RDS PostgreSQL  (schema: database/migrations/*.sql)
+              ──►  Private S3        (photos; keys in RDS)
+Go WebSocket  ──►  RDS / Internal API (separate service)
+```
 
 The solution follows a layered architecture:
 
@@ -18,11 +24,40 @@ Requests flow through middleware (exception handling, internal API key validatio
 ## Prerequisites
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Docker](https://www.docker.com/) (for local PostgreSQL)
+- **Production:** RDS PostgreSQL + EC2 (or container) in the same VPC
+- **Local dev (optional):** [Docker](https://www.docker.com/) for a throwaway Postgres
 
-## Quick Start
+## Production: RDS PostgreSQL
 
-1. Start PostgreSQL:
+1. Create an **RDS PostgreSQL** instance and empty database `memoressa`.
+2. Apply schema from this repo (see [`database/README.md`](database/README.md)):
+
+```bash
+export PGHOST=your-instance.xxxxx.region.rds.amazonaws.com
+export PGPORT=5432
+export PGUSER=memoressa
+export PGPASSWORD='your-password'
+export PGDATABASE=memoressa
+export PGSSLMODE=require
+
+psql -v ON_ERROR_STOP=1 -f database/schema.sql
+```
+
+3. Configure the API on EC2:
+
+```bash
+export ConnectionStrings__DefaultConnection="Host=your-instance.xxxxx.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
+export ASPNETCORE_ENVIRONMENT=Production
+dotnet run --project src/Memoressa.Api
+```
+
+Template: `src/Memoressa.Api/appsettings.Production.json.example`
+
+Schema is **not** applied at API startup — deploy SQL to RDS explicitly (CI/CD or `./database/apply.sh`).
+
+## Quick Start (local dev only)
+
+1. Start local PostgreSQL:
 
 ```bash
 docker compose up -d
@@ -54,9 +89,11 @@ Configuration is loaded from `src/Memoressa.Api/appsettings.json` and environmen
 
 ### ConnectionStrings
 
-| Key | Description | Default |
-|-----|-------------|---------|
-| `ConnectionStrings:DefaultConnection` | PostgreSQL connection string | `Host=localhost;Port=5432;Database=memoressa;Username=memoressa;Password=memoressa` |
+| Key | Description | Local dev default | Production (RDS) |
+|-----|-------------|-------------------|------------------|
+| `ConnectionStrings:DefaultConnection` | PostgreSQL (Npgsql) | `Host=localhost;Port=5432;Database=memoressa;Username=memoressa;Password=memoressa` | `Host=<rds-endpoint>;Port=5432;Database=memoressa;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true` |
+
+RDS must be reachable from the API host (security group: EC2 → RDS on port 5432). Store credentials in environment variables or AWS Secrets Manager, not in git.
 
 ### Jwt
 
@@ -156,7 +193,11 @@ When Google/Facebook credentials are configured, ASP.NET Core external auth hand
 Any setting can be overridden with environment variables using `__` nesting, for example:
 
 ```bash
+# Local
 export ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=memoressa;Username=memoressa;Password=memoressa"
+
+# RDS (production)
+export ConnectionStrings__DefaultConnection="Host=your-instance.xxxxx.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
 export Jwt__SecretKey="your-production-secret-key"
 export InternalApi__ApiKey="your-internal-key"
 export Ai__OpenAiApiKey="sk-..."

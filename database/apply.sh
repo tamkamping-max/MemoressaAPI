@@ -9,9 +9,11 @@ PGPORT="${PGPORT:-5432}"
 PGUSER="${PGUSER:-memoressa}"
 PGPASSWORD="${PGPASSWORD:-memoressa}"
 PGDATABASE="${PGDATABASE:-memoressa}"
-export PGPASSWORD
+PGSSLMODE="${PGSSLMODE:-prefer}"
+export PGPASSWORD PGSSLMODE
 
-echo "Applying Memoressa SQL migrations to ${PGUSER}@${PGHOST}:${PGPORT}/${PGDATABASE}"
+echo "Applying Memoressa SQL migrations to ${PGUSER}@${PGHOST}:${PGPORT}/${PGDATABASE} (sslmode=${PGSSLMODE})"
+echo "For RDS, set PGSSLMODE=require and PGHOST to your *.rds.amazonaws.com endpoint."
 
 for file in "$MIGRATIONS"/*.sql; do
   echo "-> $(basename "$file")"
