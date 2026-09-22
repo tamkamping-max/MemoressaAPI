@@ -15,7 +15,7 @@ The solution follows a layered architecture:
 ```
 Memoressa.Api            → HTTP controllers, middleware, auth, Swagger
 Memoressa.Application    → Business logic, DTOs, service interfaces
-Memoressa.Infrastructure → EF Core mapping, PostgreSQL, S3, JWT, email, AI orchestration
+Memoressa.Infrastructure → EF Core mapping, MySQL (local) / PostgreSQL RDS (release), S3, JWT, email, AI orchestration
 Memoressa.Domain         → Entities and enums
 ```
 
@@ -25,7 +25,7 @@ Requests flow through middleware (exception handling, internal API key validatio
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - **Production:** RDS PostgreSQL + EC2 (or container) in the same VPC
-- **Local dev (optional):** [Docker](https://www.docker.com/) for a throwaway Postgres
+- **Local dev (optional):** [Docker](https://www.docker.com/) for MySQL 8
 
 ## Production: RDS PostgreSQL
 
@@ -46,7 +46,8 @@ psql -v ON_ERROR_STOP=1 -f database/schema.sql
 3. Configure the API on EC2:
 
 ```bash
-export ConnectionStrings__DefaultConnection="Host=your-instance.xxxxx.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
+export Database__Target=Rds
+export ConnectionStrings__PostgreSql="Host=your-instance.xxxxx.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
 export ASPNETCORE_ENVIRONMENT=Production
 dotnet run --project src/Memoressa.Api
 ```
@@ -57,41 +58,42 @@ Schema is **not** applied at API startup — deploy SQL to RDS explicitly (CI/CD
 
 ## Quick Start (local dev only)
 
-1. Start local PostgreSQL:
+Local development uses **MySQL 8** (`Database:Target` = **`Local`** in `appsettings.Development.json`). Release uses **RDS PostgreSQL** (`Database:Target` = **`Rds`**).
+
+1. Start local MySQL:
 
 ```bash
 docker compose up -d
 ```
 
-2. Apply database schema (from repo root):
-
-```bash
-./database/apply.sh
-```
-
-   On a **fresh** `docker compose` volume, SQL under `database/migrations/` is also applied automatically via `docker-entrypoint-initdb.d`.
-
-   For an empty database in one shot: `psql -f database/schema.sql`
-
-3. Run the API:
+2. Run the API (Development environment auto-creates MySQL schema via EF on first run):
 
 ```bash
 dotnet run --project src/Memoressa.Api
 ```
 
-4. Open Swagger UI: `https://localhost:7xxx/swagger` (port shown in console output)
+3. Open Swagger UI: `https://localhost:7xxx/swagger` (port shown in console output)
 
-Schema is defined by **SQL files** in `database/migrations/` (see `database/README.md`). EF Core maps entities only; the API does not run `Database.Migrate()` on startup.
+For RDS, schema is defined by **SQL files** in `database/migrations/` (see `database/README.md`). EF Core maps entities only; the API does not run `Database.Migrate()` on startup.
 
 ## Configuration
 
 Configuration is loaded from `src/Memoressa.Api/appsettings.json` and environment-specific overrides.
 
+### Database
+
+| Key | Values | Description |
+|-----|--------|-------------|
+| `Database:Target` | `Local` / `Rds` | **`Local`** → MySQL (local dev). **`Rds`** → PostgreSQL on Amazon RDS (release). |
+
 ### ConnectionStrings
 
-| Key | Description | Local dev default | Production (RDS) |
-|-----|-------------|-------------------|------------------|
-| `ConnectionStrings:DefaultConnection` | PostgreSQL (Npgsql) | `Host=localhost;Port=5432;Database=memoressa;Username=memoressa;Password=memoressa` | `Host=<rds-endpoint>;Port=5432;Database=memoressa;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true` |
+| Key | Used when | Description |
+|-----|-----------|-------------|
+| `ConnectionStrings:MySql` | `Database:Target=Local` | MySQL 8 (Pomelo). Default: `Server=localhost;Port=3306;Database=memoressa;User=memoressa;Password=memoressa` |
+| `ConnectionStrings:PostgreSql` | `Database:Target=Rds` | RDS PostgreSQL (Npgsql). Include `SSL Mode=Require;Trust Server Certificate=true` |
+
+`appsettings.json` sets `Target: Rds` (production default). `appsettings.Development.json` overrides to `Target: Local` for MySQL.
 
 RDS must be reachable from the API host (security group: EC2 → RDS on port 5432). Store credentials in environment variables or AWS Secrets Manager, not in git.
 
@@ -193,11 +195,13 @@ When Google/Facebook credentials are configured, ASP.NET Core external auth hand
 Any setting can be overridden with environment variables using `__` nesting, for example:
 
 ```bash
-# Local
-export ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=memoressa;Username=memoressa;Password=memoressa"
+# Local MySQL
+export Database__Target=Local
+export ConnectionStrings__MySql="Server=localhost;Port=3306;Database=memoressa;User=memoressa;Password=memoressa"
 
 # RDS (production)
-export ConnectionStrings__DefaultConnection="Host=your-instance.xxxxx.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
+export Database__Target=Rds
+export ConnectionStrings__PostgreSql="Host=your-instance.xxxxx.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
 export Jwt__SecretKey="your-production-secret-key"
 export InternalApi__ApiKey="your-internal-key"
 export Ai__OpenAiApiKey="sk-..."
@@ -465,9 +469,10 @@ dotnet test
 ```
 /workspace
 ├── database/
-│   ├── migrations/        # Incremental .sql schema (source of truth)
-│   ├── schema.sql         # Full schema (greenfield)
+│   ├── migrations/        # Incremental .sql schema for RDS PostgreSQL
+│   ├── schema.sql         # Full schema (greenfield RDS apply)
 │   ├── apply.sh           # Apply migrations to PostgreSQL
+│   ├── mysql/README.md    # Local MySQL dev notes
 │   └── README.md
 ├── docker-compose.yml
 ├── Memoressa.sln
@@ -483,7 +488,9 @@ dotnet test
 
 ## Database schema
 
-PostgreSQL schema lives in **`database/migrations/*.sql`**, not in EF Core migrations.
+**RDS (release):** PostgreSQL schema lives in **`database/migrations/*.sql`**, not in EF Core migrations.
+
+**Local (dev):** MySQL schema is created by EF `EnsureCreated()` on first Development run when `Database:Target=Local`.
 
 | File | Contents |
 |------|----------|

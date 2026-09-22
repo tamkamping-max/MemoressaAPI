@@ -116,6 +116,8 @@ var app = builder.Build();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+DatabaseBootstrap.EnsureDevelopmentSchema(app);
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

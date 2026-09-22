@@ -6,8 +6,12 @@
       "Microsoft.EntityFrameworkCore": "Warning"
     }
   },
+  "Database": {
+    "Target": "Rds"
+  },
   "ConnectionStrings": {
-    "DefaultConnection": "Host=YOUR_RDS_ENDPOINT.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=REPLACE_ME;SSL Mode=Require;Trust Server Certificate=true"
+    "MySql": "Server=localhost;Port=3306;Database=memoressa;User=memoressa;Password=memoressa",
+    "PostgreSql": "Host=YOUR_RDS_ENDPOINT.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=REPLACE_ME;SSL Mode=Require;Trust Server Certificate=true"
   },
   "Jwt": {
     "SecretKey": "REPLACE_WITH_LONG_RANDOM_SECRET"

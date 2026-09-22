@@ -1,7 +1,9 @@
-# Memoressa PostgreSQL Schema
+# Memoressa PostgreSQL Schema (RDS / release)
 
-**Production database:** Amazon **RDS PostgreSQL**.  
-**Schema source of truth:** the `.sql` files in `database/migrations/` (not EF Core).
+**Production database:** Amazon **RDS PostgreSQL** (`Database:Target` = **`Rds`**).  
+**Local development database:** **MySQL 8** (`Database:Target` = **`Local`**) — see [`mysql/README.md`](mysql/README.md).
+
+**Schema source of truth (RDS only):** the `.sql` files in `database/migrations/`, not EF Core.
 
 EF Core (`MemoressaDbContext`) maps C# entities to these tables at runtime only. When you change the schema, edit or add SQL here, then update the Domain entities / EF configurations to match.
 
@@ -51,12 +53,13 @@ psql -v ON_ERROR_STOP=1 -f database/schema.sql
 Set the connection string on EC2 (environment variable or secrets manager):
 
 ```bash
-export ConnectionStrings__DefaultConnection="Host=your-instance.xxxxx.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
+export Database__Target=Rds
+export ConnectionStrings__PostgreSql="Host=your-instance.xxxxx.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
 ```
 
 See `src/Memoressa.Api/appsettings.Production.json.example`.
 
-Npgsql uses this string in `Memoressa.Infrastructure` → `UseNpgsql(...)`. The API **does not** auto-apply schema on startup; run SQL deploy separately.
+When `Database:Target` is **`Rds`**, Npgsql uses `ConnectionStrings:PostgreSql`. The API **does not** auto-apply schema on startup; run SQL deploy separately.
 
 ### 4. Schema updates on RDS
 
@@ -69,20 +72,14 @@ Do **not** use `dotnet ef database update`.
 
 ## Local development (optional)
 
-Docker Postgres is for **local dev only**, not production:
+Local dev uses **MySQL** via Docker (`docker compose up -d`), not these PostgreSQL scripts:
 
 ```bash
-docker compose up -d
-./database/apply.sh
+docker compose up -d    # MySQL on :3306
+dotnet run --project src/Memoressa.Api   # Database:Target=Local → EnsureCreated
 ```
 
-Fresh Docker volumes auto-run `database/migrations/*.sql` via `docker-entrypoint-initdb.d`.
-
-Default local connection (see `appsettings.Development.json`):
-
-```
-Host=localhost;Port=5432;Database=memoressa;Username=memoressa;Password=memoressa
-```
+See [`mysql/README.md`](mysql/README.md). Use the PostgreSQL scripts in this folder **only for RDS**.
 
 ## Adding a schema change
 

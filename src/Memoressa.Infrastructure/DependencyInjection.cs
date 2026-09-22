@@ -13,13 +13,27 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<AwsS3Options>(configuration.GetSection(AwsS3Options.SectionName));
         services.Configure<AiOptions>(configuration.GetSection(AiOptions.SectionName));
         services.Configure<InternalApiOptions>(configuration.GetSection(InternalApiOptions.SectionName));
 
+        var connectionString = DatabaseConnection.ResolveConnectionString(configuration);
+
         services.AddDbContext<MemoressaDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+        {
+            if (DatabaseConnection.UsesPostgreSql(configuration))
+            {
+                options.UseNpgsql(connectionString);
+                return;
+            }
+
+            options.UseMySql(
+                connectionString,
+                ServerVersion.Parse("8.0.0-mysql"),
+                mySqlOptions => mySqlOptions.EnableStringComparisonTranslations());
+        });
 
         services.AddScoped<IMemoressaDbContext>(sp => sp.GetRequiredService<MemoressaDbContext>());
 

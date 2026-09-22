@@ -1,23 +1,22 @@
 services:
-  postgres:
-    image: postgres:16
-    container_name: memoressa-postgres
+  mysql:
+    image: mysql:8.0
+    container_name: memoressa-mysql
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "3306:3306"
     environment:
-      POSTGRES_DB: memoressa
-      POSTGRES_USER: memoressa
-      POSTGRES_PASSWORD: memoressa
+      MYSQL_ROOT_PASSWORD: memoressa
+      MYSQL_DATABASE: memoressa
+      MYSQL_USER: memoressa
+      MYSQL_PASSWORD: memoressa
     volumes:
-      - memoressa_pgdata:/var/lib/postgresql/data
-      # Local dev only — production uses Amazon RDS PostgreSQL
-      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+      - memoressa_mysqldata:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U memoressa -d memoressa"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-umemoressa", "-pmemoressa"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
 volumes:
-  memoressa_pgdata:
+  memoressa_mysqldata:
