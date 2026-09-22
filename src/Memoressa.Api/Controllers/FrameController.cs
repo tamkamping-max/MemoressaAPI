@@ -32,6 +32,16 @@ public class FrameController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpPost("devices/{deviceId:guid}/playback-packages/ensure")]
+    public async Task<IActionResult> EnsurePlaybackPackage(
+        Guid deviceId,
+        [FromBody] EnsurePlaybackPackageRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _frameService.EnsurePlaybackPackageAsync(deviceId, request, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("playback-packages/{packageId:guid}/comments")]
     public async Task<IActionResult> GetComments(Guid packageId, CancellationToken cancellationToken)
     {

@@ -274,6 +274,7 @@ public class FramePlaybackPackage : Entity
 {
     public Guid DisplayDeviceId { get; set; }
     public Guid FamilyId { get; set; }
+    public string? ExternalId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string PackageJson { get; set; } = "{}";
     public bool IsActive { get; set; }

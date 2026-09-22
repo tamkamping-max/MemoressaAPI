@@ -59,6 +59,7 @@ public class FrameService : IFrameService
         {
             DisplayDeviceId = deviceId,
             FamilyId = ctx.Value.FamilyId,
+            ExternalId = string.IsNullOrWhiteSpace(request.ExternalId) ? null : request.ExternalId.Trim(),
             Title = request.Title,
             PackageJson = request.PackageJson,
             IsActive = request.IsActive,
@@ -66,6 +67,75 @@ public class FrameService : IFrameService
         };
 
         _db.FramePlaybackPackages.Add(package);
+        await _db.SaveChangesAsync(cancellationToken);
+        return ServiceResult<FramePlaybackPackageDto>.Ok(package.ToDto());
+    }
+
+    public async Task<ServiceResult<FramePlaybackPackageDto>> EnsurePlaybackPackageAsync(
+        Guid deviceId,
+        EnsurePlaybackPackageRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<FramePlaybackPackageDto>.Fail("Unauthorized", 401);
+        }
+
+        var externalId = request.ExternalId.Trim();
+        if (string.IsNullOrWhiteSpace(externalId))
+        {
+            return ServiceResult<FramePlaybackPackageDto>.Fail("externalId is required");
+        }
+
+        var device = await _db.DisplayDevices.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == deviceId && d.FamilyId == ctx.Value.FamilyId, cancellationToken);
+
+        if (device is null)
+        {
+            return ServiceResult<FramePlaybackPackageDto>.NotFound("Device not found");
+        }
+
+        var package = await _db.FramePlaybackPackages
+            .FirstOrDefaultAsync(
+                p => p.DisplayDeviceId == deviceId
+                    && p.FamilyId == ctx.Value.FamilyId
+                    && p.ExternalId == externalId,
+                cancellationToken);
+
+        if (package is null)
+        {
+            package = new FramePlaybackPackage
+            {
+                DisplayDeviceId = deviceId,
+                FamilyId = ctx.Value.FamilyId,
+                ExternalId = externalId,
+                Title = request.Title,
+                PackageJson = request.PackageJson,
+                IsActive = request.IsActive,
+                SortOrder = request.SortOrder
+            };
+            _db.FramePlaybackPackages.Add(package);
+        }
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(request.Title))
+            {
+                package.Title = request.Title;
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.PackageJson))
+            {
+                package.PackageJson = request.PackageJson;
+            }
+
+            package.IsActive = request.IsActive;
+            if (request.SortOrder != 0)
+            {
+                package.SortOrder = request.SortOrder;
+            }
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
         return ServiceResult<FramePlaybackPackageDto>.Ok(package.ToDto());
     }

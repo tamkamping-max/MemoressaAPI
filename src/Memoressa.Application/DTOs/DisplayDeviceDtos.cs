@@ -51,6 +51,7 @@ public record FramePlaybackPackageDto
     [JsonPropertyName("id")] public Guid Id { get; init; }
     [JsonPropertyName("displayDeviceId")] public Guid DisplayDeviceId { get; init; }
     [JsonPropertyName("familyId")] public Guid FamilyId { get; init; }
+    [JsonPropertyName("externalId")] public string? ExternalId { get; init; }
     [JsonPropertyName("title")] public string Title { get; init; } = string.Empty;
     [JsonPropertyName("packageJson")] public string PackageJson { get; init; } = "{}";
     [JsonPropertyName("isActive")] public bool IsActive { get; init; }
@@ -59,6 +60,16 @@ public record FramePlaybackPackageDto
 
 public record CreatePlaybackPackageRequestDto
 {
+    [JsonPropertyName("externalId")] public string? ExternalId { get; init; }
+    [JsonPropertyName("title")] public string Title { get; init; } = string.Empty;
+    [JsonPropertyName("packageJson")] public string PackageJson { get; init; } = "{}";
+    [JsonPropertyName("isActive")] public bool IsActive { get; init; } = true;
+    [JsonPropertyName("sortOrder")] public int SortOrder { get; init; }
+}
+
+public record EnsurePlaybackPackageRequestDto
+{
+    [JsonPropertyName("externalId")] public string ExternalId { get; init; } = string.Empty;
     [JsonPropertyName("title")] public string Title { get; init; } = string.Empty;
     [JsonPropertyName("packageJson")] public string PackageJson { get; init; } = "{}";
     [JsonPropertyName("isActive")] public bool IsActive { get; init; } = true;

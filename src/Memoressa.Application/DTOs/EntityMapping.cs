@@ -139,6 +139,7 @@ public static class EntityMapping
         Id = package.Id,
         DisplayDeviceId = package.DisplayDeviceId,
         FamilyId = package.FamilyId,
+        ExternalId = package.ExternalId,
         Title = package.Title,
         PackageJson = package.PackageJson,
         IsActive = package.IsActive,

@@ -361,8 +361,11 @@ User-scoped custom journal tags (built-in tags remain client-side). Returns only
 |--------|------|-------------|
 | GET | `/devices/{deviceId}/playback-packages` | List playback packages |
 | POST | `/devices/{deviceId}/playback-packages` | Create playback package |
-| GET | `/playback-packages/{packageId}/comments` | List frame comments |
+| POST | `/devices/{deviceId}/playback-packages/ensure` | Upsert package by `externalId` (maps client ids like `remote_pkg_*` to server GUID) |
+| GET | `/playback-packages/{packageId}/comments` | List frame comments (requires server package GUID) |
 | POST | `/playback-packages/{packageId}/comments` | Add frame comment |
+
+`FramePlaybackPackage` stores optional `externalId` (unique per device). Comments always target the server `id` (GUID); the Flutter app calls **ensure** first when the local package id is not a GUID.
 
 ### Internal — `api/internal` (API key, no JWT)
 

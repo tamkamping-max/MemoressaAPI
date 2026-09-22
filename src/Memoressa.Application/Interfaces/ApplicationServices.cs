@@ -132,6 +132,7 @@ public interface IFrameService
 {
     Task<ServiceResult<IReadOnlyList<FramePlaybackPackageDto>>> GetPlaybackPackagesAsync(Guid deviceId, CancellationToken cancellationToken = default);
     Task<ServiceResult<FramePlaybackPackageDto>> CreatePlaybackPackageAsync(Guid deviceId, CreatePlaybackPackageRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult<FramePlaybackPackageDto>> EnsurePlaybackPackageAsync(Guid deviceId, EnsurePlaybackPackageRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<IReadOnlyList<FrameCommentDto>>> GetCommentsAsync(Guid packageId, CancellationToken cancellationToken = default);
     Task<ServiceResult<FrameCommentDto>> AddCommentAsync(Guid packageId, AddFrameCommentRequestDto request, CancellationToken cancellationToken = default);
 }

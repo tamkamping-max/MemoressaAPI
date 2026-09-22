@@ -38,6 +38,8 @@ public class FramePlaybackPackageConfiguration : IEntityTypeConfiguration<FrameP
         builder.ToTable("frame_playback_packages");
         builder.HasKey(x => x.Id);
         builder.HasIndex(x => x.DisplayDeviceId);
+        builder.Property(x => x.ExternalId).HasMaxLength(128);
+        builder.HasIndex(x => new { x.DisplayDeviceId, x.ExternalId }).IsUnique();
         builder.Property(x => x.PackageJson).HasColumnType("jsonb");
         builder.HasMany(x => x.Comments).WithOne(x => x.Package).HasForeignKey(x => x.PackageId).OnDelete(DeleteBehavior.Cascade);
     }
