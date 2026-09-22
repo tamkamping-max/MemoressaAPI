@@ -41,18 +41,32 @@ public class PhotoUrlResolverTests
         var photo = new Photo
         {
             S3Key = "uploads/family/user/photo.jpg",
-            ThumbnailS3Key = "uploads/family/user/photo_thumb.jpg"
+            ThumbnailS3Key = "uploads/family/user/thumb.jpg"
         };
 
         var dto = await resolver.ToDtoAsync(photo);
 
         Assert.Equal("GET:uploads/family/user/photo.jpg:15", dto.RemoteUrl);
-        Assert.Equal("GET:uploads/family/user/photo_thumb.jpg:15", dto.ThumbnailUrl);
+        Assert.Equal("GET:uploads/family/user/thumb.jpg:15", dto.ThumbnailUrl);
     }
 
     private sealed class FakeS3StorageService : IS3StorageService
     {
         public string BuildObjectKey(Guid familyId, Guid userId, string fileName) => fileName;
+
+        public string BuildThumbnailKey(string originalS3Key)
+        {
+            var lastSlash = originalS3Key.LastIndexOf('/');
+            return lastSlash < 0
+                ? $"{originalS3Key}_thumb.jpg"
+                : string.Concat(originalS3Key.AsSpan(0, lastSlash + 1), "thumb.jpg");
+        }
+
+        public Task<byte[]> GetObjectBytesAsync(string s3Key, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Array.Empty<byte>());
+
+        public Task PutObjectAsync(string s3Key, byte[] bytes, string contentType, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
 
         public Task<string> GetPresignedPutUrlAsync(string s3Key, string contentType, TimeSpan expiry, CancellationToken cancellationToken = default) =>
             Task.FromResult($"PUT:{s3Key}:{expiry.TotalMinutes}");

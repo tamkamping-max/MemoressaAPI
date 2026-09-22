@@ -59,6 +59,43 @@ public class S3StorageService : IS3StorageService, IDisposable
         return await Task.FromResult(_s3Client.GetPreSignedURL(request));
     }
 
+    public async Task<byte[]> GetObjectBytesAsync(string s3Key, CancellationToken cancellationToken = default)
+    {
+        using var response = await _s3Client.GetObjectAsync(_options.BucketName, s3Key, cancellationToken);
+        using var memory = new MemoryStream();
+        await response.ResponseStream.CopyToAsync(memory, cancellationToken);
+        return memory.ToArray();
+    }
+
+    public async Task PutObjectAsync(
+        string s3Key,
+        byte[] bytes,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        using var stream = new MemoryStream(bytes);
+        var request = new PutObjectRequest
+        {
+            BucketName = _options.BucketName,
+            Key = s3Key,
+            InputStream = stream,
+            ContentType = contentType
+        };
+
+        await _s3Client.PutObjectAsync(request, cancellationToken);
+    }
+
+    public string BuildThumbnailKey(string originalS3Key)
+    {
+        var lastSlash = originalS3Key.LastIndexOf('/');
+        if (lastSlash < 0)
+        {
+            return $"{originalS3Key}_thumb.jpg";
+        }
+
+        return string.Concat(originalS3Key.AsSpan(0, lastSlash + 1), "thumb.jpg");
+    }
+
     private IAmazonS3 CreateClient()
     {
         var config = new AmazonS3Config

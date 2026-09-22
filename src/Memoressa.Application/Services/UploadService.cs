@@ -15,6 +15,7 @@ public class UploadService : IUploadService
     private readonly ICurrentUserService _currentUser;
     private readonly IS3StorageService _s3;
     private readonly IPhotoUrlResolver _photoUrls;
+    private readonly IThumbnailGenerationService _thumbnails;
     private readonly MediaStorageSettings _storageSettings;
 
     public UploadService(
@@ -22,12 +23,14 @@ public class UploadService : IUploadService
         ICurrentUserService currentUser,
         IS3StorageService s3,
         IPhotoUrlResolver photoUrls,
+        IThumbnailGenerationService thumbnails,
         IOptions<MediaStorageSettings> storageSettings)
     {
         _db = db;
         _currentUser = currentUser;
         _s3 = s3;
         _photoUrls = photoUrls;
+        _thumbnails = thumbnails;
         _storageSettings = storageSettings.Value;
     }
 
@@ -96,6 +99,16 @@ public class UploadService : IUploadService
                 .Include(p => p.PhotoMembers)
                 .Include(p => p.AiTags)
                 .FirstAsync(p => p.Id == session.ResultPhotoId.Value, cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(existing.ThumbnailS3Key))
+            {
+                await _thumbnails.GenerateAndStoreAsync(existing.Id, cancellationToken);
+                existing = await _db.Photos
+                    .Include(p => p.PhotoMembers)
+                    .Include(p => p.AiTags)
+                    .FirstAsync(p => p.Id == existing.Id, cancellationToken);
+            }
+
             return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(existing, cancellationToken: cancellationToken));
         }
 
@@ -124,8 +137,13 @@ public class UploadService : IUploadService
         session.ResultPhotoId = photo.Id;
         await _db.SaveChangesAsync(cancellationToken);
 
-        photo.PhotoMembers = [];
-        photo.AiTags = [];
+        await _thumbnails.GenerateAndStoreAsync(photo.Id, cancellationToken);
+
+        photo = await _db.Photos
+            .Include(p => p.PhotoMembers)
+            .Include(p => p.AiTags)
+            .FirstAsync(p => p.Id == photo.Id, cancellationToken);
+
         return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken));
     }
 }

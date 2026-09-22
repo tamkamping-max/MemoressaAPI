@@ -89,7 +89,24 @@ The bucket is **private**. The database stores only object keys:
 When the app calls photo endpoints (`GET /api/v1/photos`, timeline, upload complete, etc.), the API generates **short-lived presigned GET URLs** and returns them as:
 
 - `remoteUrl` — full image
-- `thumbnailUrl` / `thumbnailPath` — thumbnail (currently same object as full image when no separate thumbnail is uploaded)
+- `thumbnailUrl` / `thumbnailPath` — dedicated thumbnail object (`thumb.jpg` next to the original in S3)
+
+### Server-side thumbnail generation
+
+After `POST /api/v1/uploads/{sessionId}/complete`, the API:
+
+1. Downloads the original from private S3
+2. Generates a JPEG thumbnail (max edge **480px**, quality **82** — same as MemoressaApp)
+3. Uploads it to `{same-folder}/thumb.jpg` and stores `ThumbnailS3Key`
+
+| Media | Processor |
+|-------|-----------|
+| `image/*` | ImageSharp resize → JPEG |
+| `video/*` | ffmpeg frame at 1s → ImageSharp resize (requires `ffmpeg` on EC2) |
+
+Configure via `AwsS3:ThumbnailMaxEdgePixels`, `ThumbnailJpegQuality`, `ThumbnailMaxSourceBytes`, `FfmpegPath`.
+
+If thumbnail generation fails, upload still succeeds; presigned thumbnail URLs fall back to the full object until a retry (`complete` idempotency will attempt generation again).
 
 Upload flow:
 
