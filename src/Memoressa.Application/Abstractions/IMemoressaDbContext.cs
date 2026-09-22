@@ -38,6 +38,8 @@ public interface IMemoressaDbContext
     DbSet<UserAiSetting> UserAiSettings { get; }
     DbSet<Notification> Notifications { get; }
     DbSet<TodayHighlightCache> TodayHighlightCaches { get; }
+    DbSet<AiChatSession> AiChatSessions { get; }
+    DbSet<AiChatMessage> AiChatMessages { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

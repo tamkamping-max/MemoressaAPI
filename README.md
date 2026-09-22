@@ -261,6 +261,41 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | POST | `/inferences/{photoId}/confirm?memberId=` | Confirm AI member inference |
 | POST | `/inferences/{photoId}/reject` | Reject AI inference |
 
+### AI Agent (OpenAI chat) — `api/v1/ai/agent`
+
+Conversational assistant for the MemoressaApp top-left AI entry. Uses OpenAI Chat Completions with family memory search as RAG context.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/chat` | Send a message; returns natural-language reply + memory/photo links |
+| GET | `/sessions/{sessionId}/messages` | Reload a chat session history |
+
+**POST `/chat` request**
+
+```json
+{
+  "message": "找妈妈2018夏天的照片",
+  "sessionId": "optional-uuid-for-multi-turn",
+  "locale": "zh-TW"
+}
+```
+
+**Response**
+
+```json
+{
+  "sessionId": "uuid",
+  "reply": "我找到了…",
+  "memoryId": "uuid",
+  "photoId": "uuid",
+  "thumbnailUrl": "presigned-get-url",
+  "matchReasonKeys": ["familyRelation", "semantic"],
+  "relatedMemories": [ { "memoryId": "...", "title": "...", "thumbnailPath": "...", "matchReasons": [], "relevanceScore": 0.9 } ]
+}
+```
+
+Requires `Ai:OpenAiApiKey`. When the key is missing, the API falls back to search-only templated replies (no LLM).
+
 ### Settings — `api/v1/settings`
 
 | Method | Path | Description |

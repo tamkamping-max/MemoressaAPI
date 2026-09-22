@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IFrameService, FrameService>();
         services.AddScoped<IInternalRealtimeService, InternalRealtimeService>();
+        services.AddScoped<IAiAgentService, AiAgentService>();
 
         return services;
     }

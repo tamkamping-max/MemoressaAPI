@@ -377,3 +377,22 @@ public class TodayHighlightCache : Entity
     public Family Family { get; set; } = null!;
     public Memory Memory { get; set; } = null!;
 }
+
+public class AiChatSession : Entity
+{
+    public Guid UserId { get; set; }
+    public Guid FamilyId { get; set; }
+    public UserAccount User { get; set; } = null!;
+    public ICollection<AiChatMessage> Messages { get; set; } = [];
+}
+
+public class AiChatMessage : Entity
+{
+    public Guid SessionId { get; set; }
+    public string Role { get; set; } = "user";
+    public string Content { get; set; } = string.Empty;
+    public Guid? MemoryId { get; set; }
+    public Guid? PhotoId { get; set; }
+    public string? MatchReasonKeysJson { get; set; }
+    public AiChatSession Session { get; set; } = null!;
+}

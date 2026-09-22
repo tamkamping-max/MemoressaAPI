@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IS3StorageService, S3StorageService>();
         services.AddScoped<IPhotoUrlResolver, PhotoUrlResolver>();
         services.AddScoped<IThumbnailGenerationService, ThumbnailGenerationService>();
+        services.AddScoped<IOpenAiAgentService, OpenAiAgentService>();
         services.AddScoped<IAiOrchestrationService, AiOrchestrationService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();

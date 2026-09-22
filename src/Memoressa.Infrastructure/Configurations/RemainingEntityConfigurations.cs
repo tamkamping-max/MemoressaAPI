@@ -111,3 +111,26 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
         builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class AiChatSessionConfiguration : IEntityTypeConfiguration<AiChatSession>
+{
+    public void Configure(EntityTypeBuilder<AiChatSession> builder)
+    {
+        builder.ToTable("ai_chat_sessions");
+        builder.HasKey(x => x.Id);
+        builder.HasIndex(x => new { x.UserId, x.UpdatedAt });
+        builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(x => x.Messages).WithOne(x => x.Session).HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class AiChatMessageConfiguration : IEntityTypeConfiguration<AiChatMessage>
+{
+    public void Configure(EntityTypeBuilder<AiChatMessage> builder)
+    {
+        builder.ToTable("ai_chat_messages");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Role).HasMaxLength(16).IsRequired();
+        builder.HasIndex(x => new { x.SessionId, x.CreatedAt });
+    }
+}
