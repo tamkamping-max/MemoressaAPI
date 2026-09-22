@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: memoressa-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: memoressa
+      POSTGRES_USER: memoressa
+      POSTGRES_PASSWORD: memoressa
+    volumes:
+      - memoressa_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memoressa -d memoressa"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  memoressa_pgdata:

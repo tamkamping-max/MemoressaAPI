@@ -64,3 +64,14 @@ public record AccountDeletionStatusDto
     [JsonPropertyName("effectiveAt")] public DateTime? EffectiveAt { get; init; }
     [JsonPropertyName("daysUntilDeletion")] public int? DaysUntilDeletion { get; init; }
 }
+
+public record AccountDeletionRequestDto
+{
+    [JsonPropertyName("password")] public string Password { get; init; } = string.Empty;
+}
+
+public record OAuthLoginRequestDto
+{
+    [JsonPropertyName("idToken")] public string? IdToken { get; init; }
+    [JsonPropertyName("accessToken")] public string? AccessToken { get; init; }
+}

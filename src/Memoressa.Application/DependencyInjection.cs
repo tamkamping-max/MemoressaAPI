@@ -1,13 +1,19 @@
+using Memoressa.Application.Common;
 using Memoressa.Application.Interfaces;
 using Memoressa.Application.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Memoressa.Application;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddApplication(this IServiceCollection services)
+    public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<OAuthSettings>(configuration.GetSection(OAuthSettings.SectionName));
+        services.AddHttpClient("GoogleOAuth");
+        services.AddHttpClient("FacebookOAuth");
+
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IMemoryService, MemoryService>();
         services.AddScoped<IPhotoService, PhotoService>();
