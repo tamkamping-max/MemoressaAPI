@@ -74,7 +74,30 @@ Configuration is loaded from `src/Memoressa.Api/appsettings.json` and environmen
 | `AwsS3:SecretKey` | AWS secret key |
 | `AwsS3:ServiceUrl` | Custom S3-compatible endpoint (optional) |
 | `AwsS3:KeyPrefix` | Object key prefix |
-| `AwsS3:PresignedUrlExpiryMinutes` | Presigned URL expiry |
+| `AwsS3:PresignedUrlExpiryMinutes` | Presigned GET/PUT URL expiry for API responses |
+| `AwsS3:AiPresignedUrlExpiryMinutes` | Presigned GET expiry for server-side AI (OpenAI Vision) |
+
+### Private S3 media access
+
+The bucket is **private**. The database stores only object keys:
+
+- `Photo.S3Key` — original photo/video
+- `Photo.ThumbnailS3Key` — optional dedicated thumbnail object (when absent, thumbnail URLs use `S3Key`)
+
+`RemoteUrl` / `ThumbnailUrl` columns are legacy and are **not written** on upload complete.
+
+When the app calls photo endpoints (`GET /api/v1/photos`, timeline, upload complete, etc.), the API generates **short-lived presigned GET URLs** and returns them as:
+
+- `remoteUrl` — full image
+- `thumbnailUrl` / `thumbnailPath` — thumbnail (currently same object as full image when no separate thumbnail is uploaded)
+
+Upload flow:
+
+1. `POST /api/v1/uploads/start` → presigned **PUT** URL + `s3Key`
+2. Client uploads directly to S3
+3. `POST /api/v1/uploads/{sessionId}/complete` → creates `Photo` with `S3Key` only, response includes presigned GET URLs
+
+For production at scale, you can swap presigned GET for **CloudFront signed URLs** inside `IPhotoUrlResolver` without changing the REST contract.
 
 ### Ai
 

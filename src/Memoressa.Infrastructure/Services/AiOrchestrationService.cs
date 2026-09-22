@@ -19,6 +19,7 @@ public class AiOrchestrationService : IAiOrchestrationService
     private readonly AiOptions _options;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<AiOrchestrationService> _logger;
+    private readonly IPhotoUrlResolver _photoUrls;
     private readonly Random _random = new();
 
     private static readonly TransitionType[] Transitions =
@@ -33,12 +34,14 @@ public class AiOrchestrationService : IAiOrchestrationService
         IMemoressaDbContext db,
         IOptions<AiOptions> options,
         IHttpClientFactory httpClientFactory,
-        ILogger<AiOrchestrationService> logger)
+        ILogger<AiOrchestrationService> logger,
+        IPhotoUrlResolver photoUrls)
     {
         _db = db;
         _options = options.Value;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _photoUrls = photoUrls;
     }
 
     public async Task<AiAnalysisResultDto> AnalyzePhotosAsync(
@@ -150,7 +153,8 @@ public class AiOrchestrationService : IAiOrchestrationService
             .Where(p => p.FamilyId == familyId)
             .ToDictionaryAsync(p => p.Id, cancellationToken);
 
-        return combined.Select(m =>
+        var results = new List<SearchResultDto>();
+        foreach (var m in combined)
         {
             var reasons = new List<string>();
             if (m.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
@@ -177,18 +181,21 @@ public class AiOrchestrationService : IAiOrchestrationService
             var firstPhotoId = m.MemoryPhotos.OrderBy(mp => mp.SortOrder).Select(mp => mp.PhotoId).FirstOrDefault();
             if (firstPhotoId != Guid.Empty && photoLookup.TryGetValue(firstPhotoId, out var photo))
             {
-                thumb = photo.ThumbnailUrl ?? photo.RemoteUrl ?? photo.LocalAssetPath;
+                thumb = await _photoUrls.GetPresignedUrlAsync(photo, thumbnail: true, cancellationToken: cancellationToken)
+                    ?? photo.LocalAssetPath;
             }
 
-            return new SearchResultDto
+            results.Add(new SearchResultDto
             {
                 MemoryId = m.Id,
                 Title = m.Title,
                 ThumbnailPath = thumb,
                 MatchReasons = reasons,
                 RelevanceScore = 0.75 + _random.NextDouble() * 0.25
-            };
-        }).OrderByDescending(r => r.RelevanceScore).ToList();
+            });
+        }
+
+        return results.OrderByDescending(r => r.RelevanceScore).ToList();
     }
 
     public async Task<IReadOnlyList<PlaybackItemDto>> GeneratePlaybackAsync(
@@ -232,18 +239,29 @@ public class AiOrchestrationService : IAiOrchestrationService
                 .ToList();
         }
 
-        return photos.Select((photo, index) => new PlaybackItemDto
+        var items = new List<PlaybackItemDto>();
+        for (var index = 0; index < photos.Count; index++)
         {
-            PhotoId = photo.Id,
-            AssetPath = photo.RemoteUrl ?? photo.LocalAssetPath ?? string.Empty,
-            Title = photo.Description,
-            Description = photo.Location,
-            Date = photo.TakenAt,
-            MemberNames = photo.PhotoMembers.Select(pm => pm.FamilyMember.Name).Distinct().ToList(),
-            Generation = photo.Generation,
-            Transition = Transitions[index % Transitions.Length],
-            DisplayDurationSeconds = 5
-        }).ToList();
+            var photo = photos[index];
+            var assetPath = await _photoUrls.GetPresignedUrlAsync(photo, thumbnail: false, cancellationToken: cancellationToken)
+                ?? photo.LocalAssetPath
+                ?? string.Empty;
+
+            items.Add(new PlaybackItemDto
+            {
+                PhotoId = photo.Id,
+                AssetPath = assetPath,
+                Title = photo.Description,
+                Description = photo.Location,
+                Date = photo.TakenAt,
+                MemberNames = photo.PhotoMembers.Select(pm => pm.FamilyMember.Name).Distinct().ToList(),
+                Generation = photo.Generation,
+                Transition = Transitions[index % Transitions.Length],
+                DisplayDurationSeconds = 5
+            });
+        }
+
+        return items;
     }
 
     public async Task<MemoryDto> CreateAiMemoryAsync(
@@ -347,7 +365,13 @@ public class AiOrchestrationService : IAiOrchestrationService
 
             foreach (var photo in photos)
             {
-                if (string.IsNullOrWhiteSpace(photo.RemoteUrl))
+                var imageUrl = await _photoUrls.GetPresignedUrlAsync(
+                    photo,
+                    thumbnail: false,
+                    PhotoUrlPurpose.AiProcessing,
+                    cancellationToken);
+
+                if (string.IsNullOrWhiteSpace(imageUrl))
                 {
                     continue;
                 }
@@ -363,7 +387,7 @@ public class AiOrchestrationService : IAiOrchestrationService
                             content = new object[]
                             {
                                 new { type = "text", text = "Describe this family photo briefly and list up to 5 tags." },
-                                new { type = "image_url", image_url = new { url = photo.RemoteUrl } }
+                                new { type = "image_url", image_url = new { url = imageUrl } }
                             }
                         }
                     },

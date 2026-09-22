@@ -8,6 +8,7 @@ public record PhotoDto
     [JsonPropertyName("id")] public Guid Id { get; init; }
     [JsonPropertyName("assetPath")] public string AssetPath { get; init; } = string.Empty;
     [JsonPropertyName("thumbnailPath")] public string? ThumbnailPath { get; init; }
+    [JsonPropertyName("thumbnailUrl")] public string? ThumbnailUrl { get; init; }
     [JsonPropertyName("remoteUrl")] public string? RemoteUrl { get; init; }
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
     [JsonPropertyName("location")] public string? Location { get; init; }

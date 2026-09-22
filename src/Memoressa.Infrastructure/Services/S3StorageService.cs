@@ -59,17 +59,6 @@ public class S3StorageService : IS3StorageService, IDisposable
         return await Task.FromResult(_s3Client.GetPreSignedURL(request));
     }
 
-    public string GetPublicUrl(string s3Key)
-    {
-        if (!string.IsNullOrWhiteSpace(_options.ServiceUrl))
-        {
-            return $"{_options.ServiceUrl.TrimEnd('/')}/{_options.BucketName}/{s3Key}";
-        }
-
-        var region = RegionEndpoint.GetBySystemName(_options.Region);
-        return $"https://{_options.BucketName}.s3.{region.SystemName}.amazonaws.com/{s3Key}";
-    }
-
     private IAmazonS3 CreateClient()
     {
         var config = new AmazonS3Config

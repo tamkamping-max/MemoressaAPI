@@ -11,6 +11,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<OAuthSettings>(configuration.GetSection(OAuthSettings.SectionName));
+        services.Configure<MediaStorageSettings>(configuration.GetSection(MediaStorageSettings.SectionName));
         services.AddHttpClient("GoogleOAuth");
         services.AddHttpClient("FacebookOAuth");
 

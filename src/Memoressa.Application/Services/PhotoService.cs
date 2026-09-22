@@ -10,11 +10,16 @@ public class PhotoService : IPhotoService
 {
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly IPhotoUrlResolver _photoUrls;
 
-    public PhotoService(IMemoressaDbContext db, ICurrentUserService currentUser)
+    public PhotoService(
+        IMemoressaDbContext db,
+        ICurrentUserService currentUser,
+        IPhotoUrlResolver photoUrls)
     {
         _db = db;
         _currentUser = currentUser;
+        _photoUrls = photoUrls;
     }
 
     public async Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetPhotosAsync(CancellationToken cancellationToken = default)
@@ -26,7 +31,7 @@ public class PhotoService : IPhotoService
         }
 
         var photos = await QueryPhotos(ctx.Value.FamilyId).OrderByDescending(p => p.TakenAt).ToListAsync(cancellationToken);
-        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(photos.Select(p => p.ToDto()).ToList());
+        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken));
     }
 
     public async Task<ServiceResult<PhotoDto>> GetPhotoByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -40,7 +45,7 @@ public class PhotoService : IPhotoService
         var photo = await QueryPhotos(ctx.Value.FamilyId).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         return photo is null
             ? ServiceResult<PhotoDto>.NotFound("Photo not found")
-            : ServiceResult<PhotoDto>.Ok(photo.ToDto());
+            : ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken));
     }
 
     public async Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetPhotosByDateAsync(
@@ -58,7 +63,7 @@ public class PhotoService : IPhotoService
             .OrderBy(p => p.TakenAt)
             .ToListAsync(cancellationToken);
 
-        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(photos.Select(p => p.ToDto()).ToList());
+        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken));
     }
 
     public async Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetPhotosByMemberAsync(
@@ -76,7 +81,7 @@ public class PhotoService : IPhotoService
             .OrderByDescending(p => p.TakenAt)
             .ToListAsync(cancellationToken);
 
-        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(photos.Select(p => p.ToDto()).ToList());
+        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken));
     }
 
     public async Task<ServiceResult<PhotoDto>> UpdatePhotoAsync(
@@ -135,7 +140,7 @@ public class PhotoService : IPhotoService
 
         await _db.SaveChangesAsync(cancellationToken);
         var updated = await QueryPhotos(ctx.Value.FamilyId).FirstAsync(p => p.Id == id, cancellationToken);
-        return ServiceResult<PhotoDto>.Ok(updated.ToDto());
+        return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(updated, cancellationToken: cancellationToken));
     }
 
     public async Task<ServiceResult> HidePhotoAsync(Guid id, CancellationToken cancellationToken = default)
@@ -158,7 +163,7 @@ public class PhotoService : IPhotoService
             .Take(200)
             .ToListAsync(cancellationToken);
 
-        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(photos.Select(p => p.ToDto()).ToList());
+        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken));
     }
 
     private IQueryable<Domain.Entities.Photo> QueryPhotos(Guid familyId) =>

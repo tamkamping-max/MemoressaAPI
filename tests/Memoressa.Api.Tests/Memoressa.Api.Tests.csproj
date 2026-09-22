@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Memoressa.Api\Memoressa.Api.csproj" />
+    <ProjectReference Include="..\..\src\Memoressa.Infrastructure\Memoressa.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -96,10 +96,15 @@ public class Photo : Entity, IFamilyScoped
 {
     public Guid FamilyId { get; set; }
     public Guid UploadedByUserId { get; set; }
+    /// <summary>Local device path for demo/offline assets only.</summary>
     public string? LocalAssetPath { get; set; }
+    /// <summary>Private S3 object key for the original media. URLs are generated at read time.</summary>
     public string? S3Key { get; set; }
+    /// <summary>Optional separate thumbnail object key. When null, thumbnail URLs use <see cref="S3Key"/>.</summary>
     public string? ThumbnailS3Key { get; set; }
+    /// <summary>Legacy column — do not persist public URLs for private buckets.</summary>
     public string? RemoteUrl { get; set; }
+    /// <summary>Legacy column — do not persist public URLs for private buckets.</summary>
     public string? ThumbnailUrl { get; set; }
     public DateTime? TakenAt { get; set; }
     public string? Location { get; set; }

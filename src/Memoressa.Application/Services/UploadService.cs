@@ -5,25 +5,30 @@ using Memoressa.Application.Interfaces;
 using Memoressa.Domain.Entities;
 using Memoressa.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Memoressa.Application.Services;
 
 public class UploadService : IUploadService
 {
-    private const int PresignedUrlExpiryMinutes = 15;
-
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IS3StorageService _s3;
+    private readonly IPhotoUrlResolver _photoUrls;
+    private readonly MediaStorageSettings _storageSettings;
 
     public UploadService(
         IMemoressaDbContext db,
         ICurrentUserService currentUser,
-        IS3StorageService s3)
+        IS3StorageService s3,
+        IPhotoUrlResolver photoUrls,
+        IOptions<MediaStorageSettings> storageSettings)
     {
         _db = db;
         _currentUser = currentUser;
         _s3 = s3;
+        _photoUrls = photoUrls;
+        _storageSettings = storageSettings.Value;
     }
 
     public async Task<ServiceResult<UploadSessionDto>> StartUploadAsync(
@@ -37,7 +42,7 @@ public class UploadService : IUploadService
         }
 
         var s3Key = _s3.BuildObjectKey(ctx.Value.FamilyId, ctx.Value.UserId, request.FileName);
-        var expiry = TimeSpan.FromMinutes(PresignedUrlExpiryMinutes);
+        var expiry = TimeSpan.FromMinutes(_storageSettings.PresignedUrlExpiryMinutes);
         var presignedUrl = await _s3.GetPresignedPutUrlAsync(s3Key, request.ContentType, expiry, cancellationToken);
 
         var session = new UploadSession
@@ -91,7 +96,7 @@ public class UploadService : IUploadService
                 .Include(p => p.PhotoMembers)
                 .Include(p => p.AiTags)
                 .FirstAsync(p => p.Id == session.ResultPhotoId.Value, cancellationToken);
-            return ServiceResult<PhotoDto>.Ok(existing.ToDto());
+            return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(existing, cancellationToken: cancellationToken));
         }
 
         if (session.ExpiresAt < DateTime.UtcNow)
@@ -101,17 +106,16 @@ public class UploadService : IUploadService
             return ServiceResult<PhotoDto>.Fail("Upload session expired", 410);
         }
 
-        var remoteUrl = _s3.GetPublicUrl(session.S3Key);
         var photo = new Photo
         {
             FamilyId = session.FamilyId,
             UploadedByUserId = session.UserId,
             S3Key = session.S3Key,
-            RemoteUrl = remoteUrl,
             ContentType = session.ContentType,
             FileSizeBytes = session.FileSizeBytes,
             PrivacyScope = session.PrivacyScope,
             SharedAlbumId = session.SharedAlbumId,
+            TakenAt = session.CreatedAt,
             Visibility = MemoryVisibility.Family
         };
 
@@ -119,6 +123,9 @@ public class UploadService : IUploadService
         session.Status = UploadSessionStatus.Completed;
         session.ResultPhotoId = photo.Id;
         await _db.SaveChangesAsync(cancellationToken);
-        return ServiceResult<PhotoDto>.Ok(photo.ToDto());
+
+        photo.PhotoMembers = [];
+        photo.AiTags = [];
+        return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken));
     }
 }

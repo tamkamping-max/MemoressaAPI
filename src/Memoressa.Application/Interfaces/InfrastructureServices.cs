@@ -23,7 +23,6 @@ public interface IS3StorageService
     string BuildObjectKey(Guid familyId, Guid userId, string fileName);
     Task<string> GetPresignedPutUrlAsync(string s3Key, string contentType, TimeSpan expiry, CancellationToken cancellationToken = default);
     Task<string> GetPresignedGetUrlAsync(string s3Key, TimeSpan expiry, CancellationToken cancellationToken = default);
-    string GetPublicUrl(string s3Key);
 }
 
 public interface IAiOrchestrationService
