@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Memoressa.Application.Json;
 using Memoressa.Domain.Enums;
 
 namespace Memoressa.Application.DTOs;
@@ -55,6 +56,7 @@ public record StartUploadRequestDto
     [JsonPropertyName("livePhotoVideoFileName")] public string? LivePhotoVideoFileName { get; init; }
     [JsonPropertyName("livePhotoVideoContentType")] public string? LivePhotoVideoContentType { get; init; }
     [JsonPropertyName("mediaKind")] public MediaKind MediaKind { get; init; } = MediaKind.Photo;
+    [JsonConverter(typeof(UploadPrivacyScopeJsonConverter))]
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope PrivacyScope { get; init; } = UploadPrivacyScope.Family;
     [JsonPropertyName("sharedAlbumId")] public Guid? SharedAlbumId { get; init; }
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
