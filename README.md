@@ -289,6 +289,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | PUT | `/{id}` | Update photo metadata |
 | POST | `/{id}/hide` | Hide photo |
 | GET | `/timeline` | Timeline photos (cursor pagination; default `limit=20`, max 50). Query: `?limit=20&cursor=...`. Response: `{ items, nextCursor, hasMore }` |
+| POST | `/today-memories` | **今日回憶** photo strip (4–50 items). Body: optional `date`, `currentLocation`, `isTraveling`, `travelLocation`, `occasions[]`. Response: `{ items, strategy, referenceDate }` |
 
 ### Family Members — `api/v1/family-members`
 

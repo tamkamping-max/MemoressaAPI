@@ -83,4 +83,13 @@ public class PhotosController : ControllerBase
         var result = await _photoService.GetTimelinePhotosAsync(limit, cursor, cancellationToken);
         return result.ToActionResult();
     }
+
+    [HttpPost("today-memories")]
+    public async Task<IActionResult> GetTodayMemories(
+        [FromBody] TodayMemoriesRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _photoService.GetTodayMemoriesAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
 }

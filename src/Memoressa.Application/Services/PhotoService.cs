@@ -310,6 +310,71 @@ public class PhotoService : IPhotoService
         return ServiceResult.Ok();
     }
 
+    public async Task<ServiceResult<TodayMemoriesResponseDto>> GetTodayMemoriesAsync(
+        TodayMemoriesRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<TodayMemoriesResponseDto>.Fail("Unauthorized", 401);
+        }
+
+        var referenceDate = request.Date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var photos = await QueryPhotos(ctx.Value.FamilyId)
+            .Include(p => p.AiTags)
+            .ToListAsync(cancellationToken);
+
+        var birthdayMemberIds = await _db.FamilyMembers.AsNoTracking()
+            .Where(m => m.FamilyId == ctx.Value.FamilyId && m.BirthDate != null)
+            .ToListAsync(cancellationToken);
+
+        var birthdayIds = birthdayMemberIds
+            .Where(m =>
+            {
+                var birth = DateOnly.FromDateTime(m.BirthDate!.Value);
+                return birth.Month == referenceDate.Month && birth.Day == referenceDate.Day;
+            })
+            .Select(m => m.Id)
+            .ToList();
+
+        var random = new Random(HashCode.Combine(ctx.Value.FamilyId, referenceDate.Year, referenceDate.Month, referenceDate.Day));
+        var (skeleton, entries) = TodayMemoriesComposer.Compose(
+            photos,
+            referenceDate,
+            request,
+            birthdayIds,
+            random);
+
+        if (entries.Count == 0)
+        {
+            return ServiceResult<TodayMemoriesResponseDto>.Ok(skeleton);
+        }
+
+        var photoEntities = entries.Select(e => e.Photo).ToList();
+        var dtos = await _photoUrls.ToDtosAsync(photoEntities, cancellationToken: cancellationToken);
+        var items = new List<TodayMemoryPhotoItemDto>(entries.Count);
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var entry = entries[i];
+            items.Add(new TodayMemoryPhotoItemDto
+            {
+                Photo = dtos[i],
+                Reason = entry.Reason,
+                YearsAgo = entry.YearsAgo,
+                OccasionKind = entry.OccasionKind
+            });
+        }
+
+        return ServiceResult<TodayMemoriesResponseDto>.Ok(new TodayMemoriesResponseDto
+        {
+            ReferenceDate = skeleton.ReferenceDate,
+            Strategy = skeleton.Strategy,
+            Items = items
+        });
+    }
+
     private IQueryable<Domain.Entities.Photo> QueryPhotos(Guid familyId) =>
         _db.Photos.AsNoTracking()
             .Where(p => p.FamilyId == familyId)
