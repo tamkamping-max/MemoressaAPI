@@ -7,8 +7,8 @@ REST API backend for the Memoressa family memory platform, built with ASP.NET Co
 ```
 EC2 REST API  ──►  RDS PostgreSQL  (schema: database/migrations/*.sql)
               ──►  Private S3        (photos; keys in RDS)
-WebSocket (WSS) ──►  same Kestrel as REST (`/ws/devices/{deviceId}` on port 443/7286)
-Go (optional)   ──►  legacy sidecar; internal REST `api/internal/` for polling
+Kestrel :7286   ──►  WSS `/ws/devices/*` proxied to WS backend (e.g. Go :8080)
+Go (optional)   ──►  `api/internal/` on REST API + device WS on :8080
 ```
 
 The solution follows a layered architecture:
@@ -104,18 +104,28 @@ Replace `192.168.1.131` with your machine’s LAN address. Trust the ASP.NET dev
 
 REST base URL for the mobile app: `https://<lan-ip>:7286/api/v1/...`
 
-### WebSocket (option A — same port as HTTPS)
+### WebSocket (option A — WSS on 7286, Go on 8080)
 
-REST and display-device WebSocket share **one TLS port** on Kestrel (no separate `:8080` listener):
+Clients only talk to **one WSS URL** on Kestrel. The .NET API terminates TLS and can reverse-proxy the socket to a plain **Go (or other) WebSocket server** on the LAN:
 
 | | URL |
 |---|-----|
 | REST | `https://192.168.1.131:7286/api/v1/...` |
-| WSS | `wss://192.168.1.131:7286/ws/devices/{deviceId}` |
+| WSS (client) | `wss://192.168.1.131:7286/ws/devices/{deviceId}` |
+| WS (backend, dev) | `ws://192.168.1.131:8080/ws/devices/{deviceId}` |
 
-The API maps `GET /ws/devices/{deviceId}` with a WebSocket upgrade. On connect the device is marked online; the server pushes pending frame commands every ~2s as `{"type":"commands","commands":[...]}`. Client messages: `{"type":"ping"}` → `{"type":"pong"}`, `{"type":"ack","commandId":"<guid>","success":true}`.
+Development (`appsettings.Development.json`):
 
-Internal polling endpoints under `api/internal/` remain available for optional Go sidecars.
+```json
+"WebSocketProxy": {
+  "Enabled": true,
+  "BackendBaseUrl": "http://192.168.1.131:8080"
+}
+```
+
+Flow: device → **WSS :7286** (Kestrel) → tunnel → **WS :8080** (same path/query). If the backend is down, the client gets **502**. Set `WebSocketProxy:Enabled` to `false` to handle `/ws/devices/...` inside ASP.NET instead (in-process command push).
+
+Internal HTTP under `api/internal/` is unchanged (Go can still call the REST API on 7286 with `X-Internal-Api-Key`).
 
 ### Database
 

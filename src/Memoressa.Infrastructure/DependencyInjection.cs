@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.Configure<AwsS3Options>(configuration.GetSection(AwsS3Options.SectionName));
         services.Configure<AiOptions>(configuration.GetSection(AiOptions.SectionName));
         services.Configure<InternalApiOptions>(configuration.GetSection(InternalApiOptions.SectionName));
+        services.Configure<WebSocketProxyOptions>(configuration.GetSection(WebSocketProxyOptions.SectionName));
 
         var connectionString = DatabaseConnection.ResolveConnectionString(configuration);
 

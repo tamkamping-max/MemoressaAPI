@@ -738,4 +738,8 @@ ALTER TABLE upload_sessions ADD CONSTRAINT `FK_upload_sessions_activity_albums_A
 
 ALTER TABLE user_ai_settings MODIFY `Key` varchar(128) NOT NULL;
 
+-- Memoressa MySQL schema migration: 011_user_oauth_links_provider_user_id_varchar.sql
+
+ALTER TABLE user_oauth_links MODIFY `ProviderUserId` varchar(256) NOT NULL;
+
 SET FOREIGN_KEY_CHECKS = 1;
