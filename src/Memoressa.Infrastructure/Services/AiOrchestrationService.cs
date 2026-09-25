@@ -6,6 +6,7 @@ using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Memoressa.Domain.Entities;
 using Memoressa.Domain.Enums;
+using Memoressa.Infrastructure.Data;
 using Memoressa.Infrastructure.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -113,20 +114,16 @@ public class AiOrchestrationService : IAiOrchestrationService
             return [];
         }
 
-        var pattern = $"%{query.Trim()}%";
+        var pattern = EfTextSearch.ToLikePattern(query);
+        var usePostgreSql = EfTextSearch.IsPostgreSqlProvider(_db);
 
-        var memories = await _db.Memories.AsNoTracking()
-            .Where(m => m.FamilyId == familyId)
-            .Where(m =>
-                EF.Functions.ILike(m.Title, pattern) ||
-                (m.Description != null && EF.Functions.ILike(m.Description, pattern)) ||
-                (m.Location != null && EF.Functions.ILike(m.Location, pattern)))
+        var memories = await EfTextSearch
+            .WhereMemoryTextMatches(_db.Memories.AsNoTracking().Where(m => m.FamilyId == familyId), pattern, usePostgreSql)
             .Include(m => m.MemoryPhotos)
             .ToListAsync(cancellationToken);
 
-        var tagMatches = await _db.Photos.AsNoTracking()
-            .Where(p => p.FamilyId == familyId)
-            .Where(p => p.AiTags.Any(t => EF.Functions.ILike(t.Tag, pattern)))
+        var tagMatches = await EfTextSearch
+            .WherePhotoTagMatches(_db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId), pattern, usePostgreSql)
             .Include(p => p.MemoryPhotos)
             .Include(p => p.AiTags)
             .ToListAsync(cancellationToken);
