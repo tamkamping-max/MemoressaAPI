@@ -57,6 +57,8 @@ public record UploadPartTargetDto
 public record StartUploadResponseDto
 {
     [JsonPropertyName("sessionId")] public Guid SessionId { get; init; }
+    /// <summary>Presigned PUT and session TTL; App may compute expiry as response time + this value.</summary>
+    [JsonPropertyName("presignedUrlExpiryMinutes")] public int PresignedUrlExpiryMinutes { get; init; }
     [JsonPropertyName("expiresAt")] public DateTime ExpiresAt { get; init; }
     [JsonPropertyName("uploads")] public StartUploadTargetsDto Uploads { get; init; } = new();
 }
@@ -78,6 +80,7 @@ public record IncompleteUploadSessionDto
 {
     [JsonPropertyName("sessionId")] public Guid SessionId { get; init; }
     [JsonPropertyName("fileName")] public string FileName { get; init; } = string.Empty;
+    [JsonPropertyName("presignedUrlExpiryMinutes")] public int PresignedUrlExpiryMinutes { get; init; }
     [JsonPropertyName("expiresAt")] public DateTime ExpiresAt { get; init; }
     [JsonPropertyName("status")] public UploadSessionStatus Status { get; init; }
     [JsonPropertyName("fullOriginalFileSizeBytes")] public long FullOriginalFileSizeBytes { get; init; }

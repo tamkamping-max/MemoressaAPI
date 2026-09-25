@@ -162,7 +162,7 @@ Configure via `AwsS3:ThumbnailMaxEdgePixels`, `ThumbnailJpegQuality`, `Thumbnail
 
 Upload flow (photos only — **no video**):
 
-1. `POST /api/v1/uploads/start` with `fileSizeBytes` = **original/full** image size → returns **three** presigned PUT URLs (`full`, `compressed`, `thumbnail`) for `abc_full.jpg`, `abc.jpg`, `abc_nail.jpg`
+1. `POST /api/v1/uploads/start` with `fileSizeBytes` = **original/full** image size → returns **three** presigned PUT URLs plus **`presignedUrlExpiryMinutes`** (same as `AwsS3:UploadPresignedUrlExpiryMinutes`, default **10080** = 7 days) and **`expiresAt`** (UTC)
 2. Client PUTs all three objects to S3
 3. `POST /api/v1/uploads/{sessionId}/complete` after S3 Head checks pass → creates `Photo` (`FileSizeBytes` = full original only), updates user `CloudStorageUsedBytes` (1 GiB quota)
 4. `GET /api/v1/storage/usage` → `{ usedBytes, limitBytes }`

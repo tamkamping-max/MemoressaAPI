@@ -64,7 +64,8 @@ public class UploadService : IUploadService
         }
 
         var keys = _s3.BuildPhotoUploadKeys(ctx.Value.FamilyId, ctx.Value.UserId, request.FileName);
-        var expiry = TimeSpan.FromMinutes(_storageSettings.UploadPresignedUrlExpiryMinutes);
+        var expiryMinutes = _storageSettings.UploadPresignedUrlExpiryMinutes;
+        var expiry = TimeSpan.FromMinutes(expiryMinutes);
         var expiresAt = DateTime.UtcNow.Add(expiry);
         var contentType = string.IsNullOrWhiteSpace(request.ContentType) ? "image/jpeg" : request.ContentType;
 
@@ -96,6 +97,7 @@ public class UploadService : IUploadService
         return ServiceResult<StartUploadResponseDto>.Ok(new StartUploadResponseDto
         {
             SessionId = session.Id,
+            PresignedUrlExpiryMinutes = expiryMinutes,
             ExpiresAt = expiresAt,
             Uploads = new StartUploadTargetsDto
             {
@@ -227,6 +229,7 @@ public class UploadService : IUploadService
         }
 
         var now = DateTime.UtcNow;
+        var configuredMinutes = _storageSettings.UploadPresignedUrlExpiryMinutes;
         var sessions = await _db.UploadSessions.AsNoTracking()
             .Where(s => s.UserId == _currentUser.UserId.Value
                         && s.Status == UploadSessionStatus.Pending
@@ -236,6 +239,7 @@ public class UploadService : IUploadService
             {
                 SessionId = s.Id,
                 FileName = s.FileName,
+                PresignedUrlExpiryMinutes = configuredMinutes,
                 ExpiresAt = s.ExpiresAt,
                 Status = s.Status,
                 FullOriginalFileSizeBytes = s.FileSizeBytes
