@@ -19,6 +19,7 @@ public class UploadService : IUploadService
     private readonly IPhotoUrlResolver _photoUrls;
     private readonly MediaStorageSettings _storageSettings;
     private readonly StorageQuotaSettings _quotaSettings;
+    private readonly IActivityService _activities;
 
     public UploadService(
         IMemoressaDbContext db,
@@ -26,7 +27,8 @@ public class UploadService : IUploadService
         IS3StorageService s3,
         IPhotoUrlResolver photoUrls,
         IOptions<MediaStorageSettings> storageSettings,
-        IOptions<StorageQuotaSettings> quotaSettings)
+        IOptions<StorageQuotaSettings> quotaSettings,
+        IActivityService activities)
     {
         _db = db;
         _currentUser = currentUser;
@@ -34,6 +36,7 @@ public class UploadService : IUploadService
         _photoUrls = photoUrls;
         _storageSettings = storageSettings.Value;
         _quotaSettings = quotaSettings.Value;
+        _activities = activities;
     }
 
     public async Task<ServiceResult<StartUploadResponseDto>> StartUploadAsync(
@@ -85,6 +88,29 @@ public class UploadService : IUploadService
         if (!quotaCheck.Allowed)
         {
             return ServiceResult<StartUploadResponseDto>.Fail(quotaCheck.Error!, quotaCheck.StatusCode);
+        }
+
+        Guid? activityAlbumId = null;
+        if (!string.IsNullOrWhiteSpace(request.ActivityAlbumId))
+        {
+            var activity = await ActivityAlbumAccess.ResolveAsync(
+                _db,
+                ctx.Value.FamilyId,
+                request.ActivityAlbumId,
+                cancellationToken);
+            if (activity is null)
+            {
+                return ServiceResult<StartUploadResponseDto>.NotFound("Activity not found");
+            }
+
+            if (!await ActivityAlbumAccess.CanUploadToAsync(_db, activity, ctx.Value.UserId, cancellationToken))
+            {
+                return ServiceResult<StartUploadResponseDto>.Fail(
+                    "Activity is not in progress or you cannot upload to it",
+                    403);
+            }
+
+            activityAlbumId = activity.Id;
         }
 
         var originalFileNameInput = string.IsNullOrWhiteSpace(request.OriginalFileName)
@@ -192,6 +218,7 @@ public class UploadService : IUploadService
             S3KeyFull = keys.FullObjectKey,
             S3KeyThumbnail = keys.ThumbnailObjectKey,
             S3KeyLivePhotoVideo = keys.LivePhotoVideoObjectKey,
+            ActivityAlbumId = activityAlbumId,
             TakenAt = request.TakenAt,
             PrivacyScope = request.PrivacyScope,
             SharedAlbumId = request.SharedAlbumId,
@@ -338,6 +365,15 @@ public class UploadService : IUploadService
 
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        if (session.ActivityAlbumId.HasValue)
+        {
+            await _activities.LinkPhotoAfterUploadAsync(
+                session.ActivityAlbumId.Value,
+                photo.Id,
+                session.FamilyId,
+                cancellationToken);
+        }
 
         photo = await _db.Photos
             .Include(p => p.PhotoMembers)

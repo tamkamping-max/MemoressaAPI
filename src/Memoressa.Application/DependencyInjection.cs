@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IFriendService, FriendService>();
         services.AddScoped<IJournalTagService, JournalTagService>();
+        services.AddScoped<IActivityService, ActivityService>();
         services.AddScoped<ISharedAlbumService, SharedAlbumService>();
         services.AddScoped<IUploadService, UploadService>();
         services.AddScoped<INotificationService, NotificationService>();

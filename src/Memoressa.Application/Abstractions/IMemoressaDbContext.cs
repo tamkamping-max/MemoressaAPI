@@ -39,6 +39,11 @@ public interface IMemoressaDbContext
     DbSet<Notification> Notifications { get; }
     DbSet<TodayHighlightCache> TodayHighlightCaches { get; }
     DbSet<TodayMemoriesCache> TodayMemoriesCaches { get; }
+    DbSet<ActivityAlbum> ActivityAlbums { get; }
+    DbSet<ActivityAgendaItem> ActivityAgendaItems { get; }
+    DbSet<ActivityAlbumFamilyMember> ActivityAlbumFamilyMembers { get; }
+    DbSet<ActivityAlbumFriend> ActivityAlbumFriends { get; }
+    DbSet<ActivityAlbumPhoto> ActivityAlbumPhotos { get; }
     DbSet<AiChatSession> AiChatSessions { get; }
     DbSet<AiChatMessage> AiChatMessages { get; }
     DbSet<JournalTag> JournalTags { get; }

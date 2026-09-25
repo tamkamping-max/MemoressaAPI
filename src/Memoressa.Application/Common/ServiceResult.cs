@@ -25,6 +25,9 @@ public class ServiceResult<T> : ServiceResult
     public static ServiceResult<T> Ok(T data) =>
         new() { Success = true, Data = data, StatusCode = 200 };
 
+    public static ServiceResult<T> Created(T data) =>
+        new() { Success = true, Data = data, StatusCode = 201 };
+
     public new static ServiceResult<T> Fail(string error, int statusCode = 400) =>
         new() { Success = false, Error = error, StatusCode = statusCode };
 

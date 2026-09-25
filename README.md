@@ -291,6 +291,22 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | GET | `/timeline` | Timeline photos (cursor pagination; default `limit=20`, max 50). Query: `?limit=20&cursor=...`. Response: `{ items, nextCursor, hasMore }` |
 | POST | `/today-memories` | **今日回憶** (lazy, **once per family per calendar day** on first call). Body: optional `date`, location/travel/occasions — **only used on first call that day**; later calls return cached snapshot (`fromCache: true`). Response: `{ items, strategy, referenceDate, fromCache }` |
 
+### Activities — `api/v1/activities`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/in-progress` | Upload picker: `{ data: { items: [ActivityAlbum...] } }`, `status=inProgress`, user has access |
+| GET | `/active-today?date=yyyy-MM-dd` | Home card feed: `{ data: { items: [{ subtitle, activity, photos }] } }` |
+| POST | `/` | Create activity (returns full DTO with `id` = `act_...`) |
+| PUT | `/{activityId}` | Update activity (`activityId` = external id) |
+| POST | `/{activityId}/photos` | Batch attach `{ photoIds: [...] }` |
+
+`POST /uploads/start` optional **`activityAlbumId`** (`act_...`): validates in-progress + permission; links photo on **complete**.
+
+Enums (JSON camelCase): `type` = travel \| wedding \| conference \| concert \| gathering; `status` = inProgress \| completed \| cancelled.
+
+Migration **`009_activity_albums.sql`**.
+
 ### Family Members — `api/v1/family-members`
 
 | Method | Path | Description |

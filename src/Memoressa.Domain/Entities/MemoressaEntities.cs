@@ -366,9 +366,72 @@ public class UploadSession : Entity
     public UploadSessionStatus Status { get; set; } = UploadSessionStatus.Pending;
     public UploadPrivacyScope PrivacyScope { get; set; } = UploadPrivacyScope.Family;
     public Guid? SharedAlbumId { get; set; }
+    public Guid? ActivityAlbumId { get; set; }
     public DateTime ExpiresAt { get; set; }
     public Guid? ResultPhotoId { get; set; }
     public UserAccount User { get; set; } = null!;
+    public ActivityAlbum? ActivityAlbum { get; set; }
+}
+
+public class ActivityAlbum : Entity, IFamilyScoped
+{
+    public Guid FamilyId { get; set; }
+    public string ExternalId { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public ActivityAlbumType Type { get; set; }
+    public ActivityAlbumStatus Status { get; set; } = ActivityAlbumStatus.InProgress;
+    public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public string? Location { get; set; }
+    public Guid CreatorUserId { get; set; }
+    public Guid? CoverPhotoId { get; set; }
+
+    public Family Family { get; set; } = null!;
+    public UserAccount Creator { get; set; } = null!;
+    public Photo? CoverPhoto { get; set; }
+    public ICollection<ActivityAgendaItem> AgendaItems { get; set; } = [];
+    public ICollection<ActivityAlbumFamilyMember> FamilyMembers { get; set; } = [];
+    public ICollection<ActivityAlbumFriend> Friends { get; set; } = [];
+    public ICollection<ActivityAlbumPhoto> Photos { get; set; } = [];
+}
+
+public class ActivityAgendaItem : Entity
+{
+    public Guid ActivityAlbumId { get; set; }
+    public string? ExternalId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public string? Location { get; set; }
+    public int SortOrder { get; set; }
+    public ActivityAlbum ActivityAlbum { get; set; } = null!;
+}
+
+public class ActivityAlbumFamilyMember : Entity
+{
+    public Guid ActivityAlbumId { get; set; }
+    public Guid FamilyMemberId { get; set; }
+    public ActivityAlbum ActivityAlbum { get; set; } = null!;
+    public FamilyMember FamilyMember { get; set; } = null!;
+}
+
+public class ActivityAlbumFriend : Entity
+{
+    public Guid ActivityAlbumId { get; set; }
+    public Guid? FriendId { get; set; }
+    /// <summary>App friend id or resolved Friend.Id string.</summary>
+    public string FriendReference { get; set; } = string.Empty;
+    public ActivityAlbum ActivityAlbum { get; set; } = null!;
+    public Friend? Friend { get; set; }
+}
+
+public class ActivityAlbumPhoto : Entity
+{
+    public Guid ActivityAlbumId { get; set; }
+    public Guid PhotoId { get; set; }
+    public int SortOrder { get; set; }
+    public ActivityAlbum ActivityAlbum { get; set; } = null!;
+    public Photo Photo { get; set; } = null!;
 }
 
 public class AiAnalysisJob : Entity

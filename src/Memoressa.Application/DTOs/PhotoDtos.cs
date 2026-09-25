@@ -58,6 +58,8 @@ public record StartUploadRequestDto
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope PrivacyScope { get; init; } = UploadPrivacyScope.Family;
     [JsonPropertyName("sharedAlbumId")] public Guid? SharedAlbumId { get; init; }
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
+    /// <summary>Link completed upload to an in-progress activity album (external id, e.g. act_...).</summary>
+    [JsonPropertyName("activityAlbumId")] public string? ActivityAlbumId { get; init; }
 }
 
 public record UploadPartTargetDto

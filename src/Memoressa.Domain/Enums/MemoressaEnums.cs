@@ -149,3 +149,19 @@ public enum TodayMemoriesStrategy
     YearsAgoToday = 1,
     RandomFallback = 2
 }
+
+public enum ActivityAlbumType
+{
+    Travel = 0,
+    Wedding = 1,
+    Conference = 2,
+    Concert = 3,
+    Gathering = 4
+}
+
+public enum ActivityAlbumStatus
+{
+    InProgress = 0,
+    Completed = 1,
+    Cancelled = 2
+}
