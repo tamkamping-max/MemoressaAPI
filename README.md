@@ -159,13 +159,16 @@ After `POST /api/v1/uploads/{sessionId}/complete`, the API:
 
 Configure via `AwsS3:ThumbnailMaxEdgePixels`, `ThumbnailJpegQuality`, `ThumbnailMaxSourceBytes`, `FfmpegPath`.
 
-If thumbnail generation fails, upload still succeeds; presigned thumbnail URLs fall back to the full object until a retry (`complete` idempotency will attempt generation again).
+Upload flow (photos only — **no video**):
 
-Upload flow:
+1. `POST /api/v1/uploads/start` with `fileSizeBytes` = **original/full** image size → returns **three** presigned PUT URLs (`full`, `compressed`, `thumbnail`) for `abc_full.jpg`, `abc.jpg`, `abc_nail.jpg`
+2. Client PUTs all three objects to S3
+3. `POST /api/v1/uploads/{sessionId}/complete` after S3 Head checks pass → creates `Photo` (`FileSizeBytes` = full original only), updates user `CloudStorageUsedBytes` (1 GiB quota)
+4. `GET /api/v1/storage/usage` → `{ usedBytes, limitBytes }`
 
-1. `POST /api/v1/uploads/start` → presigned **PUT** URL + `s3Key`
-2. Client uploads directly to S3
-3. `POST /api/v1/uploads/{sessionId}/complete` → creates `Photo` with `S3Key` only, response includes presigned GET URLs
+Quota is checked at `start` (includes pending sessions). `complete` returns **409** if variants are missing; **413** if quota exceeded.
+
+`PhotoDto` presigned GET: `remoteUrl` = compressed, `thumbnailUrl` = nail, `fullUrl` = original.
 
 For production at scale, you can swap presigned GET for **CloudFront signed URLs** inside `IPhotoUrlResolver` without changing the REST contract.
 
@@ -403,8 +406,15 @@ User-scoped custom journal tags (built-in tags remain client-side). Returns only
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/start` | Start S3 presigned upload session |
-| POST | `/{sessionId}/complete` | Complete upload and create photo |
+| POST | `/start` | Photo upload session (3 presigned PUTs; rejects video) |
+| GET | `/incomplete` | Pending sessions for current user (not expired) |
+| POST | `/{sessionId}/complete` | Verify S3 variants exist, create photo, apply quota |
+
+### Storage — `api/v1/storage`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/usage` | `{ usedBytes, limitBytes }` per user (1 GiB default) |
 
 ### Notifications — `api/v1/notifications`
 
@@ -512,6 +522,7 @@ dotnet test
 | `002_ai_chat_sessions.sql` | `002_ai_chat_sessions.sql` | AI agent chat |
 | `003_journal_tags.sql` | `003_journal_tags.sql` | Journal tags |
 | `004_frame_package_external_id.sql` | `004_frame_package_external_id.sql` | Frame package `external_id` |
+| `005_upload_variants_and_storage_quota.sql` | `005_upload_variants_and_storage_quota.sql` | Upload variant keys + user storage quota |
 
 After changing schema, update **both** SQL trees, then `Memoressa.Domain` entities and `Infrastructure/Configurations`, then deploy SQL before/with the API.
 

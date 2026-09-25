@@ -22,5 +22,8 @@
   },
   "InternalApi": {
     "ApiKey": "REPLACE_WITH_INTERNAL_API_KEY"
+  },
+  "Storage": {
+    "QuotaBytesPerUser": 1073741824
   }
 }
