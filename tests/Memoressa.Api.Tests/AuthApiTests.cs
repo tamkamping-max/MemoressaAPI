@@ -73,4 +73,12 @@ public class AuthApiTests : IClassFixture<WebApplicationFactory<Program>>
         var response = await client.GetAsync($"/api/internal/devices/{Guid.NewGuid()}/commands");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    [Fact]
+    public async Task DeviceWebSocket_RequiresWebSocketUpgrade()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync($"/ws/devices/{Guid.NewGuid()}");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }

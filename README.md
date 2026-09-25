@@ -7,7 +7,8 @@ REST API backend for the Memoressa family memory platform, built with ASP.NET Co
 ```
 EC2 REST API  ──►  RDS PostgreSQL  (schema: database/migrations/*.sql)
               ──►  Private S3        (photos; keys in RDS)
-Go WebSocket  ──►  RDS / Internal API (separate service)
+WebSocket (WSS) ──►  same Kestrel as REST (`/ws/devices/{deviceId}` on port 443/7286)
+Go (optional)   ──►  legacy sidecar; internal REST `api/internal/` for polling
 ```
 
 The solution follows a layered architecture:
@@ -103,41 +104,18 @@ Replace `192.168.1.131` with your machine’s LAN address. Trust the ASP.NET dev
 
 REST base URL for the mobile app: `https://<lan-ip>:7286/api/v1/...`
 
-### WebSocket: same port (A) vs separate WSS port (B)
+### WebSocket (option A — same port as HTTPS)
 
-Production architecture keeps **Go** as the WebSocket service (see diagram above). For clients, pick one URL strategy:
-
-**A — Same TLS port as REST (recommended when possible)**  
-One host/port for both HTTP API and WebSocket upgrade on Kestrel (or one reverse proxy in front of API + Go):
+REST and display-device WebSocket share **one TLS port** on Kestrel (no separate `:8080` listener):
 
 | | URL |
 |---|-----|
 | REST | `https://192.168.1.131:7286/api/v1/...` |
 | WSS | `wss://192.168.1.131:7286/ws/devices/{deviceId}` |
 
-No extra Kestrel listener is required in this repo for option A; current Development config already exposes HTTPS on **7286**. When WebSockets are handled in ASP.NET Core, enable `UseWebSockets()` and map the path on the same app. When WebSockets stay in **Go**, use a reverse proxy on **7286** to route `/api` → ASP.NET and `/ws` → Go, so the app still uses a single origin.
+The API maps `GET /ws/devices/{deviceId}` with a WebSocket upgrade. On connect the device is marked online; the server pushes pending frame commands every ~2s as `{"type":"commands","commands":[...]}`. Client messages: `{"type":"ping"}` → `{"type":"pong"}`, `{"type":"ack","commandId":"<guid>","success":true}`.
 
-**B — Separate encrypted port for WSS (e.g. 8080)**  
-Use when the WebSocket process listens on its own port (typical for a standalone Go server with its own TLS):
-
-| | URL |
-|---|-----|
-| REST | `https://192.168.1.131:7286/api/v1/...` |
-| WSS | `wss://192.168.1.131:8080/ws/devices/{deviceId}` |
-
-Configure TLS on the Go (or other) process for **8080** separately. Only add a second Kestrel HTTPS endpoint in `appsettings.Development.json` if **this** ASP.NET process should also listen on 8080:
-
-```json
-"Kestrel": {
-  "Endpoints": {
-    "Http": { "Url": "http://192.168.1.131:5047" },
-    "HttpsApi": { "Url": "https://192.168.1.131:7286" },
-    "HttpsWs": { "Url": "https://192.168.1.131:8080" }
-  }
-}
-```
-
-Development uses the ASP.NET dev certificate for each HTTPS endpoint unless you configure `Certificate` under an endpoint. Align `launchSettings.json` `applicationUrl` with the same hosts/ports to avoid confusion (Kestrel config still takes precedence at runtime).
+Internal polling endpoints under `api/internal/` remain available for optional Go sidecars.
 
 ### Database
 

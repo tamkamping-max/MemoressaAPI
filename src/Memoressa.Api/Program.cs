@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoressa.Api.Middleware;
+using Memoressa.Api.WebSockets;
 using Memoressa.Application;
 using Memoressa.Infrastructure;
 using Memoressa.Infrastructure.Options;
@@ -127,11 +128,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("DevCors");
+app.UseWebSockets(new WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromSeconds(30)
+});
 app.UseHttpsRedirection();
 app.UseMiddleware<InternalApiKeyMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapDeviceWebSocket();
 
 app.Run();
 
