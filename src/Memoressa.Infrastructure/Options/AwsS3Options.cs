@@ -10,7 +10,7 @@ public class AwsS3Options
     public string? SecretKey { get; set; }
     public string? ServiceUrl { get; set; }
     public string KeyPrefix { get; set; } = "uploads";
-    public int PresignedUrlExpiryMinutes { get; set; } = 15;
+    public int PresignedUrlExpiryMinutes { get; set; } = 10_080;
 
     /// <summary>
     /// Longer-lived presigned GET URLs for server-side AI (e.g. OpenAI Vision fetching images).
