@@ -96,6 +96,18 @@ public class S3StorageService : IS3StorageService, IDisposable
         return await Task.FromResult(_s3Client.GetPreSignedURL(request));
     }
 
+    public async Task DeleteObjectAsync(string s3Key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _s3Client.DeleteObjectAsync(_options.BucketName, s3Key, cancellationToken);
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Idempotent delete
+        }
+    }
+
     public async Task<byte[]> GetObjectBytesAsync(string s3Key, CancellationToken cancellationToken = default)
     {
         using var response = await _s3Client.GetObjectAsync(_options.BucketName, s3Key, cancellationToken);

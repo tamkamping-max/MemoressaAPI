@@ -83,5 +83,8 @@ public class PhotoUrlResolverTests
 
         public Task<string> GetPresignedGetUrlAsync(string s3Key, TimeSpan expiry, CancellationToken cancellationToken = default) =>
             Task.FromResult($"GET:{s3Key}:{expiry.TotalMinutes}");
+
+        public Task DeleteObjectAsync(string s3Key, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

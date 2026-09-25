@@ -129,6 +129,7 @@ RDS must be reachable from the API host (security group: EC2 → RDS on port 543
 | `AwsS3:KeyPrefix` | Object key prefix |
 | `AwsS3:PresignedUrlExpiryMinutes` | Presigned **GET** for photos in API responses (default **15** minutes) |
 | `AwsS3:UploadPresignedUrlExpiryMinutes` | Presigned **PUT** for uploads + **`sessionId` / `expiresAt`** (default **10080** = 7 days) |
+| `AwsS3:DownloadPresignedUrlExpiryMinutes` | Presigned GET for **`GET /photos/{id}/download`** (default **60** minutes) |
 | `AwsS3:AiPresignedUrlExpiryMinutes` | Presigned GET expiry for server-side AI (OpenAI Vision) |
 
 ### Private S3 media access
@@ -279,6 +280,8 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 |--------|------|-------------|
 | GET | `/` | List photos |
 | GET | `/{id}` | Get photo by ID |
+| GET | `/{id}/download` | Presigned GET URL for **original/full** image (`downloadUrl`, default 60 min expiry) |
+| DELETE | `/{id}` | Delete photo: remove compressed, full, nail from S3; delete DB row; decrease uploader storage quota |
 | GET | `/by-date/{date}` | Photos by date |
 | GET | `/by-member/{memberId}` | Photos by family member |
 | PUT | `/{id}` | Update photo metadata |

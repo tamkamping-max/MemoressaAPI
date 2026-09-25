@@ -46,6 +46,20 @@ public class PhotosController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpGet("{id:guid}/download")]
+    public async Task<IActionResult> DownloadOriginal(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _photoService.GetOriginalDownloadAsync(id, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> DeletePhoto(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _photoService.DeletePhotoAsync(id, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdatePhoto(Guid id, [FromBody] UpdatePhotoRequestDto request, CancellationToken cancellationToken)
     {

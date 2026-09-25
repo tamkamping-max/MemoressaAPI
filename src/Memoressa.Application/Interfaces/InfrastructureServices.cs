@@ -24,6 +24,7 @@ public interface IS3StorageService
     PhotoUploadKeys.VariantKeys BuildPhotoUploadKeys(Guid familyId, Guid userId, string fileName);
     Task<string> GetPresignedPutUrlAsync(string s3Key, string contentType, TimeSpan expiry, CancellationToken cancellationToken = default);
     Task<string> GetPresignedGetUrlAsync(string s3Key, TimeSpan expiry, CancellationToken cancellationToken = default);
+    Task DeleteObjectAsync(string s3Key, CancellationToken cancellationToken = default);
     Task<bool> ObjectExistsAsync(string s3Key, CancellationToken cancellationToken = default);
     Task<long?> GetObjectSizeBytesAsync(string s3Key, CancellationToken cancellationToken = default);
     Task<byte[]> GetObjectBytesAsync(string s3Key, CancellationToken cancellationToken = default);

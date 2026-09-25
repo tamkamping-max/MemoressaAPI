@@ -7,6 +7,9 @@ public class MediaStorageSettings
     /// <summary>Presigned PUT expiry and upload session lifetime (max ~7 days for AWS SigV4).</summary>
     public int UploadPresignedUrlExpiryMinutes { get; set; } = 10_080;
 
+    /// <summary>Presigned GET for GET /photos/{{id}}/download (original image).</summary>
+    public int DownloadPresignedUrlExpiryMinutes { get; set; } = 60;
+
     /// <summary>Longest edge for generated thumbnails (matches MemoressaApp photoThumbMaxPx).</summary>
     public int ThumbnailMaxEdgePixels { get; set; } = 480;
 

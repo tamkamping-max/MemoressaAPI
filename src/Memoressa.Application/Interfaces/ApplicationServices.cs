@@ -45,6 +45,8 @@ public interface IPhotoService
         int? limit = null,
         string? cursor = null,
         CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoDownloadDto>> GetOriginalDownloadAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<ServiceResult> DeletePhotoAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
 public interface IFamilyService

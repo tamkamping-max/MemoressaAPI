@@ -3,6 +3,7 @@ using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Memoressa.Application.Services;
 
@@ -11,15 +12,21 @@ public class PhotoService : IPhotoService
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IPhotoUrlResolver _photoUrls;
+    private readonly IS3StorageService _s3;
+    private readonly MediaStorageSettings _storageSettings;
 
     public PhotoService(
         IMemoressaDbContext db,
         ICurrentUserService currentUser,
-        IPhotoUrlResolver photoUrls)
+        IPhotoUrlResolver photoUrls,
+        IS3StorageService s3,
+        IOptions<MediaStorageSettings> storageSettings)
     {
         _db = db;
         _currentUser = currentUser;
         _photoUrls = photoUrls;
+        _s3 = s3;
+        _storageSettings = storageSettings.Value;
     }
 
     public async Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetPhotosAsync(CancellationToken cancellationToken = default)
@@ -211,6 +218,80 @@ public class PhotoService : IPhotoService
             NextCursor = nextCursor,
             HasMore = hasMore
         });
+    }
+
+    public async Task<ServiceResult<PhotoDownloadDto>> GetOriginalDownloadAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<PhotoDownloadDto>.Fail("Unauthorized", 401);
+        }
+
+        var photo = await QueryPhotos(ctx.Value.FamilyId).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (photo is null)
+        {
+            return ServiceResult<PhotoDownloadDto>.NotFound("Photo not found");
+        }
+
+        var fullKey = PhotoObjectKeys.ResolveFullObjectKey(photo);
+        if (string.IsNullOrWhiteSpace(fullKey))
+        {
+            return ServiceResult<PhotoDownloadDto>.Fail("Photo has no stored original", 404);
+        }
+
+        var expiry = TimeSpan.FromMinutes(_storageSettings.DownloadPresignedUrlExpiryMinutes);
+        var expiresAt = DateTime.UtcNow.Add(expiry);
+        var downloadUrl = await _s3.GetPresignedGetUrlAsync(fullKey, expiry, cancellationToken);
+        var fileName = PhotoObjectKeys.GetOriginalDownloadFileName(photo) ?? "photo_full.jpg";
+
+        return ServiceResult<PhotoDownloadDto>.Ok(new PhotoDownloadDto
+        {
+            DownloadUrl = downloadUrl,
+            FileName = fileName,
+            ContentType = photo.ContentType ?? "image/jpeg",
+            ExpiresAt = expiresAt
+        });
+    }
+
+    public async Task<ServiceResult> DeletePhotoAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult.Fail("Unauthorized", 401);
+        }
+
+        var photo = await _db.Photos
+            .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == ctx.Value.FamilyId, cancellationToken);
+
+        if (photo is null)
+        {
+            return ServiceResult.NotFound("Photo not found");
+        }
+
+        var keys = PhotoObjectKeys.CollectDeleteKeys(photo);
+        foreach (var key in keys)
+        {
+            await _s3.DeleteObjectAsync(key, cancellationToken);
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        var storageBytes = photo.FileSizeBytes ?? 0;
+        if (storageBytes > 0)
+        {
+            var uploader = await _db.UserAccounts.FirstAsync(u => u.Id == photo.UploadedByUserId, cancellationToken);
+            uploader.CloudStorageUsedBytes = Math.Max(0, uploader.CloudStorageUsedBytes - storageBytes);
+        }
+
+        _db.Photos.Remove(photo);
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return ServiceResult.Ok();
     }
 
     private IQueryable<Domain.Entities.Photo> QueryPhotos(Guid familyId) =>
