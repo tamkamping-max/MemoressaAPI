@@ -4,7 +4,8 @@ public class MediaStorageSettings
 {
     public const string SectionName = "AwsS3";
 
-    public int PresignedUrlExpiryMinutes { get; set; } = 10_080;
+    /// <summary>Presigned PUT expiry and upload session lifetime (max ~7 days for AWS SigV4).</summary>
+    public int UploadPresignedUrlExpiryMinutes { get; set; } = 10_080;
 
     /// <summary>Longest edge for generated thumbnails (matches MemoressaApp photoThumbMaxPx).</summary>
     public int ThumbnailMaxEdgePixels { get; set; } = 480;

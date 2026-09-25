@@ -127,7 +127,8 @@ RDS must be reachable from the API host (security group: EC2 → RDS on port 543
 | `AwsS3:SecretKey` | AWS secret key |
 | `AwsS3:ServiceUrl` | Custom S3-compatible endpoint (optional) |
 | `AwsS3:KeyPrefix` | Object key prefix |
-| `AwsS3:PresignedUrlExpiryMinutes` | Presigned GET/PUT URL expiry; also **upload `sessionId` / `expiresAt`** (default **10080** = 7 days, AWS SigV4 max for long-term keys) |
+| `AwsS3:PresignedUrlExpiryMinutes` | Presigned **GET** for photos in API responses (default **15** minutes) |
+| `AwsS3:UploadPresignedUrlExpiryMinutes` | Presigned **PUT** for uploads + **`sessionId` / `expiresAt`** (default **10080** = 7 days) |
 | `AwsS3:AiPresignedUrlExpiryMinutes` | Presigned GET expiry for server-side AI (OpenAI Vision) |
 
 ### Private S3 media access

@@ -64,7 +64,7 @@ public class UploadService : IUploadService
         }
 
         var keys = _s3.BuildPhotoUploadKeys(ctx.Value.FamilyId, ctx.Value.UserId, request.FileName);
-        var expiry = TimeSpan.FromMinutes(_storageSettings.PresignedUrlExpiryMinutes);
+        var expiry = TimeSpan.FromMinutes(_storageSettings.UploadPresignedUrlExpiryMinutes);
         var expiresAt = DateTime.UtcNow.Add(expiry);
         var contentType = string.IsNullOrWhiteSpace(request.ContentType) ? "image/jpeg" : request.ContentType;
 
