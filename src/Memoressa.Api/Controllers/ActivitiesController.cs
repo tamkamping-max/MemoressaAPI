@@ -26,9 +26,12 @@ public class ActivitiesController : ControllerBase
     }
 
     [HttpGet("active-today")]
-    public async Task<IActionResult> GetActiveToday([FromQuery] DateOnly? date, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetActiveToday(
+        [FromQuery] DateOnly? date,
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken)
     {
-        var result = await _activities.GetActiveTodayAsync(date, cancellationToken);
+        var result = await _activities.GetActiveTodayAsync(date, limit, cancellationToken);
         return result.ToActionResult();
     }
 

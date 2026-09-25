@@ -66,6 +66,7 @@ public record ActivityPhotoPreviewDto
 
 public record ActiveActivityTodayCardDto
 {
+    [JsonPropertyName("sortRank")] public int SortRank { get; init; }
     [JsonPropertyName("subtitle")] public string Subtitle { get; init; } = string.Empty;
     [JsonPropertyName("activity")] public ActivityAlbumDto Activity { get; init; } = null!;
     [JsonPropertyName("photos")] public IReadOnlyList<ActivityPhotoPreviewDto> Photos { get; init; } = [];
@@ -83,5 +84,6 @@ public record ActivityAlbumListDataDto
 
 public record ActiveActivityTodayListDataDto
 {
+    [JsonPropertyName("strategy")] public string Strategy { get; init; } = "empty";
     [JsonPropertyName("items")] public IReadOnlyList<ActiveActivityTodayCardDto> Items { get; init; } = [];
 }

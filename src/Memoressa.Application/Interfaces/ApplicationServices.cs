@@ -121,7 +121,10 @@ public interface IActivityService
     Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>> GetInProgressAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<ActivityAlbumDto>> CreateAsync(UpsertActivityAlbumRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<ActivityAlbumDto>> UpdateAsync(string activityId, UpsertActivityAlbumRequestDto request, CancellationToken cancellationToken = default);
-    Task<ServiceResult<ApiDataResponseDto<ActiveActivityTodayListDataDto>>> GetActiveTodayAsync(DateOnly? date, CancellationToken cancellationToken = default);
+    Task<ServiceResult<ApiDataResponseDto<ActiveActivityTodayListDataDto>>> GetActiveTodayAsync(
+        DateOnly? date,
+        int? limit = null,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult> AttachPhotosAsync(string activityId, ActivityAlbumPhotosRequestDto request, CancellationToken cancellationToken = default);
     Task LinkPhotoAfterUploadAsync(Guid activityAlbumId, Guid photoId, Guid familyId, CancellationToken cancellationToken = default);
 }

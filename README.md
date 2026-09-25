@@ -296,7 +296,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/in-progress` | Upload picker: `{ data: { items: [ActivityAlbum...] } }`, `status=inProgress`, user has access |
-| GET | `/active-today?date=yyyy-MM-dd` | Home card feed: `{ data: { items: [{ subtitle, activity, photos }] } }` |
+| GET | `/active-today?date=yyyy-MM-dd&limit=8` | Home carousel: `{ data: { strategy, items: [{ sortRank, subtitle, activity, photos }] } }`. Default `limit=8`, max 20. `strategy`: `empty` \| `singleActive` \| `multiActive`. Sort: creator first, then companion; then startDate proximity to `date`. |
 | POST | `/` | Create activity (returns full DTO with `id` = `act_...`) |
 | PUT | `/{activityId}` | Update activity (`activityId` = external id) |
 | POST | `/{activityId}/photos` | Batch attach `{ photoIds: [...] }` |

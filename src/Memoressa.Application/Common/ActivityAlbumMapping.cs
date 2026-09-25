@@ -34,6 +34,11 @@ public static class ActivityAlbumMapping
 
     public static string BuildSubtitle(ActivityAlbum activity, DateOnly date)
     {
+        if (activity.Type != ActivityAlbumType.Travel)
+        {
+            return activity.Title;
+        }
+
         var dayNumber = date.DayNumber - activity.StartDate.DayNumber + 1;
         if (dayNumber < 1)
         {

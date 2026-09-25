@@ -10,8 +10,9 @@ namespace Memoressa.Application.Services;
 
 public class ActivityService : IActivityService
 {
-    private const int PreviewMinPhotos = 4;
     private const int PreviewMaxPhotos = 12;
+    private const int ActiveTodayDefaultLimit = 8;
+    private const int ActiveTodayMaxLimit = 20;
 
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
@@ -155,6 +156,7 @@ public class ActivityService : IActivityService
 
     public async Task<ServiceResult<ApiDataResponseDto<ActiveActivityTodayListDataDto>>> GetActiveTodayAsync(
         DateOnly? date,
+        int? limit = null,
         CancellationToken cancellationToken = default)
     {
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
@@ -164,13 +166,24 @@ public class ActivityService : IActivityService
         }
 
         var referenceDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var take = limit ?? ActiveTodayDefaultLimit;
+        if (take < 1)
+        {
+            take = ActiveTodayDefaultLimit;
+        }
+
+        if (take > ActiveTodayMaxLimit)
+        {
+            take = ActiveTodayMaxLimit;
+        }
+
         var activities = await QueryActivities(ctx.Value.FamilyId)
             .Where(a => a.Status == ActivityAlbumStatus.InProgress)
             .Where(a => a.StartDate <= referenceDate && (a.EndDate == null || a.EndDate >= referenceDate))
-            .OrderBy(a => a.StartDate)
             .ToListAsync(cancellationToken);
 
-        var cards = new List<ActiveActivityTodayCardDto>();
+        var ranked = new List<(ActivityAlbum Activity, int Tier, int StartProximity)>();
+
         foreach (var activity in activities)
         {
             var creator = await _db.UserAccounts.AsNoTracking()
@@ -191,19 +204,49 @@ public class ActivityService : IActivityService
                 continue;
             }
 
-            var previews = await BuildPhotoPreviewsAsync(activity.Id, cancellationToken);
+            var isCreator = activity.CreatorUserId == ctx.Value.UserId;
+            var tier = isCreator ? 0 : 1;
+            var startProximity = Math.Abs(referenceDate.DayNumber - activity.StartDate.DayNumber);
+            ranked.Add((activity, tier, startProximity));
+        }
+
+        var ordered = ranked
+            .OrderBy(x => x.Tier)
+            .ThenBy(x => x.StartProximity)
+            .ThenBy(x => x.Activity.StartDate)
+            .ThenBy(x => x.Activity.Title)
+            .Take(take)
+            .ToList();
+
+        var cards = new List<ActiveActivityTodayCardDto>(ordered.Count);
+        var rank = 1;
+        foreach (var entry in ordered)
+        {
+            var previews = await BuildPhotoPreviewsAsync(entry.Activity.Id, cancellationToken);
             cards.Add(new ActiveActivityTodayCardDto
             {
-                Subtitle = ActivityAlbumMapping.BuildSubtitle(activity, referenceDate),
-                Activity = ActivityAlbumMapping.ToDto(activity),
+                SortRank = rank++,
+                Subtitle = ActivityAlbumMapping.BuildSubtitle(entry.Activity, referenceDate),
+                Activity = ActivityAlbumMapping.ToDto(entry.Activity),
                 Photos = previews
             });
         }
 
+        var strategy = cards.Count switch
+        {
+            0 => "empty",
+            1 => "singleActive",
+            _ => "multiActive"
+        };
+
         return ServiceResult<ApiDataResponseDto<ActiveActivityTodayListDataDto>>.Ok(
             new ApiDataResponseDto<ActiveActivityTodayListDataDto>
             {
-                Data = new ActiveActivityTodayListDataDto { Items = cards }
+                Data = new ActiveActivityTodayListDataDto
+                {
+                    Strategy = strategy,
+                    Items = cards
+                }
             });
     }
 
