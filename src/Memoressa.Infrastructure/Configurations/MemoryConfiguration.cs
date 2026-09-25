@@ -61,3 +61,15 @@ public class TodayHighlightCacheConfiguration : IEntityTypeConfiguration<TodayHi
         builder.HasOne(x => x.Memory).WithMany().HasForeignKey(x => x.MemoryId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class TodayMemoriesCacheConfiguration : IEntityTypeConfiguration<TodayMemoriesCache>
+{
+    public void Configure(EntityTypeBuilder<TodayMemoriesCache> builder)
+    {
+        builder.ToTable("today_memories_cache");
+        builder.HasKey(x => x.Id);
+        builder.HasIndex(x => new { x.FamilyId, x.CacheDate }).IsUnique();
+        builder.Property(x => x.ItemsJson).IsRequired();
+        builder.HasOne(x => x.Family).WithMany().HasForeignKey(x => x.FamilyId).OnDelete(DeleteBehavior.Cascade);
+    }
+}

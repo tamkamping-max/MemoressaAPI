@@ -38,6 +38,7 @@ public interface IMemoressaDbContext
     DbSet<UserAiSetting> UserAiSettings { get; }
     DbSet<Notification> Notifications { get; }
     DbSet<TodayHighlightCache> TodayHighlightCaches { get; }
+    DbSet<TodayMemoriesCache> TodayMemoriesCaches { get; }
     DbSet<AiChatSession> AiChatSessions { get; }
     DbSet<AiChatMessage> AiChatMessages { get; }
     DbSet<JournalTag> JournalTags { get; }

@@ -1,6 +1,7 @@
 using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Domain.Entities;
+using Memoressa.Domain.Enums;
 
 namespace Memoressa.Api.Tests;
 

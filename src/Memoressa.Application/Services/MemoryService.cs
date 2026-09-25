@@ -54,13 +54,28 @@ public class MemoryService : IMemoryService
 
     public async Task<ServiceResult<IReadOnlyList<MemoryDto>>> GetTodayMemoriesAsync(CancellationToken cancellationToken = default)
     {
-        var highlight = await RegenerateTodayHighlightAsync(cancellationToken);
-        if (!highlight.Success || highlight.Data is null)
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<IReadOnlyList<MemoryDto>>.Fail("Unauthorized", 401);
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var cached = await _db.TodayHighlightCaches.AsNoTracking()
+            .Include(c => c.Memory)
+            .ThenInclude(m => m!.MemoryPhotos)
+            .Include(c => c.Memory)
+            .ThenInclude(m => m!.MemoryVideos)
+            .Include(c => c.Memory)
+            .ThenInclude(m => m!.MemoryMembers)
+            .FirstOrDefaultAsync(c => c.FamilyId == ctx.Value.FamilyId && c.CacheDate == today, cancellationToken);
+
+        if (cached?.Memory is null)
         {
             return ServiceResult<IReadOnlyList<MemoryDto>>.Ok([]);
         }
 
-        return ServiceResult<IReadOnlyList<MemoryDto>>.Ok([highlight.Data]);
+        return ServiceResult<IReadOnlyList<MemoryDto>>.Ok([cached.Memory.ToDto()]);
     }
 
     public async Task<ServiceResult<MemoryDto>> RegenerateTodayHighlightAsync(CancellationToken cancellationToken = default)

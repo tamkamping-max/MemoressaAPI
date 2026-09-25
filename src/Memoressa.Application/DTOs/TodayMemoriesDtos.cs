@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Memoressa.Domain.Enums;
 
 namespace Memoressa.Application.DTOs;
 
@@ -40,17 +41,11 @@ public record TodayMemoryPhotoItemDto
     [JsonPropertyName("occasionKind")] public TodayMemoryOccasionKind? OccasionKind { get; init; }
 }
 
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum TodayMemoriesStrategy
-{
-    YearsAgoToday,
-    RandomFallback,
-    Empty
-}
-
 public record TodayMemoriesResponseDto
 {
     [JsonPropertyName("items")] public IReadOnlyList<TodayMemoryPhotoItemDto> Items { get; init; } = [];
     [JsonPropertyName("strategy")] public TodayMemoriesStrategy Strategy { get; init; }
     [JsonPropertyName("referenceDate")] public DateOnly ReferenceDate { get; init; }
+    /// <summary>True when returning a snapshot created on an earlier call the same calendar day.</summary>
+    [JsonPropertyName("fromCache")] public bool FromCache { get; init; }
 }

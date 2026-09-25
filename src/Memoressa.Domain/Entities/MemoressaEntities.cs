@@ -409,6 +409,17 @@ public class TodayHighlightCache : Entity
     public Memory Memory { get; set; } = null!;
 }
 
+/// <summary>Persisted 今日回憶 photo list — created once per family per calendar day on first API call.</summary>
+public class TodayMemoriesCache : Entity
+{
+    public Guid FamilyId { get; set; }
+    public DateOnly CacheDate { get; set; }
+    public TodayMemoriesStrategy Strategy { get; set; }
+    /// <summary>JSON array of { photoId, reason, yearsAgo, occasionKind }.</summary>
+    public string ItemsJson { get; set; } = "[]";
+    public Family Family { get; set; } = null!;
+}
+
 public class AiChatSession : Entity
 {
     public Guid UserId { get; set; }

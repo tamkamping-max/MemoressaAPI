@@ -142,3 +142,10 @@ public enum UploadSessionStatus
     Failed,
     Expired
 }
+
+public enum TodayMemoriesStrategy
+{
+    Empty = 0,
+    YearsAgoToday = 1,
+    RandomFallback = 2
+}

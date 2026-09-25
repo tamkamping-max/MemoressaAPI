@@ -2,6 +2,8 @@ using Memoressa.Application.Abstractions;
 using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
+using Memoressa.Domain.Entities;
+using Memoressa.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -322,12 +324,45 @@ public class PhotoService : IPhotoService
 
         var referenceDate = request.Date ?? DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var photos = await QueryPhotos(ctx.Value.FamilyId)
+        var cached = await _db.TodayMemoriesCaches.AsNoTracking()
+            .FirstOrDefaultAsync(
+                c => c.FamilyId == ctx.Value.FamilyId && c.CacheDate == referenceDate,
+                cancellationToken);
+
+        if (cached is not null)
+        {
+            var fromCache = await BuildResponseFromCacheAsync(
+                ctx.Value.FamilyId,
+                referenceDate,
+                cached.Strategy,
+                cached.ItemsJson,
+                fromCache: true,
+                cancellationToken);
+
+            return ServiceResult<TodayMemoriesResponseDto>.Ok(fromCache);
+        }
+
+        var built = await ComposeAndPersistTodayMemoriesAsync(
+            ctx.Value.FamilyId,
+            referenceDate,
+            request,
+            cancellationToken);
+
+        return ServiceResult<TodayMemoriesResponseDto>.Ok(built);
+    }
+
+    private async Task<TodayMemoriesResponseDto> ComposeAndPersistTodayMemoriesAsync(
+        Guid familyId,
+        DateOnly referenceDate,
+        TodayMemoriesRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var photos = await QueryPhotos(familyId)
             .Include(p => p.AiTags)
             .ToListAsync(cancellationToken);
 
         var birthdayMemberIds = await _db.FamilyMembers.AsNoTracking()
-            .Where(m => m.FamilyId == ctx.Value.FamilyId && m.BirthDate != null)
+            .Where(m => m.FamilyId == familyId && m.BirthDate != null)
             .ToListAsync(cancellationToken);
 
         var birthdayIds = birthdayMemberIds
@@ -339,7 +374,7 @@ public class PhotoService : IPhotoService
             .Select(m => m.Id)
             .ToList();
 
-        var random = new Random(HashCode.Combine(ctx.Value.FamilyId, referenceDate.Year, referenceDate.Month, referenceDate.Day));
+        var random = new Random(HashCode.Combine(familyId, referenceDate.Year, referenceDate.Month, referenceDate.Day));
         var (skeleton, entries) = TodayMemoriesComposer.Compose(
             photos,
             referenceDate,
@@ -347,9 +382,124 @@ public class PhotoService : IPhotoService
             birthdayIds,
             random);
 
+        var cache = new TodayMemoriesCache
+        {
+            FamilyId = familyId,
+            CacheDate = referenceDate,
+            Strategy = skeleton.Strategy,
+            ItemsJson = entries.Count == 0
+                ? "[]"
+                : TodayMemoriesCacheCodec.SerializeEntries(entries)
+        };
+
+        _db.TodayMemoriesCaches.Add(cache);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            var existing = await _db.TodayMemoriesCaches.AsNoTracking()
+                .FirstAsync(
+                    c => c.FamilyId == familyId && c.CacheDate == referenceDate,
+                    cancellationToken);
+
+            return await BuildResponseFromCacheAsync(
+                familyId,
+                referenceDate,
+                existing.Strategy,
+                existing.ItemsJson,
+                fromCache: true,
+                cancellationToken);
+        }
+
         if (entries.Count == 0)
         {
-            return ServiceResult<TodayMemoriesResponseDto>.Ok(skeleton);
+            return new TodayMemoriesResponseDto
+            {
+                ReferenceDate = referenceDate,
+                Strategy = skeleton.Strategy,
+                Items = [],
+                FromCache = false
+            };
+        }
+
+        return await BuildResponseFromEntriesAsync(
+            familyId,
+            referenceDate,
+            skeleton.Strategy,
+            entries,
+            fromCache: false,
+            cancellationToken);
+    }
+
+    private async Task<TodayMemoriesResponseDto> BuildResponseFromCacheAsync(
+        Guid familyId,
+        DateOnly referenceDate,
+        TodayMemoriesStrategy strategy,
+        string itemsJson,
+        bool fromCache,
+        CancellationToken cancellationToken)
+    {
+        var cachedItems = TodayMemoriesCacheCodec.Deserialize(itemsJson);
+        if (cachedItems.Count == 0)
+        {
+            return new TodayMemoriesResponseDto
+            {
+                ReferenceDate = referenceDate,
+                Strategy = strategy,
+                Items = [],
+                FromCache = fromCache
+            };
+        }
+
+        var photoIds = cachedItems.Select(i => i.PhotoId).ToList();
+        var photosById = await QueryPhotos(familyId)
+            .Where(p => photoIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, cancellationToken);
+
+        var entries = new List<TodayMemoriesComposer.SelectionEntry>();
+        foreach (var item in cachedItems)
+        {
+            if (!photosById.TryGetValue(item.PhotoId, out var photo) || photo.IsHidden)
+            {
+                continue;
+            }
+
+            entries.Add(new TodayMemoriesComposer.SelectionEntry(
+                photo,
+                item.Reason,
+                item.YearsAgo,
+                item.OccasionKind));
+        }
+
+        return await BuildResponseFromEntriesAsync(
+            familyId,
+            referenceDate,
+            strategy,
+            entries,
+            fromCache,
+            cancellationToken);
+    }
+
+    private async Task<TodayMemoriesResponseDto> BuildResponseFromEntriesAsync(
+        Guid familyId,
+        DateOnly referenceDate,
+        TodayMemoriesStrategy strategy,
+        IReadOnlyList<TodayMemoriesComposer.SelectionEntry> entries,
+        bool fromCache,
+        CancellationToken cancellationToken)
+    {
+        if (entries.Count == 0)
+        {
+            return new TodayMemoriesResponseDto
+            {
+                ReferenceDate = referenceDate,
+                Strategy = strategy == TodayMemoriesStrategy.Empty ? strategy : TodayMemoriesStrategy.Empty,
+                Items = [],
+                FromCache = fromCache
+            };
         }
 
         var photoEntities = entries.Select(e => e.Photo).ToList();
@@ -367,12 +517,13 @@ public class PhotoService : IPhotoService
             });
         }
 
-        return ServiceResult<TodayMemoriesResponseDto>.Ok(new TodayMemoriesResponseDto
+        return new TodayMemoriesResponseDto
         {
-            ReferenceDate = skeleton.ReferenceDate,
-            Strategy = skeleton.Strategy,
-            Items = items
-        });
+            ReferenceDate = referenceDate,
+            Strategy = strategy,
+            Items = items,
+            FromCache = fromCache
+        };
     }
 
     private IQueryable<Domain.Entities.Photo> QueryPhotos(Guid familyId) =>

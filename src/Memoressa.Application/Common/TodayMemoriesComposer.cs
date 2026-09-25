@@ -1,5 +1,6 @@
 using Memoressa.Application.DTOs;
 using Memoressa.Domain.Entities;
+using Memoressa.Domain.Enums;
 
 namespace Memoressa.Application.Common;
 

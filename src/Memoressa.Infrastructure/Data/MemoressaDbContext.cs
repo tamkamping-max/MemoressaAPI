@@ -41,6 +41,7 @@ public class MemoressaDbContext : DbContext, IMemoressaDbContext
     public DbSet<UserAiSetting> UserAiSettings => Set<UserAiSetting>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<TodayHighlightCache> TodayHighlightCaches => Set<TodayHighlightCache>();
+    public DbSet<TodayMemoriesCache> TodayMemoriesCaches => Set<TodayMemoriesCache>();
     public DbSet<AiChatSession> AiChatSessions => Set<AiChatSession>();
     public DbSet<AiChatMessage> AiChatMessages => Set<AiChatMessage>();
     public DbSet<JournalTag> JournalTags => Set<JournalTag>();
