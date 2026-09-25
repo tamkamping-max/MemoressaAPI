@@ -5,8 +5,6 @@ using System.Text.Json.Serialization;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Memoressa.Domain.Enums;
-using Memoressa.Infrastructure.Options;
-using Microsoft.Extensions.Options;
 
 namespace Memoressa.Api.WebSockets;
 
@@ -27,28 +25,12 @@ public static class DeviceWebSocketEndpoints
         HttpContext context,
         Guid deviceId,
         IInternalRealtimeService realtime,
-        IOptions<WebSocketProxyOptions> proxyOptions,
         ILoggerFactory loggerFactory)
     {
         if (!context.WebSockets.IsWebSocketRequest)
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             await context.Response.WriteAsync("Expected a WebSocket request.");
-            return;
-        }
-
-        var proxy = proxyOptions.Value;
-        var logger = loggerFactory.CreateLogger("DeviceWebSocket");
-
-        if (proxy.Enabled)
-        {
-            var backendUri = WebSocketReverseProxy.BuildBackendUri(
-                proxy.BackendBaseUrl,
-                context.Request.Path,
-                context.Request.QueryString);
-
-            logger.LogDebug("Proxying WebSocket {Path} to {BackendUri}", context.Request.Path, backendUri);
-            await WebSocketReverseProxy.ProxyAsync(context, backendUri, logger, context.RequestAborted);
             return;
         }
 
@@ -69,6 +51,7 @@ public static class DeviceWebSocketEndpoints
 
         using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
 
+        var logger = loggerFactory.CreateLogger("DeviceWebSocket");
         try
         {
             await RunSessionAsync(webSocket, deviceId, realtime, logger, context.RequestAborted);
