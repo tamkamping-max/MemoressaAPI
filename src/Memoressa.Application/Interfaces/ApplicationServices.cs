@@ -41,7 +41,10 @@ public interface IPhotoService
     Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetPhotosByMemberAsync(Guid memberId, CancellationToken cancellationToken = default);
     Task<ServiceResult<PhotoDto>> UpdatePhotoAsync(Guid id, UpdatePhotoRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult> HidePhotoAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetTimelinePhotosAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoTimelinePageDto>> GetTimelinePhotosAsync(
+        int? limit = null,
+        string? cursor = null,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IFamilyService

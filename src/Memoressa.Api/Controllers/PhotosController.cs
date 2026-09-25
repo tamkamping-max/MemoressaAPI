@@ -61,9 +61,12 @@ public class PhotosController : ControllerBase
     }
 
     [HttpGet("timeline")]
-    public async Task<IActionResult> GetTimelinePhotos(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetTimelinePhotos(
+        [FromQuery] int? limit,
+        [FromQuery] string? cursor,
+        CancellationToken cancellationToken)
     {
-        var result = await _photoService.GetTimelinePhotosAsync(cancellationToken);
+        var result = await _photoService.GetTimelinePhotosAsync(limit, cursor, cancellationToken);
         return result.ToActionResult();
     }
 }

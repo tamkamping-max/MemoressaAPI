@@ -43,14 +43,15 @@ public class PhotoService : IPhotoService
         }
 
         var photo = await QueryPhotos(ctx.Value.FamilyId).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
-        return photo is null
-            ? ServiceResult<PhotoDto>.NotFound("Photo not found")
-            : ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken));
+        if (photo is null)
+        {
+            return ServiceResult<PhotoDto>.NotFound("Photo not found");
+        }
+
+        return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken));
     }
 
-    public async Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetPhotosByDateAsync(
-        DateTime date,
-        CancellationToken cancellationToken = default)
+    public async Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetPhotosByDateAsync(DateTime date, CancellationToken cancellationToken = default)
     {
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
         if (ctx is null)
@@ -149,21 +150,67 @@ public class PhotoService : IPhotoService
         return result.Success ? ServiceResult.Ok() : ServiceResult.Fail(result.Error ?? "Failed", result.StatusCode);
     }
 
-    public async Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetTimelinePhotosAsync(CancellationToken cancellationToken = default)
+    public async Task<ServiceResult<PhotoTimelinePageDto>> GetTimelinePhotosAsync(
+        int? limit = null,
+        string? cursor = null,
+        CancellationToken cancellationToken = default)
     {
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
         if (ctx is null)
         {
-            return ServiceResult<IReadOnlyList<PhotoDto>>.Fail("Unauthorized", 401);
+            return ServiceResult<PhotoTimelinePageDto>.Fail("Unauthorized", 401);
         }
 
-        var photos = await QueryPhotos(ctx.Value.FamilyId)
-            .Where(p => !p.IsHidden)
+        TimelineCursor? decodedCursor = null;
+        if (!string.IsNullOrWhiteSpace(cursor))
+        {
+            decodedCursor = TimelineCursor.TryDecode(cursor);
+            if (decodedCursor is null)
+            {
+                return ServiceResult<PhotoTimelinePageDto>.Fail("Invalid cursor", 400);
+            }
+        }
+
+        var pageSize = PhotoTimelinePagination.NormalizeLimit(limit);
+        var takeCount = pageSize + 1;
+
+        var query = QueryPhotos(ctx.Value.FamilyId).Where(p => !p.IsHidden);
+
+        if (decodedCursor is not null)
+        {
+            var cursorDate = decodedCursor.SortAtUtc;
+            var cursorId = decodedCursor.PhotoId;
+            query = query.Where(p =>
+                (p.TakenAt ?? p.CreatedAt) < cursorDate
+                || ((p.TakenAt ?? p.CreatedAt) == cursorDate && p.Id.CompareTo(cursorId) < 0));
+        }
+
+        var page = await query
             .OrderByDescending(p => p.TakenAt ?? p.CreatedAt)
-            .Take(200)
+            .ThenByDescending(p => p.Id)
+            .Take(takeCount)
             .ToListAsync(cancellationToken);
 
-        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken));
+        var hasMore = page.Count > pageSize;
+        if (hasMore)
+        {
+            page.RemoveAt(page.Count - 1);
+        }
+
+        string? nextCursor = null;
+        if (hasMore && page.Count > 0)
+        {
+            var last = page[^1];
+            nextCursor = new TimelineCursor(last.TakenAt ?? last.CreatedAt, last.Id).Encode();
+        }
+
+        var items = await _photoUrls.ToDtosAsync(page, cancellationToken: cancellationToken);
+        return ServiceResult<PhotoTimelinePageDto>.Ok(new PhotoTimelinePageDto
+        {
+            Items = items,
+            NextCursor = nextCursor,
+            HasMore = hasMore
+        });
     }
 
     private IQueryable<Domain.Entities.Photo> QueryPhotos(Guid familyId) =>
