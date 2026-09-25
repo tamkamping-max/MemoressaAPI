@@ -100,9 +100,19 @@ public class Photo : Entity, IFamilyScoped
     public Guid UploadedByUserId { get; set; }
     /// <summary>Local device path for demo/offline assets only.</summary>
     public string? LocalAssetPath { get; set; }
-    /// <summary>Private S3 object key for the original media. URLs are generated at read time.</summary>
+    /// <summary>Compressed JPEG for in-app display (e.g. abc.jpg).</summary>
     public string? S3Key { get; set; }
-    /// <summary>Optional separate thumbnail object key. When null, thumbnail URLs use <see cref="S3Key"/>.</summary>
+    /// <summary>True original object key (e.g. IMG_1234.HEIC). Preserved format for download.</summary>
+    public string? S3KeyFull { get; set; }
+    /// <summary>Original file name for download (e.g. IMG_1234.HEIC).</summary>
+    public string? OriginalFileName { get; set; }
+    /// <summary>MIME type of the true original (e.g. image/heic).</summary>
+    public string? OriginalContentType { get; set; }
+    public bool IsLivePhoto { get; set; }
+    public string? LivePhotoVideoS3Key { get; set; }
+    public string? LivePhotoVideoFileName { get; set; }
+    public string? LivePhotoVideoContentType { get; set; }
+    /// <summary>Thumbnail nail JPEG object key.</summary>
     public string? ThumbnailS3Key { get; set; }
     /// <summary>Legacy column — do not persist public URLs for private buckets.</summary>
     public string? RemoteUrl { get; set; }
@@ -332,13 +342,20 @@ public class UploadSession : Entity
     public Guid FamilyId { get; set; }
     public MediaKind MediaKind { get; set; }
     public string FileName { get; set; } = string.Empty;
+    /// <summary>Compressed JPEG content type (image/jpeg).</summary>
     public string ContentType { get; set; } = string.Empty;
+    public string? OriginalFileName { get; set; }
+    public string? OriginalContentType { get; set; }
+    public bool IsLivePhoto { get; set; }
+    public string? LivePhotoVideoFileName { get; set; }
+    public string? LivePhotoVideoContentType { get; set; }
     /// <summary>Original (full image) size in bytes — used for quota reservation.</summary>
     public long FileSizeBytes { get; set; }
-    /// <summary>Compressed object key (logical name e.g. abc.jpg).</summary>
+    /// <summary>Compressed object key (e.g. abc.jpg).</summary>
     public string S3Key { get; set; } = string.Empty;
     public string? S3KeyFull { get; set; }
     public string? S3KeyThumbnail { get; set; }
+    public string? S3KeyLivePhotoVideo { get; set; }
     public DateTime? TakenAt { get; set; }
     public UploadSessionStatus Status { get; set; } = UploadSessionStatus.Pending;
     public UploadPrivacyScope PrivacyScope { get; set; } = UploadPrivacyScope.Family;

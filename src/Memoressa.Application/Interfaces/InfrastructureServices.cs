@@ -1,3 +1,4 @@
+using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Domain.Entities;
 
@@ -21,7 +22,12 @@ public interface IPasswordHasher
 public interface IS3StorageService
 {
     string BuildObjectKey(Guid familyId, Guid userId, string fileName);
-    PhotoUploadKeys.VariantKeys BuildPhotoUploadKeys(Guid familyId, Guid userId, string fileName);
+    PhotoUploadKeys.VariantKeys BuildPhotoUploadKeys(
+        Guid familyId,
+        Guid userId,
+        string compressedFileName,
+        string originalFileName,
+        string? livePhotoVideoFileName);
     Task<string> GetPresignedPutUrlAsync(string s3Key, string contentType, TimeSpan expiry, CancellationToken cancellationToken = default);
     Task<string> GetPresignedGetUrlAsync(string s3Key, TimeSpan expiry, CancellationToken cancellationToken = default);
     Task DeleteObjectAsync(string s3Key, CancellationToken cancellationToken = default);

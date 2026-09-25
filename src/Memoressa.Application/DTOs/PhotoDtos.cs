@@ -26,6 +26,8 @@ public record PhotoDto
     [JsonPropertyName("isScreenshot")] public bool IsScreenshot { get; init; }
     [JsonPropertyName("isAiInferred")] public bool IsAiInferred { get; init; }
     [JsonPropertyName("visibility")] public MemoryVisibility Visibility { get; init; }
+    [JsonPropertyName("originalFileName")] public string? OriginalFileName { get; init; }
+    [JsonPropertyName("isLivePhoto")] public bool IsLivePhoto { get; init; }
 }
 
 public record UpdatePhotoRequestDto
@@ -39,9 +41,16 @@ public record UpdatePhotoRequestDto
 
 public record StartUploadRequestDto
 {
+    /// <summary>Compressed display file name (e.g. abc.jpg).</summary>
     [JsonPropertyName("fileName")] public string FileName { get; init; } = string.Empty;
     [JsonPropertyName("contentType")] public string ContentType { get; init; } = "image/jpeg";
+    /// <summary>True original file name (e.g. IMG_1234.HEIC). Used for S3 full object and download.</summary>
+    [JsonPropertyName("originalFileName")] public string OriginalFileName { get; init; } = string.Empty;
+    [JsonPropertyName("originalContentType")] public string OriginalContentType { get; init; } = string.Empty;
     [JsonPropertyName("fileSizeBytes")] public long FileSizeBytes { get; init; }
+    [JsonPropertyName("isLivePhoto")] public bool IsLivePhoto { get; init; }
+    [JsonPropertyName("livePhotoVideoFileName")] public string? LivePhotoVideoFileName { get; init; }
+    [JsonPropertyName("livePhotoVideoContentType")] public string? LivePhotoVideoContentType { get; init; }
     [JsonPropertyName("mediaKind")] public MediaKind MediaKind { get; init; } = MediaKind.Photo;
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope PrivacyScope { get; init; } = UploadPrivacyScope.Family;
     [JsonPropertyName("sharedAlbumId")] public Guid? SharedAlbumId { get; init; }
@@ -68,6 +77,7 @@ public record StartUploadTargetsDto
     [JsonPropertyName("full")] public UploadPartTargetDto Full { get; init; } = new();
     [JsonPropertyName("compressed")] public UploadPartTargetDto Compressed { get; init; } = new();
     [JsonPropertyName("thumbnail")] public UploadPartTargetDto Thumbnail { get; init; } = new();
+    [JsonPropertyName("livePhotoVideo")] public UploadPartTargetDto? LivePhotoVideo { get; init; }
 }
 
 public record StorageUsageDto

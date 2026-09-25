@@ -22,18 +22,25 @@ public class S3StorageService : IS3StorageService, IDisposable
 
     public string BuildObjectKey(Guid familyId, Guid userId, string fileName)
     {
-        var keys = BuildPhotoUploadKeys(familyId, userId, fileName);
+        var keys = BuildPhotoUploadKeys(familyId, userId, fileName, fileName, null);
         return keys.CompressedObjectKey;
     }
 
-    public PhotoUploadKeys.VariantKeys BuildPhotoUploadKeys(Guid familyId, Guid userId, string fileName)
+    public PhotoUploadKeys.VariantKeys BuildPhotoUploadKeys(
+        Guid familyId,
+        Guid userId,
+        string compressedFileName,
+        string originalFileName,
+        string? livePhotoVideoFileName)
     {
         return PhotoUploadKeys.Build(
             _options.KeyPrefix,
             familyId,
             userId,
-            fileName,
-            Guid.NewGuid());
+            Guid.NewGuid(),
+            compressedFileName,
+            originalFileName,
+            livePhotoVideoFileName);
     }
 
     public async Task<bool> ObjectExistsAsync(string s3Key, CancellationToken cancellationToken = default)

@@ -63,15 +63,91 @@ public class UploadService : IUploadService
             return ServiceResult<StartUploadResponseDto>.Fail(quotaCheck.Error!, quotaCheck.StatusCode);
         }
 
-        var keys = _s3.BuildPhotoUploadKeys(ctx.Value.FamilyId, ctx.Value.UserId, request.FileName);
+        var originalFileNameInput = string.IsNullOrWhiteSpace(request.OriginalFileName)
+            ? request.FileName
+            : request.OriginalFileName;
+        if (!PhotoUploadKeys.TryNormalizeOriginalFileName(originalFileNameInput, out _))
+        {
+            return ServiceResult<StartUploadResponseDto>.Fail(
+                "originalFileName must be a supported still image (jpg, jpeg, heic, heif, png)",
+                400);
+        }
+
+        var originalContentType = string.IsNullOrWhiteSpace(request.OriginalContentType)
+            ? request.ContentType
+            : request.OriginalContentType;
+        if (!PhotoUploadKeys.IsAllowedOriginalContentType(originalContentType))
+        {
+            return ServiceResult<StartUploadResponseDto>.Fail(
+                "originalContentType must match the true original (e.g. image/heic, image/jpeg)",
+                400);
+        }
+
+        string? liveVideoFileName = null;
+        string? liveVideoContentType = null;
+        if (request.IsLivePhoto)
+        {
+            if (string.IsNullOrWhiteSpace(request.LivePhotoVideoFileName)
+                || string.IsNullOrWhiteSpace(request.LivePhotoVideoContentType))
+            {
+                return ServiceResult<StartUploadResponseDto>.Fail(
+                    "Live Photo uploads require livePhotoVideoFileName and livePhotoVideoContentType",
+                    400);
+            }
+
+            if (!PhotoUploadKeys.TryNormalizeLiveVideoFileName(request.LivePhotoVideoFileName, out liveVideoFileName))
+            {
+                return ServiceResult<StartUploadResponseDto>.Fail(
+                    "livePhotoVideoFileName must be .mov or .mp4",
+                    400);
+            }
+
+            liveVideoContentType = request.LivePhotoVideoContentType.Trim();
+            if (!PhotoUploadKeys.IsAllowedLiveVideoContentType(liveVideoContentType))
+            {
+                return ServiceResult<StartUploadResponseDto>.Fail(
+                    "livePhotoVideoContentType must be video/quicktime or video/mp4",
+                    400);
+            }
+        }
+
+        var keys = _s3.BuildPhotoUploadKeys(
+            ctx.Value.FamilyId,
+            ctx.Value.UserId,
+            request.FileName,
+            originalFileNameInput,
+            liveVideoFileName);
+
         var expiryMinutes = _storageSettings.UploadPresignedUrlExpiryMinutes;
         var expiry = TimeSpan.FromMinutes(expiryMinutes);
         var expiresAt = DateTime.UtcNow.Add(expiry);
-        var contentType = string.IsNullOrWhiteSpace(request.ContentType) ? "image/jpeg" : request.ContentType;
+        const string compressedContentType = "image/jpeg";
 
-        var fullUrl = await _s3.GetPresignedPutUrlAsync(keys.FullObjectKey, contentType, expiry, cancellationToken);
-        var compressedUrl = await _s3.GetPresignedPutUrlAsync(keys.CompressedObjectKey, contentType, expiry, cancellationToken);
-        var thumbnailUrl = await _s3.GetPresignedPutUrlAsync(keys.ThumbnailObjectKey, contentType, expiry, cancellationToken);
+        var fullUrl = await _s3.GetPresignedPutUrlAsync(
+            keys.FullObjectKey,
+            originalContentType.Trim(),
+            expiry,
+            cancellationToken);
+        var compressedUrl = await _s3.GetPresignedPutUrlAsync(
+            keys.CompressedObjectKey,
+            compressedContentType,
+            expiry,
+            cancellationToken);
+        var thumbnailUrl = await _s3.GetPresignedPutUrlAsync(
+            keys.ThumbnailObjectKey,
+            compressedContentType,
+            expiry,
+            cancellationToken);
+
+        string? liveVideoPutUrl = null;
+        if (request.IsLivePhoto && keys.LivePhotoVideoObjectKey is not null)
+        {
+            liveVideoPutUrl = await _s3.GetPresignedPutUrlAsync(
+                keys.LivePhotoVideoObjectKey,
+                liveVideoContentType!,
+                expiry,
+                cancellationToken);
+        }
 
         var session = new UploadSession
         {
@@ -79,11 +155,17 @@ public class UploadService : IUploadService
             FamilyId = ctx.Value.FamilyId,
             MediaKind = MediaKind.Photo,
             FileName = keys.CompressedFileName,
-            ContentType = contentType,
+            ContentType = compressedContentType,
+            OriginalFileName = keys.FullFileName,
+            OriginalContentType = originalContentType.Trim(),
+            IsLivePhoto = request.IsLivePhoto,
+            LivePhotoVideoFileName = keys.LivePhotoVideoFileName,
+            LivePhotoVideoContentType = liveVideoContentType,
             FileSizeBytes = request.FileSizeBytes,
             S3Key = keys.CompressedObjectKey,
             S3KeyFull = keys.FullObjectKey,
             S3KeyThumbnail = keys.ThumbnailObjectKey,
+            S3KeyLivePhotoVideo = keys.LivePhotoVideoObjectKey,
             TakenAt = request.TakenAt,
             PrivacyScope = request.PrivacyScope,
             SharedAlbumId = request.SharedAlbumId,
@@ -94,6 +176,16 @@ public class UploadService : IUploadService
         _db.UploadSessions.Add(session);
         await _db.SaveChangesAsync(cancellationToken);
 
+        UploadPartTargetDto? liveTarget = null;
+        if (request.IsLivePhoto && liveVideoPutUrl is not null && keys.LivePhotoVideoFileName is not null)
+        {
+            liveTarget = new UploadPartTargetDto
+            {
+                PresignedUrl = liveVideoPutUrl,
+                ObjectKey = keys.LivePhotoVideoFileName
+            };
+        }
+
         return ServiceResult<StartUploadResponseDto>.Ok(new StartUploadResponseDto
         {
             SessionId = session.Id,
@@ -103,7 +195,8 @@ public class UploadService : IUploadService
             {
                 Full = new UploadPartTargetDto { PresignedUrl = fullUrl, ObjectKey = keys.FullFileName },
                 Compressed = new UploadPartTargetDto { PresignedUrl = compressedUrl, ObjectKey = keys.CompressedFileName },
-                Thumbnail = new UploadPartTargetDto { PresignedUrl = thumbnailUrl, ObjectKey = keys.ThumbnailFileName }
+                Thumbnail = new UploadPartTargetDto { PresignedUrl = thumbnailUrl, ObjectKey = keys.ThumbnailFileName },
+                LivePhotoVideo = liveTarget
             }
         });
     }
@@ -151,9 +244,16 @@ public class UploadService : IUploadService
         var fullExists = await _s3.ObjectExistsAsync(session.S3KeyFull!, cancellationToken);
         var compressedExists = await _s3.ObjectExistsAsync(session.S3Key, cancellationToken);
         var thumbnailExists = await _s3.ObjectExistsAsync(session.S3KeyThumbnail!, cancellationToken);
-        if (!fullExists || !compressedExists || !thumbnailExists)
+        var liveVideoExists = !session.IsLivePhoto
+                              || (!string.IsNullOrWhiteSpace(session.S3KeyLivePhotoVideo)
+                                  && await _s3.ObjectExistsAsync(session.S3KeyLivePhotoVideo, cancellationToken));
+        if (!fullExists || !compressedExists || !thumbnailExists || !liveVideoExists)
         {
-            return ServiceResult<PhotoDto>.Fail("Upload incomplete: all photo variants must be uploaded before complete", 409);
+            return ServiceResult<PhotoDto>.Fail(
+                session.IsLivePhoto
+                    ? "Upload incomplete: full, compressed, thumbnail, and Live Photo video must be uploaded before complete"
+                    : "Upload incomplete: all photo variants must be uploaded before complete",
+                409);
         }
 
         var fullSize = await _s3.GetObjectSizeBytesAsync(session.S3KeyFull!, cancellationToken) ?? session.FileSizeBytes;
@@ -176,6 +276,13 @@ public class UploadService : IUploadService
             FamilyId = session.FamilyId,
             UploadedByUserId = session.UserId,
             S3Key = session.S3Key,
+            S3KeyFull = session.S3KeyFull,
+            OriginalFileName = session.OriginalFileName,
+            OriginalContentType = session.OriginalContentType,
+            IsLivePhoto = session.IsLivePhoto,
+            LivePhotoVideoS3Key = session.S3KeyLivePhotoVideo,
+            LivePhotoVideoFileName = session.LivePhotoVideoFileName,
+            LivePhotoVideoContentType = session.LivePhotoVideoContentType,
             ThumbnailS3Key = session.S3KeyThumbnail,
             ContentType = session.ContentType,
             FileSizeBytes = fullSize,

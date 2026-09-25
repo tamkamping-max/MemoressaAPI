@@ -78,33 +78,11 @@ public class PhotoUrlResolver : IPhotoUrlResolver
         return await _s3.GetPresignedGetUrlAsync(s3Key, expiry, cancellationToken);
     }
 
-    internal static bool UsesClientVariantLayout(Photo photo) =>
-        !string.IsNullOrWhiteSpace(photo.ThumbnailS3Key)
-        && photo.ThumbnailS3Key.EndsWith("_nail.jpg", StringComparison.OrdinalIgnoreCase);
-
     internal static string? ResolveCompressedObjectKey(Photo photo) => photo.S3Key;
 
-    internal static string? ResolveThumbnailObjectKey(Photo photo)
-    {
-        if (!string.IsNullOrWhiteSpace(photo.ThumbnailS3Key))
-        {
-            return photo.ThumbnailS3Key;
-        }
+    internal static string? ResolveThumbnailObjectKey(Photo photo) =>
+        PhotoObjectKeys.ResolveThumbnailObjectKey(photo);
 
-        return string.IsNullOrWhiteSpace(photo.S3Key)
-            ? null
-            : PhotoUploadKeys.GetThumbnailObjectKeyFromCompressed(photo.S3Key);
-    }
-
-    internal static string? ResolveFullObjectKey(Photo photo)
-    {
-        if (string.IsNullOrWhiteSpace(photo.S3Key))
-        {
-            return null;
-        }
-
-        return UsesClientVariantLayout(photo)
-            ? PhotoUploadKeys.GetFullObjectKeyFromCompressed(photo.S3Key)
-            : photo.S3Key;
-    }
+    internal static string? ResolveFullObjectKey(Photo photo) =>
+        PhotoObjectKeys.ResolveFullObjectKey(photo);
 }

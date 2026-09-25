@@ -1,3 +1,4 @@
+using Memoressa.Application.Common;
 using Memoressa.Application.Interfaces;
 using Memoressa.Domain.Entities;
 using Memoressa.Infrastructure.Options;
@@ -27,7 +28,7 @@ public class PhotoUrlResolverTests
         var dto = await resolver.ToDtoAsync(photo);
 
         Assert.Equal("GET:uploads/family/user/photo.jpg:15", dto.RemoteUrl);
-        Assert.Equal("GET:uploads/family/user/photo.jpg:15", dto.ThumbnailUrl);
+        Assert.Equal("GET:uploads/family/user/photo_nail.jpg:15", dto.ThumbnailUrl);
         Assert.Equal(dto.RemoteUrl, dto.AssetPath);
         Assert.Equal(dto.ThumbnailUrl, dto.ThumbnailPath);
     }
@@ -41,6 +42,7 @@ public class PhotoUrlResolverTests
         var photo = new Photo
         {
             S3Key = "uploads/family/user/abc.jpg",
+            S3KeyFull = "uploads/family/user/IMG_1234.HEIC",
             ThumbnailS3Key = "uploads/family/user/abc_nail.jpg"
         };
 
@@ -48,6 +50,23 @@ public class PhotoUrlResolverTests
 
         Assert.Equal("GET:uploads/family/user/abc.jpg:15", dto.RemoteUrl);
         Assert.Equal("GET:uploads/family/user/abc_nail.jpg:15", dto.ThumbnailUrl);
+        Assert.Equal("GET:uploads/family/user/IMG_1234.HEIC:15", dto.FullUrl);
+    }
+
+    [Fact]
+    public async Task ToDtoAsync_LegacyFullUrlDerivedFromCompressedKey()
+    {
+        var s3 = new FakeS3StorageService();
+        var resolver = new PhotoUrlResolver(s3, Options.Create(new AwsS3Options()));
+
+        var photo = new Photo
+        {
+            S3Key = "uploads/family/user/abc.jpg",
+            ThumbnailS3Key = "uploads/family/user/abc_nail.jpg"
+        };
+
+        var dto = await resolver.ToDtoAsync(photo);
+
         Assert.Equal("GET:uploads/family/user/abc_full.jpg:15", dto.FullUrl);
     }
 
@@ -55,8 +74,20 @@ public class PhotoUrlResolverTests
     {
         public string BuildObjectKey(Guid familyId, Guid userId, string fileName) => fileName;
 
-        public PhotoUploadKeys.VariantKeys BuildPhotoUploadKeys(Guid familyId, Guid userId, string fileName) =>
-            PhotoUploadKeys.Build("uploads", familyId, userId, fileName, Guid.NewGuid());
+        public PhotoUploadKeys.VariantKeys BuildPhotoUploadKeys(
+            Guid familyId,
+            Guid userId,
+            string compressedFileName,
+            string originalFileName,
+            string? livePhotoVideoFileName) =>
+            PhotoUploadKeys.Build(
+                "uploads",
+                familyId,
+                userId,
+                Guid.NewGuid(),
+                compressedFileName,
+                originalFileName,
+                livePhotoVideoFileName);
 
         public Task<bool> ObjectExistsAsync(string s3Key, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);

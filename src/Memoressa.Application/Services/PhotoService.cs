@@ -245,14 +245,30 @@ public class PhotoService : IPhotoService
         var expiry = TimeSpan.FromMinutes(_storageSettings.DownloadPresignedUrlExpiryMinutes);
         var expiresAt = DateTime.UtcNow.Add(expiry);
         var downloadUrl = await _s3.GetPresignedGetUrlAsync(fullKey, expiry, cancellationToken);
-        var fileName = PhotoObjectKeys.GetOriginalDownloadFileName(photo) ?? "photo_full.jpg";
+        var fileName = PhotoObjectKeys.GetOriginalDownloadFileName(photo) ?? "photo";
+        var contentType = string.IsNullOrWhiteSpace(photo.OriginalContentType)
+            ? photo.ContentType ?? "image/jpeg"
+            : photo.OriginalContentType;
+
+        string? liveVideoUrl = null;
+        DateTime? liveVideoExpiresAt = null;
+        if (photo.IsLivePhoto && !string.IsNullOrWhiteSpace(photo.LivePhotoVideoS3Key))
+        {
+            liveVideoUrl = await _s3.GetPresignedGetUrlAsync(photo.LivePhotoVideoS3Key, expiry, cancellationToken);
+            liveVideoExpiresAt = expiresAt;
+        }
 
         return ServiceResult<PhotoDownloadDto>.Ok(new PhotoDownloadDto
         {
             DownloadUrl = downloadUrl,
             FileName = fileName,
-            ContentType = photo.ContentType ?? "image/jpeg",
-            ExpiresAt = expiresAt
+            ContentType = contentType,
+            ExpiresAt = expiresAt,
+            IsLivePhoto = photo.IsLivePhoto,
+            LivePhotoVideoDownloadUrl = liveVideoUrl,
+            LivePhotoVideoFileName = photo.LivePhotoVideoFileName,
+            LivePhotoVideoContentType = photo.LivePhotoVideoContentType,
+            LivePhotoVideoExpiresAt = liveVideoExpiresAt
         });
     }
 

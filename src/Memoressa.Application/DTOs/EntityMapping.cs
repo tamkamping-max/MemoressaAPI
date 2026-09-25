@@ -37,7 +37,9 @@ public static class EntityMapping
         IsBlurry = photo.IsBlurry,
         IsScreenshot = photo.IsScreenshot,
         IsAiInferred = photo.IsAiInferred,
-        Visibility = photo.Visibility
+        Visibility = photo.Visibility,
+        OriginalFileName = photo.OriginalFileName,
+        IsLivePhoto = photo.IsLivePhoto
     };
 
     public static MemoryDto ToDto(this Memory memory) => new()

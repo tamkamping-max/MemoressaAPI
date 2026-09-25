@@ -161,16 +161,16 @@ After `POST /api/v1/uploads/{sessionId}/complete`, the API:
 
 Configure via `AwsS3:ThumbnailMaxEdgePixels`, `ThumbnailJpegQuality`, `ThumbnailMaxSourceBytes`, `FfmpegPath`.
 
-Upload flow (photos only — **no video**):
+Upload flow (photos only — **no video** as the main asset):
 
-1. `POST /api/v1/uploads/start` with `fileSizeBytes` = **original/full** image size → returns **three** presigned PUT URLs plus **`presignedUrlExpiryMinutes`** (same as `AwsS3:UploadPresignedUrlExpiryMinutes`, default **10080** = 7 days) and **`expiresAt`** (UTC)
-2. Client PUTs all three objects to S3
-3. `POST /api/v1/uploads/{sessionId}/complete` after S3 Head checks pass → creates `Photo` (`FileSizeBytes` = full original only), updates user `CloudStorageUsedBytes` (1 GiB quota)
+1. `POST /api/v1/uploads/start` with `fileSizeBytes` = **original still** size, plus **`originalFileName`** / **`originalContentType`** (e.g. `IMG_1234.HEIC`, `image/heic`). Returns **three** presigned PUT URLs (`full` = true original bytes, `compressed` + `thumbnail` = JPEG), optional **`livePhotoVideo`** when `isLivePhoto` is true, plus **`presignedUrlExpiryMinutes`** and **`expiresAt`** (UTC).
+2. Client PUTs `full` with the **original** file (HEIC/JPEG/PNG), PUTs compressed + thumbnail JPEGs, and for Live Photo also PUTs the companion **`.mov`/`.mp4`** to `livePhotoVideo` (not counted toward quota).
+3. `POST /api/v1/uploads/{sessionId}/complete` after S3 Head checks pass → creates `Photo` (`S3KeyFull`, `OriginalFileName`, `FileSizeBytes` = full still only), updates user `CloudStorageUsedBytes` (1 GiB quota on originals only).
 4. `GET /api/v1/storage/usage` → `{ usedBytes, limitBytes }`
 
 Quota is checked at `start` (includes pending sessions). `complete` returns **409** if variants are missing; **413** if quota exceeded.
 
-`PhotoDto` presigned GET: `remoteUrl` = compressed, `thumbnailUrl` = nail, `fullUrl` = original.
+`PhotoDto` presigned GET: `remoteUrl` = compressed, `thumbnailUrl` = nail, `fullUrl` = stored original object (for preview only — use **`GET /photos/{id}/download`** to save the true original filename/type). Live Photo pairs: download returns still + optional video URLs; the app does not need to play Live Photo in-app.
 
 For production at scale, you can swap presigned GET for **CloudFront signed URLs** inside `IPhotoUrlResolver` without changing the REST contract.
 
@@ -280,7 +280,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 |--------|------|-------------|
 | GET | `/` | List photos |
 | GET | `/{id}` | Get photo by ID |
-| GET | `/{id}/download` | Presigned GET URL for **original/full** image (`downloadUrl`, default 60 min expiry) |
+| GET | `/{id}/download` | Presigned GET for **true original** still (`downloadUrl`, `fileName`, `contentType`). Live Photo adds `livePhotoVideoDownloadUrl` + companion name/type (default 60 min expiry) |
 | DELETE | `/{id}` | Delete photo: remove compressed, full, nail from S3; delete DB row; decrease uploader storage quota |
 | GET | `/by-date/{date}` | Photos by date |
 | GET | `/by-member/{memberId}` | Photos by family member |
