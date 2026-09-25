@@ -117,6 +117,16 @@ REST and display-device WebSocket share **one TLS port** on Kestrel:
 
 Optional Go sidecars can still use `api/internal/` with `X-Internal-Api-Key`; they do not receive proxied traffic from the WSS URL above.
 
+### Login fails with “transient failure”
+
+That message almost always means **the API cannot reach the database** (not wrong email/password).
+
+1. Check the API console on startup:
+   - `Database:Target=Local (MySQL)` → local dev; need MySQL running.
+   - `Database:Target=Rds (PostgreSQL)` → release mode; needs a reachable RDS (or local Postgres on port 5432).
+2. **Local dev:** `docker compose up -d`, then `./database/mysql/apply.sh`, and run with **`ASPNETCORE_ENVIRONMENT=Development`** (or the **`https`** launch profile) so `Database:Target` stays **`Local`**.
+3. If you run without the Development profile, `appsettings.json` defaults to **`Rds`** and the API tries PostgreSQL on `localhost:5432`, which often produces the transient failure on login/register.
+
 ### Database
 
 | Key | Values | Description |

@@ -120,6 +120,7 @@ var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 DatabaseBootstrap.LogDatabaseTarget(app);
+await DatabaseBootstrap.VerifyConnectivityAsync(app);
 
 if (app.Environment.IsDevelopment())
 {

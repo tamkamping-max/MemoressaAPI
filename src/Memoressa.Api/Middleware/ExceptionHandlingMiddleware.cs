@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.Json;
+using Memoressa.Infrastructure;
+using Microsoft.Extensions.Configuration;
 
 namespace Memoressa.Api.Middleware;
 
@@ -7,11 +9,19 @@ public class ExceptionHandlingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
 
-    public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
+    public ExceptionHandlingMiddleware(
+        RequestDelegate next,
+        ILogger<ExceptionHandlingMiddleware> logger,
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         _next = next;
         _logger = logger;
+        _configuration = configuration;
+        _environment = environment;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -31,11 +41,31 @@ public class ExceptionHandlingMiddleware
             }
 
             context.Response.Clear();
+
+            if (DatabaseBootstrap.IsConnectionFailure(ex))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                context.Response.ContentType = "application/json";
+                var hint = DatabaseBootstrap.GetConnectionFailureMessage(_configuration);
+                var payload = JsonSerializer.Serialize(new
+                {
+                    error = "Database is unavailable.",
+                    hint,
+                    detail = _environment.IsDevelopment() ? ex.Message : null
+                });
+                await context.Response.WriteAsync(payload);
+                return;
+            }
+
             context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
             context.Response.ContentType = "application/json";
 
-            var payload = JsonSerializer.Serialize(new { error = ex.Message });
-            await context.Response.WriteAsync(payload);
+            var genericPayload = JsonSerializer.Serialize(new
+            {
+                error = ex.Message,
+                detail = _environment.IsDevelopment() ? ex.ToString() : null
+            });
+            await context.Response.WriteAsync(genericPayload);
         }
     }
 }
