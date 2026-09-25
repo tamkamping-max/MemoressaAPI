@@ -209,7 +209,7 @@ Upload flow (photos only — **no video** as the main asset):
 
 Quota is checked at `start` (includes pending sessions). `complete` returns **409** if variants are missing; **413** if quota exceeded.
 
-`PhotoDto` presigned GET: `remoteUrl` = compressed, `thumbnailUrl` = nail, `fullUrl` = stored original object (for preview only — use **`GET /photos/{id}/download`** to save the true original filename/type). Live Photo pairs: download returns still + optional video URLs; the app does not need to play Live Photo in-app.
+`PhotoDto` presigned GET: `remoteUrl` = compressed, `thumbnailUrl` = nail, `fullUrl` = stored original object (for preview only — use **`GET /photos/{id}/download`** to save the true original filename/type). **`isLivePhoto`** on the photo indicates the user opted in at upload; **`GET /photos/{id}/download`** returns the still presigned URL plus, when available, **`livePhotoVideoDownloadUrl`** for the companion `.mov`/`.mp4`. The API does **not** return a single Apple Live Photo bundle: the **MemoressaApp must download both files** and use platform APIs (e.g. iOS `PHAssetCreationRequest` with paired video and matching content identifiers in the original HEIC/MOV) to restore a Live Photo in the camera roll. Saving only `downloadUrl` always produces a **still photo**.
 
 For production at scale, you can swap presigned GET for **CloudFront signed URLs** inside `IPhotoUrlResolver` without changing the REST contract.
 
@@ -319,7 +319,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 |--------|------|-------------|
 | GET | `/` | List photos |
 | GET | `/{id}` | Get photo by ID |
-| GET | `/{id}/download` | Presigned GET for **true original** still (`downloadUrl`, `fileName`, `contentType`). Live Photo adds `livePhotoVideoDownloadUrl` + companion name/type (default 60 min expiry) |
+| GET | `/{id}/download` | Presigned GET for **true original** still (`downloadUrl`, `fileName`, `contentType`). When Live Photo was uploaded: `isLivePhoto`, `livePhotoVideoAvailable`, optional `livePhotoVideoDownloadUrl` + companion name/type (default 60 min expiry). Client must save **both** to restore Live Photo on iOS. |
 | DELETE | `/{id}` | Delete photo: remove compressed, full, nail from S3; delete DB row; decrease uploader storage quota |
 | GET | `/by-date/{date}` | Photos by date |
 | GET | `/by-member/{memberId}` | Photos by family member |

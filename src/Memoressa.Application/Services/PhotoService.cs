@@ -267,6 +267,7 @@ public class PhotoService : IPhotoService
             ContentType = contentType,
             ExpiresAt = expiresAt,
             IsLivePhoto = photo.IsLivePhoto,
+            LivePhotoVideoAvailable = photo.IsLivePhoto && !string.IsNullOrWhiteSpace(liveVideoUrl),
             LivePhotoVideoDownloadUrl = liveVideoUrl,
             LivePhotoVideoFileName = photo.LivePhotoVideoFileName,
             LivePhotoVideoContentType = photo.LivePhotoVideoContentType,
