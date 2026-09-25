@@ -10,6 +10,7 @@ public record PhotoDto
     [JsonPropertyName("thumbnailPath")] public string? ThumbnailPath { get; init; }
     [JsonPropertyName("thumbnailUrl")] public string? ThumbnailUrl { get; init; }
     [JsonPropertyName("remoteUrl")] public string? RemoteUrl { get; init; }
+    [JsonPropertyName("fullUrl")] public string? FullUrl { get; init; }
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
     [JsonPropertyName("location")] public string? Location { get; init; }
     [JsonPropertyName("description")] public string? Description { get; init; }
@@ -47,10 +48,37 @@ public record StartUploadRequestDto
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
 }
 
-public record UploadSessionDto
+public record UploadPartTargetDto
+{
+    [JsonPropertyName("presignedUrl")] public string PresignedUrl { get; init; } = string.Empty;
+    [JsonPropertyName("objectKey")] public string ObjectKey { get; init; } = string.Empty;
+}
+
+public record StartUploadResponseDto
 {
     [JsonPropertyName("sessionId")] public Guid SessionId { get; init; }
-    [JsonPropertyName("presignedUrl")] public string PresignedUrl { get; init; } = string.Empty;
-    [JsonPropertyName("s3Key")] public string S3Key { get; init; } = string.Empty;
     [JsonPropertyName("expiresAt")] public DateTime ExpiresAt { get; init; }
+    [JsonPropertyName("uploads")] public StartUploadTargetsDto Uploads { get; init; } = new();
+}
+
+public record StartUploadTargetsDto
+{
+    [JsonPropertyName("full")] public UploadPartTargetDto Full { get; init; } = new();
+    [JsonPropertyName("compressed")] public UploadPartTargetDto Compressed { get; init; } = new();
+    [JsonPropertyName("thumbnail")] public UploadPartTargetDto Thumbnail { get; init; } = new();
+}
+
+public record StorageUsageDto
+{
+    [JsonPropertyName("usedBytes")] public long UsedBytes { get; init; }
+    [JsonPropertyName("limitBytes")] public long LimitBytes { get; init; }
+}
+
+public record IncompleteUploadSessionDto
+{
+    [JsonPropertyName("sessionId")] public Guid SessionId { get; init; }
+    [JsonPropertyName("fileName")] public string FileName { get; init; } = string.Empty;
+    [JsonPropertyName("expiresAt")] public DateTime ExpiresAt { get; init; }
+    [JsonPropertyName("status")] public UploadSessionStatus Status { get; init; }
+    [JsonPropertyName("fullOriginalFileSizeBytes")] public long FullOriginalFileSizeBytes { get; init; }
 }

@@ -11,67 +11,98 @@ namespace Memoressa.Application.Services;
 
 public class UploadService : IUploadService
 {
+    private const string PhotosOnlyMessage = "僅支援照片";
+
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IS3StorageService _s3;
     private readonly IPhotoUrlResolver _photoUrls;
-    private readonly IThumbnailGenerationService _thumbnails;
     private readonly MediaStorageSettings _storageSettings;
+    private readonly StorageQuotaSettings _quotaSettings;
 
     public UploadService(
         IMemoressaDbContext db,
         ICurrentUserService currentUser,
         IS3StorageService s3,
         IPhotoUrlResolver photoUrls,
-        IThumbnailGenerationService thumbnails,
-        IOptions<MediaStorageSettings> storageSettings)
+        IOptions<MediaStorageSettings> storageSettings,
+        IOptions<StorageQuotaSettings> quotaSettings)
     {
         _db = db;
         _currentUser = currentUser;
         _s3 = s3;
         _photoUrls = photoUrls;
-        _thumbnails = thumbnails;
         _storageSettings = storageSettings.Value;
+        _quotaSettings = quotaSettings.Value;
     }
 
-    public async Task<ServiceResult<UploadSessionDto>> StartUploadAsync(
+    public async Task<ServiceResult<StartUploadResponseDto>> StartUploadAsync(
         StartUploadRequestDto request,
         CancellationToken cancellationToken = default)
     {
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
         if (ctx is null)
         {
-            return ServiceResult<UploadSessionDto>.Fail("Unauthorized", 401);
+            return ServiceResult<StartUploadResponseDto>.Fail("Unauthorized", 401);
         }
 
-        var s3Key = _s3.BuildObjectKey(ctx.Value.FamilyId, ctx.Value.UserId, request.FileName);
+        if (request.MediaKind != MediaKind.Photo
+            || request.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase))
+        {
+            return ServiceResult<StartUploadResponseDto>.Fail(PhotosOnlyMessage, 400);
+        }
+
+        if (request.FileSizeBytes <= 0)
+        {
+            return ServiceResult<StartUploadResponseDto>.Fail("fileSizeBytes must be the original image size in bytes", 400);
+        }
+
+        var quotaCheck = await CheckQuotaAsync(ctx.Value.UserId, request.FileSizeBytes, cancellationToken);
+        if (!quotaCheck.Allowed)
+        {
+            return ServiceResult<StartUploadResponseDto>.Fail(quotaCheck.Error!, quotaCheck.StatusCode);
+        }
+
+        var keys = _s3.BuildPhotoUploadKeys(ctx.Value.FamilyId, ctx.Value.UserId, request.FileName);
         var expiry = TimeSpan.FromMinutes(_storageSettings.PresignedUrlExpiryMinutes);
-        var presignedUrl = await _s3.GetPresignedPutUrlAsync(s3Key, request.ContentType, expiry, cancellationToken);
+        var expiresAt = DateTime.UtcNow.Add(expiry);
+        var contentType = string.IsNullOrWhiteSpace(request.ContentType) ? "image/jpeg" : request.ContentType;
+
+        var fullUrl = await _s3.GetPresignedPutUrlAsync(keys.FullObjectKey, contentType, expiry, cancellationToken);
+        var compressedUrl = await _s3.GetPresignedPutUrlAsync(keys.CompressedObjectKey, contentType, expiry, cancellationToken);
+        var thumbnailUrl = await _s3.GetPresignedPutUrlAsync(keys.ThumbnailObjectKey, contentType, expiry, cancellationToken);
 
         var session = new UploadSession
         {
             UserId = ctx.Value.UserId,
             FamilyId = ctx.Value.FamilyId,
-            MediaKind = request.MediaKind,
-            FileName = request.FileName,
-            ContentType = request.ContentType,
+            MediaKind = MediaKind.Photo,
+            FileName = keys.CompressedFileName,
+            ContentType = contentType,
             FileSizeBytes = request.FileSizeBytes,
-            S3Key = s3Key,
+            S3Key = keys.CompressedObjectKey,
+            S3KeyFull = keys.FullObjectKey,
+            S3KeyThumbnail = keys.ThumbnailObjectKey,
+            TakenAt = request.TakenAt,
             PrivacyScope = request.PrivacyScope,
             SharedAlbumId = request.SharedAlbumId,
-            ExpiresAt = DateTime.UtcNow.Add(expiry),
+            ExpiresAt = expiresAt,
             Status = UploadSessionStatus.Pending
         };
 
         _db.UploadSessions.Add(session);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return ServiceResult<UploadSessionDto>.Ok(new UploadSessionDto
+        return ServiceResult<StartUploadResponseDto>.Ok(new StartUploadResponseDto
         {
             SessionId = session.Id,
-            PresignedUrl = presignedUrl,
-            S3Key = s3Key,
-            ExpiresAt = session.ExpiresAt
+            ExpiresAt = expiresAt,
+            Uploads = new StartUploadTargetsDto
+            {
+                Full = new UploadPartTargetDto { PresignedUrl = fullUrl, ObjectKey = keys.FullFileName },
+                Compressed = new UploadPartTargetDto { PresignedUrl = compressedUrl, ObjectKey = keys.CompressedFileName },
+                Thumbnail = new UploadPartTargetDto { PresignedUrl = thumbnailUrl, ObjectKey = keys.ThumbnailFileName }
+            }
         });
     }
 
@@ -100,15 +131,6 @@ public class UploadService : IUploadService
                 .Include(p => p.AiTags)
                 .FirstAsync(p => p.Id == session.ResultPhotoId.Value, cancellationToken);
 
-            if (string.IsNullOrWhiteSpace(existing.ThumbnailS3Key))
-            {
-                await _thumbnails.GenerateAndStoreAsync(existing.Id, cancellationToken);
-                existing = await _db.Photos
-                    .Include(p => p.PhotoMembers)
-                    .Include(p => p.AiTags)
-                    .FirstAsync(p => p.Id == existing.Id, cancellationToken);
-            }
-
             return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(existing, cancellationToken: cancellationToken));
         }
 
@@ -119,25 +141,55 @@ public class UploadService : IUploadService
             return ServiceResult<PhotoDto>.Fail("Upload session expired", 410);
         }
 
+        if (!PhotoUploadKeys.UsesVariantLayout(session.S3Key, session.S3KeyFull))
+        {
+            return ServiceResult<PhotoDto>.Fail("Upload session is missing variant keys", 409);
+        }
+
+        var fullExists = await _s3.ObjectExistsAsync(session.S3KeyFull!, cancellationToken);
+        var compressedExists = await _s3.ObjectExistsAsync(session.S3Key, cancellationToken);
+        var thumbnailExists = await _s3.ObjectExistsAsync(session.S3KeyThumbnail!, cancellationToken);
+        if (!fullExists || !compressedExists || !thumbnailExists)
+        {
+            return ServiceResult<PhotoDto>.Fail("Upload incomplete: all photo variants must be uploaded before complete", 409);
+        }
+
+        var fullSize = await _s3.GetObjectSizeBytesAsync(session.S3KeyFull!, cancellationToken) ?? session.FileSizeBytes;
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        var user = await _db.UserAccounts
+            .FirstAsync(u => u.Id == ctx.Value.UserId, cancellationToken);
+
+        if (user.CloudStorageUsedBytes + fullSize > _quotaSettings.QuotaBytesPerUser)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ServiceResult<PhotoDto>.Fail("Storage quota exceeded", 413);
+        }
+
+        user.CloudStorageUsedBytes += fullSize;
+
         var photo = new Photo
         {
             FamilyId = session.FamilyId,
             UploadedByUserId = session.UserId,
             S3Key = session.S3Key,
+            ThumbnailS3Key = session.S3KeyThumbnail,
             ContentType = session.ContentType,
-            FileSizeBytes = session.FileSizeBytes,
+            FileSizeBytes = fullSize,
             PrivacyScope = session.PrivacyScope,
             SharedAlbumId = session.SharedAlbumId,
-            TakenAt = session.CreatedAt,
+            TakenAt = session.TakenAt ?? session.CreatedAt,
             Visibility = MemoryVisibility.Family
         };
 
         _db.Photos.Add(photo);
         session.Status = UploadSessionStatus.Completed;
         session.ResultPhotoId = photo.Id;
-        await _db.SaveChangesAsync(cancellationToken);
+        session.FileSizeBytes = fullSize;
 
-        await _thumbnails.GenerateAndStoreAsync(photo.Id, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         photo = await _db.Photos
             .Include(p => p.PhotoMembers)
@@ -145,5 +197,77 @@ public class UploadService : IUploadService
             .FirstAsync(p => p.Id == photo.Id, cancellationToken);
 
         return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken));
+    }
+
+    public async Task<ServiceResult<StorageUsageDto>> GetStorageUsageAsync(CancellationToken cancellationToken = default)
+    {
+        if (_currentUser.UserId is null)
+        {
+            return ServiceResult<StorageUsageDto>.Fail("Unauthorized", 401);
+        }
+
+        var used = await _db.UserAccounts.AsNoTracking()
+            .Where(u => u.Id == _currentUser.UserId.Value)
+            .Select(u => u.CloudStorageUsedBytes)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return ServiceResult<StorageUsageDto>.Ok(new StorageUsageDto
+        {
+            UsedBytes = used,
+            LimitBytes = _quotaSettings.QuotaBytesPerUser
+        });
+    }
+
+    public async Task<ServiceResult<IReadOnlyList<IncompleteUploadSessionDto>>> GetIncompleteUploadsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (_currentUser.UserId is null)
+        {
+            return ServiceResult<IReadOnlyList<IncompleteUploadSessionDto>>.Fail("Unauthorized", 401);
+        }
+
+        var now = DateTime.UtcNow;
+        var sessions = await _db.UploadSessions.AsNoTracking()
+            .Where(s => s.UserId == _currentUser.UserId.Value
+                        && s.Status == UploadSessionStatus.Pending
+                        && s.ExpiresAt >= now)
+            .OrderBy(s => s.ExpiresAt)
+            .Select(s => new IncompleteUploadSessionDto
+            {
+                SessionId = s.Id,
+                FileName = s.FileName,
+                ExpiresAt = s.ExpiresAt,
+                Status = s.Status,
+                FullOriginalFileSizeBytes = s.FileSizeBytes
+            })
+            .ToListAsync(cancellationToken);
+
+        return ServiceResult<IReadOnlyList<IncompleteUploadSessionDto>>.Ok(sessions);
+    }
+
+    private async Task<(bool Allowed, string? Error, int StatusCode)> CheckQuotaAsync(
+        Guid userId,
+        long additionalBytes,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var user = await _db.UserAccounts.AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => new { u.CloudStorageUsedBytes })
+            .FirstAsync(cancellationToken);
+
+        var pendingBytes = await _db.UploadSessions.AsNoTracking()
+            .Where(s => s.UserId == userId
+                        && s.Status == UploadSessionStatus.Pending
+                        && s.ExpiresAt >= now)
+            .SumAsync(s => s.FileSizeBytes, cancellationToken);
+
+        var projected = user.CloudStorageUsedBytes + pendingBytes + additionalBytes;
+        if (projected > _quotaSettings.QuotaBytesPerUser)
+        {
+            return (false, "Storage quota exceeded", 413);
+        }
+
+        return (true, null, 200);
     }
 }

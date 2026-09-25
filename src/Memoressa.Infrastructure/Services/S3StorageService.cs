@@ -2,6 +2,7 @@ using Amazon;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
+using Memoressa.Application.Common;
 using Memoressa.Application.Interfaces;
 using Memoressa.Infrastructure.Options;
 using Microsoft.Extensions.Options;
@@ -21,8 +22,44 @@ public class S3StorageService : IS3StorageService, IDisposable
 
     public string BuildObjectKey(Guid familyId, Guid userId, string fileName)
     {
-        var safeName = Path.GetFileName(fileName);
-        return $"{_options.KeyPrefix.TrimEnd('/')}/{familyId:N}/{userId:N}/{Guid.NewGuid():N}/{safeName}";
+        var keys = BuildPhotoUploadKeys(familyId, userId, fileName);
+        return keys.CompressedObjectKey;
+    }
+
+    public PhotoUploadKeys.VariantKeys BuildPhotoUploadKeys(Guid familyId, Guid userId, string fileName)
+    {
+        return PhotoUploadKeys.Build(
+            _options.KeyPrefix,
+            familyId,
+            userId,
+            fileName,
+            Guid.NewGuid());
+    }
+
+    public async Task<bool> ObjectExistsAsync(string s3Key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _s3Client.GetObjectMetadataAsync(_options.BucketName, s3Key, cancellationToken);
+            return true;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+    }
+
+    public async Task<long?> GetObjectSizeBytesAsync(string s3Key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var metadata = await _s3Client.GetObjectMetadataAsync(_options.BucketName, s3Key, cancellationToken);
+            return metadata.ContentLength;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
     }
 
     public async Task<string> GetPresignedPutUrlAsync(

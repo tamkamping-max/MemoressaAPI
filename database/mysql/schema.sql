@@ -1,5 +1,4 @@
 -- Memoressa MySQL full schema (local development)
--- Apply with: ./database/mysql/apply.sh  or  mysql ... < database/mysql/schema.sql
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
@@ -595,5 +594,14 @@ CREATE INDEX `IX_journal_tags_OwnerUserId` ON journal_tags (`OwnerUserId`);
 ALTER TABLE frame_playback_packages ADD `ExternalId` varchar(128);
 
 CREATE UNIQUE INDEX `IX_frame_playback_packages_DisplayDeviceId_ExternalId` ON frame_playback_packages (`DisplayDeviceId`, `ExternalId`);
+
+-- Memoressa MySQL schema migration: 005_upload_variants_and_storage_quota.sql
+-- Source of truth for local MySQL schema (not EF Core migrations).
+
+ALTER TABLE user_accounts ADD `CloudStorageUsedBytes` bigint NOT NULL DEFAULT 0;
+
+ALTER TABLE upload_sessions ADD `S3KeyFull` text;
+ALTER TABLE upload_sessions ADD `S3KeyThumbnail` text;
+ALTER TABLE upload_sessions ADD `TakenAt` datetime(6);
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -21,8 +21,11 @@ public interface IPasswordHasher
 public interface IS3StorageService
 {
     string BuildObjectKey(Guid familyId, Guid userId, string fileName);
+    PhotoUploadKeys.VariantKeys BuildPhotoUploadKeys(Guid familyId, Guid userId, string fileName);
     Task<string> GetPresignedPutUrlAsync(string s3Key, string contentType, TimeSpan expiry, CancellationToken cancellationToken = default);
     Task<string> GetPresignedGetUrlAsync(string s3Key, TimeSpan expiry, CancellationToken cancellationToken = default);
+    Task<bool> ObjectExistsAsync(string s3Key, CancellationToken cancellationToken = default);
+    Task<long?> GetObjectSizeBytesAsync(string s3Key, CancellationToken cancellationToken = default);
     Task<byte[]> GetObjectBytesAsync(string s3Key, CancellationToken cancellationToken = default);
     Task PutObjectAsync(string s3Key, byte[] bytes, string contentType, CancellationToken cancellationToken = default);
     string BuildThumbnailKey(string originalS3Key);

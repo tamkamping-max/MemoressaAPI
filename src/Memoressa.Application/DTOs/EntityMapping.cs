@@ -15,13 +15,14 @@ public static class EntityMapping
         CreatedAt = user.CreatedAt
     };
 
-    public static PhotoDto ToDto(this Photo photo, string? remoteUrl = null, string? thumbnailUrl = null) => new()
+    public static PhotoDto ToDto(this Photo photo, string? remoteUrl = null, string? thumbnailUrl = null, string? fullUrl = null) => new()
     {
         Id = photo.Id,
         AssetPath = photo.LocalAssetPath ?? remoteUrl ?? string.Empty,
         ThumbnailPath = thumbnailUrl,
         ThumbnailUrl = thumbnailUrl,
         RemoteUrl = remoteUrl,
+        FullUrl = fullUrl,
         TakenAt = photo.TakenAt,
         Location = photo.Location,
         Description = photo.Description,

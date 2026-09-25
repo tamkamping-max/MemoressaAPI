@@ -12,6 +12,7 @@ public class UserAccountConfiguration : IEntityTypeConfiguration<UserAccount>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Email).HasMaxLength(320).IsRequired();
         builder.Property(x => x.Locale).HasMaxLength(16).HasDefaultValue("en");
+        builder.Property(x => x.CloudStorageUsedBytes).HasDefaultValue(0L);
         builder.HasIndex(x => x.Email).IsUnique();
         builder.HasMany(x => x.OAuthLinks).WithOne(x => x.User).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(x => x.RefreshTokens).WithOne(x => x.User).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);

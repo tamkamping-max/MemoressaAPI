@@ -117,8 +117,10 @@ public interface ISharedAlbumService
 
 public interface IUploadService
 {
-    Task<ServiceResult<UploadSessionDto>> StartUploadAsync(StartUploadRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult<StartUploadResponseDto>> StartUploadAsync(StartUploadRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<PhotoDto>> CompleteUploadAsync(Guid sessionId, CancellationToken cancellationToken = default);
+    Task<ServiceResult<StorageUsageDto>> GetStorageUsageAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<IReadOnlyList<IncompleteUploadSessionDto>>> GetIncompleteUploadsAsync(CancellationToken cancellationToken = default);
 }
 
 public interface INotificationService

@@ -1,3 +1,4 @@
+using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Memoressa.Domain.Entities;
@@ -22,10 +23,11 @@ public class PhotoUrlResolver : IPhotoUrlResolver
         PhotoUrlPurpose purpose = PhotoUrlPurpose.ApiResponse,
         CancellationToken cancellationToken = default)
     {
-        var remoteUrl = await GetPresignedUrlAsync(photo, thumbnail: false, purpose, cancellationToken);
-        var thumbnailUrl = await GetPresignedUrlAsync(photo, thumbnail: true, purpose, cancellationToken);
+        var remoteUrl = await PresignKeyAsync(ResolveCompressedObjectKey(photo), purpose, cancellationToken);
+        var thumbnailUrl = await PresignKeyAsync(ResolveThumbnailObjectKey(photo), purpose, cancellationToken);
+        var fullUrl = await PresignKeyAsync(ResolveFullObjectKey(photo), purpose, cancellationToken);
 
-        return photo.ToDto(remoteUrl, thumbnailUrl);
+        return photo.ToDto(remoteUrl, thumbnailUrl, fullUrl);
     }
 
     public async Task<IReadOnlyList<PhotoDto>> ToDtosAsync(
@@ -48,10 +50,23 @@ public class PhotoUrlResolver : IPhotoUrlResolver
         PhotoUrlPurpose purpose = PhotoUrlPurpose.ApiResponse,
         CancellationToken cancellationToken = default)
     {
-        var s3Key = ResolveS3Key(photo, thumbnail);
+        var s3Key = thumbnail ? ResolveThumbnailObjectKey(photo) : ResolveCompressedObjectKey(photo);
         if (string.IsNullOrWhiteSpace(s3Key))
         {
             return photo.LocalAssetPath;
+        }
+
+        return await PresignKeyAsync(s3Key, purpose, cancellationToken);
+    }
+
+    private async Task<string?> PresignKeyAsync(
+        string? s3Key,
+        PhotoUrlPurpose purpose,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(s3Key))
+        {
+            return null;
         }
 
         var expiry = purpose switch
@@ -63,15 +78,33 @@ public class PhotoUrlResolver : IPhotoUrlResolver
         return await _s3.GetPresignedGetUrlAsync(s3Key, expiry, cancellationToken);
     }
 
-    private static string? ResolveS3Key(Photo photo, bool thumbnail)
+    internal static bool UsesClientVariantLayout(Photo photo) =>
+        !string.IsNullOrWhiteSpace(photo.ThumbnailS3Key)
+        && photo.ThumbnailS3Key.EndsWith("_nail.jpg", StringComparison.OrdinalIgnoreCase);
+
+    internal static string? ResolveCompressedObjectKey(Photo photo) => photo.S3Key;
+
+    internal static string? ResolveThumbnailObjectKey(Photo photo)
     {
-        if (thumbnail)
+        if (!string.IsNullOrWhiteSpace(photo.ThumbnailS3Key))
         {
-            return !string.IsNullOrWhiteSpace(photo.ThumbnailS3Key)
-                ? photo.ThumbnailS3Key
-                : photo.S3Key;
+            return photo.ThumbnailS3Key;
         }
 
-        return photo.S3Key;
+        return string.IsNullOrWhiteSpace(photo.S3Key)
+            ? null
+            : PhotoUploadKeys.GetThumbnailObjectKeyFromCompressed(photo.S3Key);
+    }
+
+    internal static string? ResolveFullObjectKey(Photo photo)
+    {
+        if (string.IsNullOrWhiteSpace(photo.S3Key))
+        {
+            return null;
+        }
+
+        return UsesClientVariantLayout(photo)
+            ? PhotoUploadKeys.GetFullObjectKeyFromCompressed(photo.S3Key)
+            : photo.S3Key;
     }
 }

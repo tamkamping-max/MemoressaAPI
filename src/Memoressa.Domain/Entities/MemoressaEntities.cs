@@ -18,6 +18,8 @@ public class UserAccount : Entity
     public DateTime? DeletionScheduledAt { get; set; }
     public DateTime? DeletedAt { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>Sum of original (full) photo bytes stored for this user.</summary>
+    public long CloudStorageUsedBytes { get; set; }
 
     public ICollection<UserOAuthLink> OAuthLinks { get; set; } = [];
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
@@ -331,8 +333,13 @@ public class UploadSession : Entity
     public MediaKind MediaKind { get; set; }
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
+    /// <summary>Original (full image) size in bytes — used for quota reservation.</summary>
     public long FileSizeBytes { get; set; }
+    /// <summary>Compressed object key (logical name e.g. abc.jpg).</summary>
     public string S3Key { get; set; } = string.Empty;
+    public string? S3KeyFull { get; set; }
+    public string? S3KeyThumbnail { get; set; }
+    public DateTime? TakenAt { get; set; }
     public UploadSessionStatus Status { get; set; } = UploadSessionStatus.Pending;
     public UploadPrivacyScope PrivacyScope { get; set; } = UploadPrivacyScope.Family;
     public Guid? SharedAlbumId { get; set; }

@@ -25,6 +25,13 @@ public class UploadsController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpGet("incomplete")]
+    public async Task<IActionResult> GetIncompleteUploads(CancellationToken cancellationToken)
+    {
+        var result = await _uploadService.GetIncompleteUploadsAsync(cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpPost("{sessionId:guid}/complete")]
     public async Task<IActionResult> CompleteUpload(Guid sessionId, CancellationToken cancellationToken)
     {

@@ -42,6 +42,7 @@ public static class ServiceResultExtensions
             403 => new ObjectResult(new { error }) { StatusCode = 403 },
             404 => new NotFoundObjectResult(new { error }),
             409 => new ConflictObjectResult(new { error }),
+            413 => new ObjectResult(new { error }) { StatusCode = 413 },
             _ => new BadRequestObjectResult(new { error })
         };
 }

@@ -40,19 +40,29 @@ public class PhotoUrlResolverTests
 
         var photo = new Photo
         {
-            S3Key = "uploads/family/user/photo.jpg",
-            ThumbnailS3Key = "uploads/family/user/thumb.jpg"
+            S3Key = "uploads/family/user/abc.jpg",
+            ThumbnailS3Key = "uploads/family/user/abc_nail.jpg"
         };
 
         var dto = await resolver.ToDtoAsync(photo);
 
-        Assert.Equal("GET:uploads/family/user/photo.jpg:15", dto.RemoteUrl);
-        Assert.Equal("GET:uploads/family/user/thumb.jpg:15", dto.ThumbnailUrl);
+        Assert.Equal("GET:uploads/family/user/abc.jpg:15", dto.RemoteUrl);
+        Assert.Equal("GET:uploads/family/user/abc_nail.jpg:15", dto.ThumbnailUrl);
+        Assert.Equal("GET:uploads/family/user/abc_full.jpg:15", dto.FullUrl);
     }
 
     private sealed class FakeS3StorageService : IS3StorageService
     {
         public string BuildObjectKey(Guid familyId, Guid userId, string fileName) => fileName;
+
+        public PhotoUploadKeys.VariantKeys BuildPhotoUploadKeys(Guid familyId, Guid userId, string fileName) =>
+            PhotoUploadKeys.Build("uploads", familyId, userId, fileName, Guid.NewGuid());
+
+        public Task<bool> ObjectExistsAsync(string s3Key, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+
+        public Task<long?> GetObjectSizeBytesAsync(string s3Key, CancellationToken cancellationToken = default) =>
+            Task.FromResult<long?>(1024);
 
         public string BuildThumbnailKey(string originalS3Key)
         {
