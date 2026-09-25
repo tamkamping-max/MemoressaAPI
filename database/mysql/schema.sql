@@ -136,7 +136,7 @@ CREATE TABLE user_oauth_links (
     `Id` char(36) NOT NULL,
     `UserId` char(36) NOT NULL,
     `Provider` integer NOT NULL,
-    `ProviderUserId` text NOT NULL,
+    `ProviderUserId` varchar(256) NOT NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `UpdatedAt` datetime(6) NOT NULL,
     CONSTRAINT `PK_user_oauth_links` PRIMARY KEY (`Id`),

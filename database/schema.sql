@@ -131,7 +131,7 @@ CREATE TABLE user_oauth_links (
     "Id" uuid NOT NULL,
     "UserId" uuid NOT NULL,
     "Provider" integer NOT NULL,
-    "ProviderUserId" text NOT NULL,
+    "ProviderUserId" character varying(256) NOT NULL,
     "CreatedAt" timestamp with time zone NOT NULL,
     "UpdatedAt" timestamp with time zone NOT NULL,
     CONSTRAINT "PK_user_oauth_links" PRIMARY KEY ("Id"),

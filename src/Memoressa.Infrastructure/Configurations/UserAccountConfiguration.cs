@@ -49,6 +49,7 @@ public class UserOAuthLinkConfiguration : IEntityTypeConfiguration<UserOAuthLink
     {
         builder.ToTable("user_oauth_links");
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.ProviderUserId).HasMaxLength(256).IsRequired();
         builder.HasIndex(x => new { x.Provider, x.ProviderUserId }).IsUnique();
     }
 }
