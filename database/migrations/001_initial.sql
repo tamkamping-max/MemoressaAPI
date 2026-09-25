@@ -119,7 +119,7 @@ CREATE TABLE upload_sessions (
 CREATE TABLE user_ai_settings (
     "Id" uuid NOT NULL,
     "UserId" uuid NOT NULL,
-    "Key" text NOT NULL,
+    "Key" character varying(128) NOT NULL,
     "Value" boolean NOT NULL,
     "CreatedAt" timestamp with time zone NOT NULL,
     "UpdatedAt" timestamp with time zone NOT NULL,

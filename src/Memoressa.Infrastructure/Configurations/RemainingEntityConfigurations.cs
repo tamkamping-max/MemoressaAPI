@@ -97,6 +97,7 @@ public class UserAiSettingConfiguration : IEntityTypeConfiguration<UserAiSetting
     {
         builder.ToTable("user_ai_settings");
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.Key).HasMaxLength(128).IsRequired();
         builder.HasIndex(x => new { x.UserId, x.Key }).IsUnique();
     }
 }

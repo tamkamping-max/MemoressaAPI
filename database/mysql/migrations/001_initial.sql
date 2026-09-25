@@ -119,7 +119,7 @@ CREATE TABLE upload_sessions (
 CREATE TABLE user_ai_settings (
     `Id` char(36) NOT NULL,
     `UserId` char(36) NOT NULL,
-    `Key` text NOT NULL,
+    `Key` varchar(128) NOT NULL,
     `Value` tinyint(1) NOT NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `UpdatedAt` datetime(6) NOT NULL,

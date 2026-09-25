@@ -119,7 +119,7 @@ CREATE TABLE upload_sessions (
 CREATE TABLE user_ai_settings (
     "Id" uuid NOT NULL,
     "UserId" uuid NOT NULL,
-    "Key" text NOT NULL,
+    "Key" character varying(128) NOT NULL,
     "Value" boolean NOT NULL,
     "CreatedAt" timestamp with time zone NOT NULL,
     "UpdatedAt" timestamp with time zone NOT NULL,
@@ -742,3 +742,9 @@ CREATE INDEX "IX_activity_album_photos_PhotoId" ON activity_album_photos ("Photo
 
 ALTER TABLE upload_sessions ADD "ActivityAlbumId" uuid;
 ALTER TABLE upload_sessions ADD CONSTRAINT "FK_upload_sessions_activity_albums_ActivityAlbumId" FOREIGN KEY ("ActivityAlbumId") REFERENCES activity_albums ("Id") ON DELETE SET NULL;
+
+
+
+-- Memoressa schema migration: 010_user_ai_settings_key_varchar.sql
+
+ALTER TABLE user_ai_settings ALTER COLUMN "Key" TYPE character varying(128);
