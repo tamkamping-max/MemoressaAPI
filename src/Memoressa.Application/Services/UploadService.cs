@@ -54,10 +54,34 @@ public class UploadService : IUploadService
 
         if (request.FileSizeBytes <= 0)
         {
-            return ServiceResult<StartUploadResponseDto>.Fail("fileSizeBytes must be the original image size in bytes", 400);
+            return ServiceResult<StartUploadResponseDto>.Fail("fileSizeBytes must be the original still image size in bytes", 400);
         }
 
-        var quotaCheck = await CheckQuotaAsync(ctx.Value.UserId, request.FileSizeBytes, cancellationToken);
+        if (!request.IsLivePhoto
+            && (request.LivePhotoVideoFileSizeBytes > 0
+                || !string.IsNullOrWhiteSpace(request.LivePhotoVideoFileName)
+                || !string.IsNullOrWhiteSpace(request.LivePhotoVideoContentType)))
+        {
+            return ServiceResult<StartUploadResponseDto>.Fail(
+                "Omit Live Photo fields when isLivePhoto is false, or set isLivePhoto true to upload the video",
+                400);
+        }
+
+        long liveVideoSizeBytes = 0;
+        if (request.IsLivePhoto)
+        {
+            if (request.LivePhotoVideoFileSizeBytes <= 0)
+            {
+                return ServiceResult<StartUploadResponseDto>.Fail(
+                    "livePhotoVideoFileSizeBytes is required when isLivePhoto is true",
+                    400);
+            }
+
+            liveVideoSizeBytes = request.LivePhotoVideoFileSizeBytes;
+        }
+
+        var quotaBytes = request.FileSizeBytes + liveVideoSizeBytes;
+        var quotaCheck = await CheckQuotaAsync(ctx.Value.UserId, quotaBytes, cancellationToken);
         if (!quotaCheck.Allowed)
         {
             return ServiceResult<StartUploadResponseDto>.Fail(quotaCheck.Error!, quotaCheck.StatusCode);
@@ -161,7 +185,9 @@ public class UploadService : IUploadService
             IsLivePhoto = request.IsLivePhoto,
             LivePhotoVideoFileName = keys.LivePhotoVideoFileName,
             LivePhotoVideoContentType = liveVideoContentType,
-            FileSizeBytes = request.FileSizeBytes,
+            OriginalStillFileSizeBytes = request.FileSizeBytes,
+            LivePhotoVideoFileSizeBytes = liveVideoSizeBytes,
+            FileSizeBytes = quotaBytes,
             S3Key = keys.CompressedObjectKey,
             S3KeyFull = keys.FullObjectKey,
             S3KeyThumbnail = keys.ThumbnailObjectKey,
@@ -256,20 +282,29 @@ public class UploadService : IUploadService
                 409);
         }
 
-        var fullSize = await _s3.GetObjectSizeBytesAsync(session.S3KeyFull!, cancellationToken) ?? session.FileSizeBytes;
+        var stillSize = await _s3.GetObjectSizeBytesAsync(session.S3KeyFull!, cancellationToken)
+                        ?? session.OriginalStillFileSizeBytes;
+        long liveVideoSize = 0;
+        if (session.IsLivePhoto && !string.IsNullOrWhiteSpace(session.S3KeyLivePhotoVideo))
+        {
+            liveVideoSize = await _s3.GetObjectSizeBytesAsync(session.S3KeyLivePhotoVideo, cancellationToken)
+                            ?? session.LivePhotoVideoFileSizeBytes;
+        }
+
+        var totalQuotaBytes = stillSize + liveVideoSize;
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
         var user = await _db.UserAccounts
             .FirstAsync(u => u.Id == ctx.Value.UserId, cancellationToken);
 
-        if (user.CloudStorageUsedBytes + fullSize > _quotaSettings.QuotaBytesPerUser)
+        if (user.CloudStorageUsedBytes + totalQuotaBytes > _quotaSettings.QuotaBytesPerUser)
         {
             await transaction.RollbackAsync(cancellationToken);
             return ServiceResult<PhotoDto>.Fail("Storage quota exceeded", 413);
         }
 
-        user.CloudStorageUsedBytes += fullSize;
+        user.CloudStorageUsedBytes += totalQuotaBytes;
 
         var photo = new Photo
         {
@@ -285,7 +320,9 @@ public class UploadService : IUploadService
             LivePhotoVideoContentType = session.LivePhotoVideoContentType,
             ThumbnailS3Key = session.S3KeyThumbnail,
             ContentType = session.ContentType,
-            FileSizeBytes = fullSize,
+            OriginalStillFileSizeBytes = stillSize,
+            LivePhotoVideoFileSizeBytes = liveVideoSize,
+            FileSizeBytes = totalQuotaBytes,
             PrivacyScope = session.PrivacyScope,
             SharedAlbumId = session.SharedAlbumId,
             TakenAt = session.TakenAt ?? session.CreatedAt,
@@ -295,7 +332,9 @@ public class UploadService : IUploadService
         _db.Photos.Add(photo);
         session.Status = UploadSessionStatus.Completed;
         session.ResultPhotoId = photo.Id;
-        session.FileSizeBytes = fullSize;
+        session.OriginalStillFileSizeBytes = stillSize;
+        session.LivePhotoVideoFileSizeBytes = liveVideoSize;
+        session.FileSizeBytes = totalQuotaBytes;
 
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -349,7 +388,10 @@ public class UploadService : IUploadService
                 PresignedUrlExpiryMinutes = configuredMinutes,
                 ExpiresAt = s.ExpiresAt,
                 Status = s.Status,
-                FullOriginalFileSizeBytes = s.FileSizeBytes
+                OriginalStillFileSizeBytes = s.OriginalStillFileSizeBytes,
+                LivePhotoVideoFileSizeBytes = s.LivePhotoVideoFileSizeBytes,
+                QuotaReservedBytes = s.FileSizeBytes,
+                FullOriginalFileSizeBytes = s.OriginalStillFileSizeBytes
             })
             .ToListAsync(cancellationToken);
 

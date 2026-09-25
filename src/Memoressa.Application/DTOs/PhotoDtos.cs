@@ -48,6 +48,9 @@ public record StartUploadRequestDto
     [JsonPropertyName("originalFileName")] public string OriginalFileName { get; init; } = string.Empty;
     [JsonPropertyName("originalContentType")] public string OriginalContentType { get; init; } = string.Empty;
     [JsonPropertyName("fileSizeBytes")] public long FileSizeBytes { get; init; }
+    /// <summary>When <see cref="IsLivePhoto"/> is true, size of the companion video in bytes (counts toward quota).</summary>
+    [JsonPropertyName("livePhotoVideoFileSizeBytes")] public long LivePhotoVideoFileSizeBytes { get; init; }
+    /// <summary>User choice: upload Live Photo pair (still + video). When false, only still original is stored and charged.</summary>
     [JsonPropertyName("isLivePhoto")] public bool IsLivePhoto { get; init; }
     [JsonPropertyName("livePhotoVideoFileName")] public string? LivePhotoVideoFileName { get; init; }
     [JsonPropertyName("livePhotoVideoContentType")] public string? LivePhotoVideoContentType { get; init; }
@@ -93,5 +96,8 @@ public record IncompleteUploadSessionDto
     [JsonPropertyName("presignedUrlExpiryMinutes")] public int PresignedUrlExpiryMinutes { get; init; }
     [JsonPropertyName("expiresAt")] public DateTime ExpiresAt { get; init; }
     [JsonPropertyName("status")] public UploadSessionStatus Status { get; init; }
+    [JsonPropertyName("originalStillFileSizeBytes")] public long OriginalStillFileSizeBytes { get; init; }
+    [JsonPropertyName("livePhotoVideoFileSizeBytes")] public long LivePhotoVideoFileSizeBytes { get; init; }
+    [JsonPropertyName("quotaReservedBytes")] public long QuotaReservedBytes { get; init; }
     [JsonPropertyName("fullOriginalFileSizeBytes")] public long FullOriginalFileSizeBytes { get; init; }
 }

@@ -132,7 +132,11 @@ public class Photo : Entity, IFamilyScoped
     public MemoryVisibility Visibility { get; set; } = MemoryVisibility.Family;
     public UploadPrivacyScope PrivacyScope { get; set; } = UploadPrivacyScope.Family;
     public Guid? SharedAlbumId { get; set; }
+    /// <summary>Total bytes counted toward user quota (still original + Live video when applicable).</summary>
     public long? FileSizeBytes { get; set; }
+    /// <summary>Still original size component of <see cref="FileSizeBytes"/>.</summary>
+    public long? OriginalStillFileSizeBytes { get; set; }
+    public long LivePhotoVideoFileSizeBytes { get; set; }
     public string? ContentType { get; set; }
     public string? AiAnalysisJson { get; set; }
 
@@ -349,8 +353,10 @@ public class UploadSession : Entity
     public bool IsLivePhoto { get; set; }
     public string? LivePhotoVideoFileName { get; set; }
     public string? LivePhotoVideoContentType { get; set; }
-    /// <summary>Original (full image) size in bytes — used for quota reservation.</summary>
+    /// <summary>Total bytes reserved for quota (still + Live video when applicable).</summary>
     public long FileSizeBytes { get; set; }
+    public long OriginalStillFileSizeBytes { get; set; }
+    public long LivePhotoVideoFileSizeBytes { get; set; }
     /// <summary>Compressed object key (e.g. abc.jpg).</summary>
     public string S3Key { get; set; } = string.Empty;
     public string? S3KeyFull { get; set; }

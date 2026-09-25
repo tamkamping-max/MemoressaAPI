@@ -624,3 +624,13 @@ ALTER TABLE upload_sessions ADD "IsLivePhoto" boolean NOT NULL DEFAULT false;
 ALTER TABLE upload_sessions ADD "S3KeyLivePhotoVideo" text;
 ALTER TABLE upload_sessions ADD "LivePhotoVideoFileName" character varying(260);
 ALTER TABLE upload_sessions ADD "LivePhotoVideoContentType" character varying(128);
+
+
+
+-- Memoressa schema migration: 007_live_photo_quota_bytes.sql
+
+ALTER TABLE photos ADD "OriginalStillFileSizeBytes" bigint;
+ALTER TABLE photos ADD "LivePhotoVideoFileSizeBytes" bigint NOT NULL DEFAULT 0;
+
+ALTER TABLE upload_sessions ADD "OriginalStillFileSizeBytes" bigint;
+ALTER TABLE upload_sessions ADD "LivePhotoVideoFileSizeBytes" bigint NOT NULL DEFAULT 0;

@@ -621,4 +621,12 @@ ALTER TABLE upload_sessions ADD `S3KeyLivePhotoVideo` longtext;
 ALTER TABLE upload_sessions ADD `LivePhotoVideoFileName` varchar(260);
 ALTER TABLE upload_sessions ADD `LivePhotoVideoContentType` varchar(128);
 
+-- Memoressa MySQL schema migration: 007_live_photo_quota_bytes.sql
+
+ALTER TABLE photos ADD `OriginalStillFileSizeBytes` bigint;
+ALTER TABLE photos ADD `LivePhotoVideoFileSizeBytes` bigint NOT NULL DEFAULT 0;
+
+ALTER TABLE upload_sessions ADD `OriginalStillFileSizeBytes` bigint;
+ALTER TABLE upload_sessions ADD `LivePhotoVideoFileSizeBytes` bigint NOT NULL DEFAULT 0;
+
 SET FOREIGN_KEY_CHECKS = 1;
