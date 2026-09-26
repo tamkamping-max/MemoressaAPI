@@ -20,8 +20,7 @@ public static class TodayMemoriesComposer
         Random random)
     {
         var eligible = allPhotos
-            .Where(p => !p.IsHidden)
-            .Where(p => HasDisplayableAsset(p))
+            .Where(TodayMemoriesCacheRefresh.IsEligiblePhoto)
             .ToList();
 
         if (eligible.Count < TodayMemoriesConstants.MinPhotos)
@@ -86,8 +85,7 @@ public static class TodayMemoriesComposer
             Items = []
         };
 
-    private static bool HasDisplayableAsset(Photo photo) =>
-        !string.IsNullOrWhiteSpace(photo.S3Key) || !string.IsNullOrWhiteSpace(photo.LocalAssetPath);
+    private static bool HasDisplayableAsset(Photo photo) => TodayMemoriesCacheRefresh.IsEligiblePhoto(photo);
 
     private static DateOnly EffectiveDate(Photo photo)
     {

@@ -326,7 +326,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | PUT | `/{id}` | Update photo metadata |
 | POST | `/{id}/hide` | Hide photo |
 | GET | `/timeline` | Timeline photos (cursor pagination; default `limit=20`, max 50). Query: `?limit=20&cursor=...`. Response: `{ items, nextCursor, hasMore }` |
-| POST | `/today-memories` | **今日回憶** (lazy, **once per family per calendar day** on first call). Body: optional `date`, location/travel/occasions — **only used on first call that day**; later calls return cached snapshot (`fromCache: true`). Response: `{ items, strategy, referenceDate, fromCache }` |
+| POST | `/today-memories` | **今日回憶** (lazy cache per family per calendar day). Body: optional `date`, location/travel/occasions — **used on first successful compose that day**; later calls return cached snapshot (`fromCache: true`). **Exception:** if the cached result is **empty** (`strategy: empty`) and the family later has **≥ 4 eligible photos**, the next call **recomputes** (drops stale empty cache, `fromCache: false`). Response: `{ items, strategy, referenceDate, fromCache }` |
 
 ### Activities — `api/v1/activities`
 

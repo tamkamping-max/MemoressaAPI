@@ -332,15 +332,29 @@ public class PhotoService : IPhotoService
 
         if (cached is not null)
         {
-            var fromCache = await BuildResponseFromCacheAsync(
-                ctx.Value.FamilyId,
-                referenceDate,
-                cached.Strategy,
-                cached.ItemsJson,
-                fromCache: true,
-                cancellationToken);
+            var eligibleCount = await CountEligiblePhotosAsync(ctx.Value.FamilyId, cancellationToken);
+            if (!TodayMemoriesCacheRefresh.ShouldRecomposeEmptyCache(cached, eligibleCount))
+            {
+                var fromCache = await BuildResponseFromCacheAsync(
+                    ctx.Value.FamilyId,
+                    referenceDate,
+                    cached.Strategy,
+                    cached.ItemsJson,
+                    fromCache: true,
+                    cancellationToken);
 
-            return ServiceResult<TodayMemoriesResponseDto>.Ok(fromCache);
+                return ServiceResult<TodayMemoriesResponseDto>.Ok(fromCache);
+            }
+
+            var stale = await _db.TodayMemoriesCaches
+                .FirstOrDefaultAsync(
+                    c => c.FamilyId == ctx.Value.FamilyId && c.CacheDate == referenceDate,
+                    cancellationToken);
+            if (stale is not null)
+            {
+                _db.TodayMemoriesCaches.Remove(stale);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
         }
 
         var built = await ComposeAndPersistTodayMemoriesAsync(
@@ -526,6 +540,14 @@ public class PhotoService : IPhotoService
             FromCache = fromCache
         };
     }
+
+    private async Task<int> CountEligiblePhotosAsync(Guid familyId, CancellationToken cancellationToken) =>
+        await _db.Photos.AsNoTracking()
+            .Where(p => p.FamilyId == familyId)
+            .CountAsync(
+                p => !p.IsHidden
+                     && (p.S3Key != null && p.S3Key != "" || p.LocalAssetPath != null && p.LocalAssetPath != ""),
+                cancellationToken);
 
     private IQueryable<Domain.Entities.Photo> QueryPhotos(Guid familyId) =>
         _db.Photos.AsNoTracking()
