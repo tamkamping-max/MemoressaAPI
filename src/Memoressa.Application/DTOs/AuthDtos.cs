@@ -31,7 +31,6 @@ public record RegisterRequestDto
 {
     [JsonPropertyName("email")] public string Email { get; init; } = string.Empty;
     [JsonPropertyName("password")] public string Password { get; init; } = string.Empty;
-    [JsonPropertyName("confirmPassword")] public string ConfirmPassword { get; init; } = string.Empty;
     [JsonPropertyName("nickname")] public string? Nickname { get; init; }
 }
 

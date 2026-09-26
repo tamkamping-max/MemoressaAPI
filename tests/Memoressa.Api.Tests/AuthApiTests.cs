@@ -47,7 +47,6 @@ public class AuthApiTests : IClassFixture<WebApplicationFactory<Program>>
         {
             email = "test@memoressa.com",
             password = "Password123!",
-            confirmPassword = "Password123!",
             nickname = "Tester"
         });
 

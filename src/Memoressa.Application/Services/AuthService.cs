@@ -48,11 +48,6 @@ public partial class AuthService : IAuthService
         RegisterRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        if (request.Password != request.ConfirmPassword)
-        {
-            return ServiceResult<AuthResponseDto>.Fail("Passwords do not match");
-        }
-
         var email = request.Email.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
         {

@@ -308,7 +308,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/register` | Public | Register a new account |
+| POST | `/register` | Public | Register: `{ "email", "password", "nickname"? }` (no `confirmPassword`) |
 | POST | `/login` | Public | Login with email/password |
 | POST | `/refresh` | Public | Refresh access token |
 | POST | `/logout` | JWT | Revoke refresh token |
