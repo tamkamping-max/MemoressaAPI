@@ -57,13 +57,14 @@ public class EmailService : IEmailService
             throw new InvalidOperationException("Email SMTP is not configured");
         }
 
-        var subject = "Memoressa 密碼重設驗證碼";
+        var subject = "Memoressa password reset verification code";
+        var ttl = PasswordResetCodeRules.TtlMinutes;
         var textBody =
-            $"您的 Memoressa 密碼重設驗證碼為：{code}\n\n" +
-            $"此驗證碼 {PasswordResetCodeRules.TtlMinutes} 分鐘內有效。如非本人操作，請忽略此信。\n";
+            $"Your Memoressa password reset verification code is: {code}\n\n" +
+            $"This code is valid for {ttl} minutes. If you did not request a reset, you can ignore this email.\n";
         var htmlBody =
-            $"<p>您的 Memoressa 密碼重設驗證碼為：<strong>{WebUtility.HtmlEncode(code)}</strong></p>" +
-            $"<p>此驗證碼 {PasswordResetCodeRules.TtlMinutes} 分鐘內有效。如非本人操作，請忽略此信。</p>";
+            $"<p>Your Memoressa password reset verification code is: <strong>{WebUtility.HtmlEncode(code)}</strong></p>" +
+            $"<p>This code is valid for {ttl} minutes. If you did not request a reset, you can ignore this email.</p>";
 
         var fromAddress = new MailAddress(
             _sesOptions.FromEmail.Trim(),
@@ -95,7 +96,13 @@ public class EmailService : IEmailService
         };
 
         await client.SendMailAsync(message, cancellationToken);
-        _logger.LogInformation("Password reset OTP email sent to {Email} via SES SMTP", email);
+        _logger.LogInformation(
+            "Password reset OTP accepted by SMTP for {Email} (host={SmtpHost}, from={FromEmail}). " +
+            "If the inbox is empty: check spam; in SES sandbox only verified To/From addresses receive mail; " +
+            "confirm domain/address verification and region match AwsSes:Region.",
+            email,
+            ResolveSmtpHost(),
+            _sesOptions.FromEmail.Trim());
     }
 
     private bool IsSmtpConfigured() =>

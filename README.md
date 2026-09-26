@@ -213,6 +213,8 @@ Create **SMTP credentials** in the AWS SES console (IAM → SMTP user — not th
 | `AwsSes:FromDisplayName` | Display name (default `Memoressa`) |
 | `AwsSes:ConfigurationSetName` | Optional; sent as SMTP header `X-SES-CONFIGURATION-SET` |
 
+**Log says SMTP accepted but no email?** That only means SES SMTP returned success to the API. Common causes: message in **spam/junk**; account still in **SES sandbox** (verify both **From** and recipient **To** in SES console, or request production access); **`FromEmail` / domain not verified** in the same region as `AwsSes:Region`; SMTP credentials created in a **different region** than `SmtpHost`; corporate mailbox delay. Check SES → Account dashboard → Sending statistics / suppression list.
+
 Migration **`014_password_reset_codes.sql`**. **Local MySQL:** run `database/mysql/migrations/014_password_reset_codes.sql` — **not** `database/migrations/` (that tree is **PostgreSQL** syntax).
 
 ### OAuth Apple
