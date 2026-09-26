@@ -302,7 +302,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | **我的回憶**: user-created memories only (`IsAiGenerated` / today-highlight rows excluded). Create via `POST /`. |
+| GET | `/` | **我的回憶**: user-created only (`POST /`). Excludes `IsAiGenerated`, `IsTodayHighlight`, and `type: aiMemory`. Same scope on `POST /filter` and `GET /years-ago-today`. Response includes `isAiGenerated` / `isTodayHighlight` for debugging. |
 | GET | `/ai-curated` | AI-curated memories |
 | GET | `/today` | Today's memories |
 | POST | `/today/regenerate` | Regenerate today highlight |

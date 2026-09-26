@@ -28,8 +28,7 @@ public class MemoryService : IMemoryService
             return ServiceResult<IReadOnlyList<MemoryDto>>.Fail("Unauthorized", 401);
         }
 
-        var memories = await QueryMemories(ctx.Value.FamilyId)
-            .Where(m => !m.IsTodayHighlight && !m.IsAiGenerated)
+        var memories = await MyMemoriesScope.Apply(QueryMemories(ctx.Value.FamilyId))
             .OrderByDescending(m => m.CreatedAt)
             .ToListAsync(cancellationToken);
 
@@ -180,7 +179,7 @@ public class MemoryService : IMemoryService
         }
 
         var today = DateTime.UtcNow;
-        var memories = await QueryMemories(ctx.Value.FamilyId)
+        var memories = await MyMemoriesScope.Apply(QueryMemories(ctx.Value.FamilyId))
             .Where(m => m.StartDate.HasValue &&
                         m.StartDate.Value.Month == today.Month &&
                         m.StartDate.Value.Day == today.Day &&
@@ -215,6 +214,11 @@ public class MemoryService : IMemoryService
             return ServiceResult<MemoryDto>.Fail("Unauthorized", 401);
         }
 
+        if (request.Type == MemoryType.AiMemory)
+        {
+            return ServiceResult<MemoryDto>.Fail("AiMemory type is reserved for server-curated memories", 400);
+        }
+
         var memory = MapMemory(new Memory(), request, ctx.Value.FamilyId, ctx.Value.UserId);
         _db.Memories.Add(memory);
         await ApplyMemoryRelationsAsync(memory, request, cancellationToken);
@@ -246,6 +250,16 @@ public class MemoryService : IMemoryService
             return ServiceResult<MemoryDto>.NotFound("Memory not found");
         }
 
+        if (!MyMemoriesScope.Includes(memory))
+        {
+            return ServiceResult<MemoryDto>.Fail("Cannot modify server-curated memory", 403);
+        }
+
+        if (request.Type == MemoryType.AiMemory)
+        {
+            return ServiceResult<MemoryDto>.Fail("AiMemory type is reserved for server-curated memories", 400);
+        }
+
         MapMemory(memory, request, ctx.Value.FamilyId, ctx.Value.UserId);
         _db.MemoryPhotos.RemoveRange(memory.MemoryPhotos);
         _db.MemoryVideos.RemoveRange(memory.MemoryVideos);
@@ -271,6 +285,11 @@ public class MemoryService : IMemoryService
             return ServiceResult.NotFound("Memory not found");
         }
 
+        if (!MyMemoriesScope.Includes(memory))
+        {
+            return ServiceResult.Fail("Cannot delete server-curated memory", 403);
+        }
+
         _db.Memories.Remove(memory);
         await _db.SaveChangesAsync(cancellationToken);
         return ServiceResult.Ok();
@@ -286,7 +305,7 @@ public class MemoryService : IMemoryService
             return ServiceResult<IReadOnlyList<MemoryDto>>.Fail("Unauthorized", 401);
         }
 
-        var query = QueryMemories(ctx.Value.FamilyId);
+        var query = MyMemoriesScope.Apply(QueryMemories(ctx.Value.FamilyId));
 
         if (filter.Year.HasValue)
         {
@@ -345,6 +364,8 @@ public class MemoryService : IMemoryService
         memory.BackgroundMusicId = request.BackgroundMusicId;
         memory.Visibility = request.Visibility;
         memory.WeatherSummary = request.WeatherSummary;
+        memory.IsAiGenerated = false;
+        memory.IsTodayHighlight = false;
         return memory;
     }
 

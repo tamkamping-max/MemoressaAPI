@@ -19,6 +19,7 @@ public record MemoryDto
     [JsonPropertyName("eventType")] public EventType? EventType { get; init; }
     [JsonPropertyName("generation")] public Generation? Generation { get; init; }
     [JsonPropertyName("isAiGenerated")] public bool IsAiGenerated { get; init; }
+    [JsonPropertyName("isTodayHighlight")] public bool IsTodayHighlight { get; init; }
     [JsonPropertyName("backgroundMusicId")] public string? BackgroundMusicId { get; init; }
     [JsonPropertyName("visibility")] public MemoryVisibility Visibility { get; init; }
     [JsonPropertyName("weatherSummary")] public string? WeatherSummary { get; init; }

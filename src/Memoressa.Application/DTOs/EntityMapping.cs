@@ -58,6 +58,7 @@ public static class EntityMapping
         EventType = memory.EventType,
         Generation = memory.Generation,
         IsAiGenerated = memory.IsAiGenerated,
+        IsTodayHighlight = memory.IsTodayHighlight,
         BackgroundMusicId = memory.BackgroundMusicId,
         Visibility = memory.Visibility,
         WeatherSummary = memory.WeatherSummary,
