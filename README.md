@@ -198,6 +198,23 @@ After `POST /api/v1/uploads/{sessionId}/complete`, the API:
 
 Configure via `AwsS3:ThumbnailMaxEdgePixels`, `ThumbnailJpegQuality`, `ThumbnailMaxSourceBytes`, `FfmpegPath`.
 
+### AwsSes (password reset OTP)
+
+| Key | Description |
+|-----|-------------|
+| `AwsSes:Region` | SES region (default `us-east-1`) |
+| `AwsSes:FromEmail` | Verified sender address (required in production) |
+| `AwsSes:FromDisplayName` | Display name (default `Memoressa`) |
+| `AwsSes:AccessKey` / `SecretKey` | Optional; falls back to `AwsS3` keys or instance profile |
+
+Migration **`014_password_reset_codes.sql`**. Dev without `FromEmail`: OTP logged at Information level (not returned in API).
+
+### OAuth Apple
+
+| Key | Description |
+|-----|-------------|
+| `OAuth:Apple:ClientId` | iOS **bundle id** (JWT `aud`) for Sign in with Apple |
+
 Upload flow (photos only — **no video** as the main asset):
 
 1. `POST /api/v1/uploads/start` with `fileSizeBytes` = **original still** size, plus **`originalFileName`** / **`originalContentType`** (e.g. `IMG_1234.HEIC`, `image/heic`). Optional **`privacyScope`**: `onlySelf` | `family` | `friends` | `friendsAndFamily` | `custom` (App may also send Memory Visibility aliases `private` → onlySelf, `specificMembers` → custom). Optional **`compressedUsesFullOriginal`: true** — skip separate compressed PUT; response omits `uploads.compressed`; on **complete**, `Photo.S3Key` (display/`remoteUrl`) points at the **full original** object (same key as `S3KeyFull`). Otherwise returns **three** presigned PUT URLs (`full`, `compressed`, `thumbnail`), optional **`livePhotoVideo`**, plus **`presignedUrlExpiryMinutes`** and **`expiresAt`** (UTC).
@@ -289,14 +306,18 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | POST | `/login` | Public | Login with email/password |
 | POST | `/refresh` | Public | Refresh access token |
 | POST | `/logout` | JWT | Revoke refresh token |
-| POST | `/password-reset/request` | Public | Request password reset email |
-| POST | `/password-reset/confirm` | Public | Reset password with token |
+| POST | `/password-reset/request` | Public | **Legacy** link-based reset (optional; App uses OTP below) |
+| POST | `/password-reset/confirm` | Public | Legacy reset with `token` from email link |
+| POST | `/password-reset/code/request` | Public | Send **8-digit OTP** (15 min) via **AWS SES**; `{ "email" }`. Unknown email → **404** `找不到此 email`. Rate limit: 1/min, 5/hour per user. Success **204** (never return code in JSON). |
+| POST | `/password-reset/code/verify` | Public | `{ "email", "code" }` — valid → **204**; wrong/expired → **401** |
+| POST | `/password-reset/code/confirm` | Public | `{ "email", "code", "newPassword", "confirmPassword" }` — updates password, invalidates code → **204** |
 | POST | `/account/deletion/schedule` | JWT | Schedule account deletion |
 | POST | `/account/deletion/cancel` | JWT | Cancel scheduled deletion |
 | GET | `/me` | JWT | Get current user |
 | GET | `/account/deletion/status` | JWT | Get deletion status |
 | POST | `/oauth/google` | Public | Login/register with Google id token |
 | POST | `/oauth/facebook` | Public | Login/register with Facebook access token |
+| POST | `/oauth/apple` | Public | Sign in with Apple: `{ "identityToken" }` — validates Apple JWT (`iss`, `aud` = `OAuth:Apple:ClientId` bundle id). Response same as Google: `{ user, tokens, familyId }`. Dev: `identityToken` = `demo-apple-token`. |
 
 ### Memories — `api/v1/memories`
 

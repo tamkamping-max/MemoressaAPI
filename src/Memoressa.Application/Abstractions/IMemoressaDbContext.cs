@@ -12,6 +12,7 @@ public interface IMemoressaDbContext
     DbSet<UserOAuthLink> UserOAuthLinks { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<PasswordResetToken> PasswordResetTokens { get; }
+    DbSet<PasswordResetCode> PasswordResetCodes { get; }
     DbSet<Family> Families { get; }
     DbSet<FamilyMembership> FamilyMemberships { get; }
     DbSet<FamilyMember> FamilyMembers { get; }

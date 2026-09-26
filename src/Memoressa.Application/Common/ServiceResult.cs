@@ -8,6 +8,8 @@ public class ServiceResult
 
     public static ServiceResult Ok() => new() { Success = true, StatusCode = 200 };
 
+    public static ServiceResult NoContent() => new() { Success = true, StatusCode = 204 };
+
     public static ServiceResult Fail(string error, int statusCode = 400) =>
         new() { Success = false, Error = error, StatusCode = statusCode };
 

@@ -43,6 +43,18 @@ public class PasswordResetTokenConfiguration : IEntityTypeConfiguration<Password
     }
 }
 
+public class PasswordResetCodeConfiguration : IEntityTypeConfiguration<PasswordResetCode>
+{
+    public void Configure(EntityTypeBuilder<PasswordResetCode> builder)
+    {
+        builder.ToTable("password_reset_codes");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.CodeHash).HasMaxLength(256).IsRequired();
+        builder.HasIndex(x => new { x.UserId, x.CreatedAt });
+        builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 public class UserOAuthLinkConfiguration : IEntityTypeConfiguration<UserOAuthLink>
 {
     public void Configure(EntityTypeBuilder<UserOAuthLink> builder)

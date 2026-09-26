@@ -116,7 +116,8 @@ public enum AiAnalysisJobStatus
 public enum OAuthProvider
 {
     Google,
-    Facebook
+    Facebook,
+    Apple
 }
 
 public enum SharedAlbumType

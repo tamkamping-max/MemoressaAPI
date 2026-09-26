@@ -51,6 +51,25 @@ public record PasswordResetRequestDto
     [JsonPropertyName("email")] public string Email { get; init; } = string.Empty;
 }
 
+public record PasswordResetEmailRequestDto
+{
+    [JsonPropertyName("email")] public string Email { get; init; } = string.Empty;
+}
+
+public record PasswordResetCodeVerifyRequestDto
+{
+    [JsonPropertyName("email")] public string Email { get; init; } = string.Empty;
+    [JsonPropertyName("code")] public string Code { get; init; } = string.Empty;
+}
+
+public record PasswordResetCodeConfirmRequestDto
+{
+    [JsonPropertyName("email")] public string Email { get; init; } = string.Empty;
+    [JsonPropertyName("code")] public string Code { get; init; } = string.Empty;
+    [JsonPropertyName("newPassword")] public string NewPassword { get; init; } = string.Empty;
+    [JsonPropertyName("confirmPassword")] public string ConfirmPassword { get; init; } = string.Empty;
+}
+
 public record ResetPasswordRequestDto
 {
     [JsonPropertyName("token")] public string Token { get; init; } = string.Empty;
@@ -74,4 +93,9 @@ public record OAuthLoginRequestDto
 {
     [JsonPropertyName("idToken")] public string? IdToken { get; init; }
     [JsonPropertyName("accessToken")] public string? AccessToken { get; init; }
+}
+
+public record AppleOAuthRequestDto
+{
+    [JsonPropertyName("identityToken")] public string IdentityToken { get; init; } = string.Empty;
 }

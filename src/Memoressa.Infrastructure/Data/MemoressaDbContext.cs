@@ -15,6 +15,7 @@ public class MemoressaDbContext : DbContext, IMemoressaDbContext
     public DbSet<UserOAuthLink> UserOAuthLinks => Set<UserOAuthLink>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<PasswordResetCode> PasswordResetCodes => Set<PasswordResetCode>();
     public DbSet<Family> Families => Set<Family>();
     public DbSet<FamilyMembership> FamilyMemberships => Set<FamilyMembership>();
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();

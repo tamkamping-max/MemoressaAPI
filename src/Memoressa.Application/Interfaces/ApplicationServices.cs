@@ -11,12 +11,16 @@ public interface IAuthService
     Task<ServiceResult> LogoutAsync(string refreshToken, CancellationToken cancellationToken = default);
     Task<ServiceResult> RequestPasswordResetAsync(PasswordResetRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult> ResetPasswordAsync(ResetPasswordRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult> RequestPasswordResetCodeAsync(PasswordResetEmailRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult> VerifyPasswordResetCodeAsync(PasswordResetCodeVerifyRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult> ConfirmPasswordResetWithCodeAsync(PasswordResetCodeConfirmRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult> ScheduleAccountDeletionAsync(string password, CancellationToken cancellationToken = default);
     Task<ServiceResult> CancelAccountDeletionAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<UserDto>> GetCurrentUserAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<AccountDeletionStatusDto>> GetDeletionStatusAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<AuthResponseDto>> LoginWithGoogleAsync(OAuthLoginRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<AuthResponseDto>> LoginWithFacebookAsync(OAuthLoginRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult<AuthResponseDto>> LoginWithAppleAsync(AppleOAuthRequestDto request, CancellationToken cancellationToken = default);
 }
 
 public interface IMemoryService

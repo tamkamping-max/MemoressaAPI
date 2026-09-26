@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace Memoressa.Application.Services;
 
-public class AuthService : IAuthService
+public partial class AuthService : IAuthService
 {
     private readonly IMemoressaDbContext _db;
     private readonly ITokenService _tokenService;
@@ -22,6 +22,7 @@ public class AuthService : IAuthService
     private readonly ICurrentUserService _currentUser;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly OAuthSettings _oauthSettings;
+    private readonly IAppleSignInValidator _appleSignInValidator;
 
     public AuthService(
         IMemoressaDbContext db,
@@ -30,7 +31,8 @@ public class AuthService : IAuthService
         IEmailService emailService,
         ICurrentUserService currentUser,
         IHttpClientFactory httpClientFactory,
-        IOptions<OAuthSettings> oauthSettings)
+        IOptions<OAuthSettings> oauthSettings,
+        IAppleSignInValidator appleSignInValidator)
     {
         _db = db;
         _tokenService = tokenService;
@@ -39,6 +41,7 @@ public class AuthService : IAuthService
         _currentUser = currentUser;
         _httpClientFactory = httpClientFactory;
         _oauthSettings = oauthSettings.Value;
+        _appleSignInValidator = appleSignInValidator;
     }
 
     public async Task<ServiceResult<AuthResponseDto>> RegisterAsync(
@@ -337,46 +340,74 @@ public class AuthService : IAuthService
         return await LoginWithOAuthProviderAsync(OAuthProvider.Facebook, profile, cancellationToken);
     }
 
+    public async Task<ServiceResult<AuthResponseDto>> LoginWithAppleAsync(
+        AppleOAuthRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.IdentityToken))
+        {
+            return ServiceResult<AuthResponseDto>.Fail("Apple identityToken is required");
+        }
+
+        var claims = await _appleSignInValidator.ValidateIdentityTokenAsync(request.IdentityToken, cancellationToken);
+        if (claims is null)
+        {
+            return ServiceResult<AuthResponseDto>.Fail("Invalid Apple token", 401);
+        }
+
+        var profile = new OAuthProfile(claims.Subject, claims.Email ?? string.Empty, claims.Name);
+        return await LoginWithOAuthProviderAsync(OAuthProvider.Apple, profile, cancellationToken);
+    }
+
     private async Task<ServiceResult<AuthResponseDto>> LoginWithOAuthProviderAsync(
         OAuthProvider provider,
         OAuthProfile profile,
         CancellationToken cancellationToken)
     {
-        var email = profile.Email.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
-        {
-            return ServiceResult<AuthResponseDto>.Fail("OAuth provider did not return a valid email", 400);
-        }
-
         var existingLink = await _db.UserOAuthLinks
             .Include(l => l.User)
             .FirstOrDefaultAsync(
                 l => l.Provider == provider && l.ProviderUserId == profile.ProviderUserId,
                 cancellationToken);
 
-        UserAccount user;
         if (existingLink is not null)
         {
-            user = existingLink.User;
-        }
-        else
-        {
-            user = await _db.UserAccounts
-                .FirstOrDefaultAsync(u => u.Email == email, cancellationToken)
-                ?? await CreateOAuthUserAsync(email, profile.Name, cancellationToken);
-
-            if (!await _db.UserOAuthLinks.AnyAsync(
-                    l => l.UserId == user.Id && l.Provider == provider,
-                    cancellationToken))
+            var linkedUser = existingLink.User;
+            if (!linkedUser.IsActive || linkedUser.DeletedAt.HasValue
+                || (linkedUser.DeletionScheduledAt.HasValue && linkedUser.DeletionScheduledAt <= DateTime.UtcNow))
             {
-                _db.UserOAuthLinks.Add(new UserOAuthLink
-                {
-                    UserId = user.Id,
-                    Provider = provider,
-                    ProviderUserId = profile.ProviderUserId
-                });
-                await _db.SaveChangesAsync(cancellationToken);
+                return ServiceResult<AuthResponseDto>.Fail("Account is not available", 403);
             }
+
+            var linkedFamilyId = await _db.FamilyMemberships.AsNoTracking()
+                .Where(m => m.UserId == linkedUser.Id)
+                .Select(m => m.FamilyId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return await BuildAuthResponseAsync(linkedUser, linkedFamilyId, cancellationToken);
+        }
+
+        var email = profile.Email.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+        {
+            return ServiceResult<AuthResponseDto>.Fail("OAuth provider did not return a valid email", 400);
+        }
+
+        var user = await _db.UserAccounts
+            .FirstOrDefaultAsync(u => u.Email == email, cancellationToken)
+            ?? await CreateOAuthUserAsync(email, profile.Name, cancellationToken);
+
+        if (!await _db.UserOAuthLinks.AnyAsync(
+                l => l.UserId == user.Id && l.Provider == provider,
+                cancellationToken))
+        {
+            _db.UserOAuthLinks.Add(new UserOAuthLink
+            {
+                UserId = user.Id,
+                Provider = provider,
+                ProviderUserId = profile.ProviderUserId
+            });
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
         if (!user.IsActive || user.DeletedAt.HasValue

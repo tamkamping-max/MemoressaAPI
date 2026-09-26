@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<AwsS3Options>(configuration.GetSection(AwsS3Options.SectionName));
+        services.Configure<AwsSesOptions>(configuration.GetSection(AwsSesOptions.SectionName));
         services.Configure<AiOptions>(configuration.GetSection(AiOptions.SectionName));
         services.Configure<InternalApiOptions>(configuration.GetSection(InternalApiOptions.SectionName));
 
@@ -54,6 +55,9 @@ public static class DependencyInjection
         services.AddScoped<IAiOrchestrationService, AiOrchestrationService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddMemoryCache();
+        services.AddHttpClient("AppleOAuth");
+        services.AddScoped<IAppleSignInValidator, AppleSignInValidator>();
 
         return services;
     }

@@ -65,6 +65,36 @@ public class AuthController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpPost("password-reset/code/request")]
+    [AllowAnonymous]
+    public async Task<IActionResult> RequestPasswordResetCode(
+        [FromBody] PasswordResetEmailRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.RequestPasswordResetCodeAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("password-reset/code/verify")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyPasswordResetCode(
+        [FromBody] PasswordResetCodeVerifyRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.VerifyPasswordResetCodeAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("password-reset/code/confirm")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ConfirmPasswordResetWithCode(
+        [FromBody] PasswordResetCodeConfirmRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.ConfirmPasswordResetWithCodeAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpPost("account/deletion/schedule")]
     [Authorize]
     public async Task<IActionResult> ScheduleAccountDeletion([FromBody] AccountDeletionRequestDto request, CancellationToken cancellationToken)
@@ -110,6 +140,14 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> LoginWithFacebook([FromBody] OAuthLoginRequestDto request, CancellationToken cancellationToken)
     {
         var result = await _authService.LoginWithFacebookAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("oauth/apple")]
+    [AllowAnonymous]
+    public async Task<IActionResult> LoginWithApple([FromBody] AppleOAuthRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _authService.LoginWithAppleAsync(request, cancellationToken);
         return result.ToActionResult();
     }
 }

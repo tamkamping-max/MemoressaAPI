@@ -53,6 +53,16 @@ public class PasswordResetToken : Entity
     public UserAccount User { get; set; } = null!;
 }
 
+public class PasswordResetCode : Entity
+{
+    public Guid UserId { get; set; }
+    public string CodeHash { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? UsedAt { get; set; }
+    public int FailedVerifyAttempts { get; set; }
+    public UserAccount User { get; set; } = null!;
+}
+
 public class Family : Entity
 {
     public string Name { get; set; } = "My Family";

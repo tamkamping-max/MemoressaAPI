@@ -47,9 +47,17 @@ public interface IAiOrchestrationService
     Task ProcessVisionBatchAsync(Guid jobId, CancellationToken cancellationToken = default);
 }
 
+public interface IAppleSignInValidator
+{
+    Task<AppleSignInClaims?> ValidateIdentityTokenAsync(string identityToken, CancellationToken cancellationToken = default);
+}
+
+public record AppleSignInClaims(string Subject, string? Email, string? Name);
+
 public interface IEmailService
 {
     Task SendPasswordResetAsync(string email, string resetToken, CancellationToken cancellationToken = default);
+    Task SendPasswordResetCodeAsync(string email, string code, CancellationToken cancellationToken = default);
 }
 
 public interface ICurrentUserService
