@@ -302,7 +302,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | List all memories |
+| GET | `/` | **我的回憶**: user-created memories only (`IsAiGenerated` / today-highlight rows excluded). Create via `POST /`. |
 | GET | `/ai-curated` | AI-curated memories |
 | GET | `/today` | Today's memories |
 | POST | `/today/regenerate` | Regenerate today highlight |
@@ -320,7 +320,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | GET | `/` | List photos |
 | GET | `/{id}` | Get photo by ID |
 | GET | `/{id}/download` | Presigned GET for **true original** still (`downloadUrl`, `fileName`, `contentType`). When Live Photo was uploaded: `isLivePhoto`, `livePhotoVideoAvailable`, optional `livePhotoVideoDownloadUrl` + companion name/type (default 60 min expiry). Client must save **both** to restore Live Photo on iOS. |
-| DELETE | `/{id}` | Delete photo: remove S3 objects; delete DB row (cascades `memory_photos`, etc.); decrease uploader quota; **prune** deleted id from all `today_memories_cache` rows for the family; remove **我的回憶** entries that no longer contain any photo/video |
+| DELETE | `/{id}` | Delete photo: remove S3 objects; delete DB row (cascades `memory_photos` so **我的回憶** lose that photo id only); decrease uploader quota; **prune** deleted id from all `today_memories_cache` rows for the family |
 | GET | `/by-date/{date}` | Photos by date |
 | GET | `/by-member/{memberId}` | Photos by family member |
 | PUT | `/{id}` | Update photo metadata |
@@ -382,7 +382,7 @@ Migration **`009_activity_albums.sql`**.
 | POST | `/analyze-photos` | Analyze photos with AI |
 | GET | `/search?query=` | Semantic memory search |
 | POST | `/playback` | Generate playback playlist |
-| POST | `/memories` | Create AI-generated memory |
+| POST | `/memories` | Create AI-generated memory (`IsAiGenerated`; listed under `GET /ai-curated`, not **我的回憶** `GET /memories`) |
 | POST | `/inferences/{photoId}/confirm?memberId=` | Confirm AI member inference |
 | POST | `/inferences/{photoId}/reject` | Reject AI inference |
 

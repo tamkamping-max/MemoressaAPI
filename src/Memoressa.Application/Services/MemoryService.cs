@@ -29,7 +29,7 @@ public class MemoryService : IMemoryService
         }
 
         var memories = await QueryMemories(ctx.Value.FamilyId)
-            .Where(m => !m.IsTodayHighlight)
+            .Where(m => !m.IsTodayHighlight && !m.IsAiGenerated)
             .OrderByDescending(m => m.CreatedAt)
             .ToListAsync(cancellationToken);
 

@@ -297,12 +297,6 @@ public class PhotoService : IPhotoService
             await _s3.DeleteObjectAsync(key, cancellationToken);
         }
 
-        var memoryIdsWithPhoto = await _db.MemoryPhotos.AsNoTracking()
-            .Where(mp => mp.PhotoId == id)
-            .Select(mp => mp.MemoryId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
         var todayMemoriesCaches = await _db.TodayMemoriesCaches
             .Where(c => c.FamilyId == ctx.Value.FamilyId)
             .ToListAsync(cancellationToken);
@@ -318,13 +312,7 @@ public class PhotoService : IPhotoService
 
         _db.Photos.Remove(photo);
 
-        await PhotoDeletionCleanup.AfterPhotoRemovedAsync(
-            _db,
-            ctx.Value.FamilyId,
-            id,
-            memoryIdsWithPhoto,
-            todayMemoriesCaches,
-            cancellationToken);
+        PhotoDeletionCleanup.PruneTodayMemoriesCaches(todayMemoriesCaches, id);
 
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

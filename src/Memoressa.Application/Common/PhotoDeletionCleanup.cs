@@ -1,63 +1,19 @@
-using Memoressa.Application.Abstractions;
 using Memoressa.Domain.Entities;
 using Memoressa.Domain.Enums;
-using Microsoft.EntityFrameworkCore;
 
 namespace Memoressa.Application.Common;
 
 public static class PhotoDeletionCleanup
 {
     /// <summary>
-    /// After a photo row is removed (and FK cascades have run), prune 今日回憶 caches and empty 我的回憶 entries.
+    /// After a photo row is removed, prune 今日回憶 caches only. 我的回憶 rows are user-created;
+    /// photo links drop via FK cascade on <c>memory_photos</c> — do not auto-delete or create memories here.
     /// </summary>
-    public static async Task AfterPhotoRemovedAsync(
-        IMemoressaDbContext db,
-        Guid familyId,
-        Guid photoId,
-        IReadOnlyList<Guid> memoryIdsThatReferencedPhoto,
-        IReadOnlyList<TodayMemoriesCache> todayMemoriesCaches,
-        CancellationToken cancellationToken = default)
+    public static void PruneTodayMemoriesCaches(IReadOnlyList<TodayMemoriesCache> todayMemoriesCaches, Guid photoId)
     {
         foreach (var cache in todayMemoriesCaches)
         {
             PruneTodayMemoriesCacheEntry(cache, photoId);
-        }
-
-        if (memoryIdsThatReferencedPhoto.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var memoryId in memoryIdsThatReferencedPhoto)
-        {
-            // Exclude photoId: cleanup runs in the same transaction before SaveChanges, so the link row may still exist in DB.
-            var hasPhotos = await db.MemoryPhotos.AsNoTracking()
-                .AnyAsync(mp => mp.MemoryId == memoryId && mp.PhotoId != photoId, cancellationToken);
-            if (hasPhotos)
-            {
-                continue;
-            }
-
-            var hasVideos = await db.MemoryVideos.AsNoTracking()
-                .AnyAsync(mv => mv.MemoryId == memoryId, cancellationToken);
-            if (hasVideos)
-            {
-                continue;
-            }
-
-            var highlightCaches = await db.TodayHighlightCaches
-                .Where(h => h.MemoryId == memoryId)
-                .ToListAsync(cancellationToken);
-            if (highlightCaches.Count > 0)
-            {
-                db.TodayHighlightCaches.RemoveRange(highlightCaches);
-            }
-
-            var memory = await db.Memories.FirstOrDefaultAsync(m => m.Id == memoryId, cancellationToken);
-            if (memory is not null)
-            {
-                db.Memories.Remove(memory);
-            }
         }
     }
 
