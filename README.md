@@ -300,9 +300,11 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 
 ### Memories — `api/v1/memories`
 
+**MemoressaApp 的「回憶」分頁不走這組 API。** 首頁「今日回憶」與「回憶」頁皆使用 **`POST /api/v1/photos/today-memories`**（同一 use case、同一 `today_memories_cache`）。下列 endpoints 用於 **使用者手工建立的 memory 相簿**（`memories` 表）、相框、AI 搜尋上下文等。
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | **我的回憶**: user-created only (`POST /`). Excludes `IsAiGenerated`, `IsTodayHighlight`, and `type: aiMemory`. Same scope on `POST /filter` and `GET /years-ago-today`. Response includes `isAiGenerated` / `isTodayHighlight` for debugging. |
+| GET | `/` | User-created memory albums only (`POST /`). Excludes `IsAiGenerated`, `IsTodayHighlight`, and `type: aiMemory`. Same scope on `POST /filter` and `GET /years-ago-today`. |
 | GET | `/ai-curated` | AI-curated memories |
 | GET | `/today` | Today's memories |
 | POST | `/today/regenerate` | Regenerate today highlight |
@@ -320,13 +322,13 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | GET | `/` | List photos |
 | GET | `/{id}` | Get photo by ID |
 | GET | `/{id}/download` | Presigned GET for **true original** still (`downloadUrl`, `fileName`, `contentType`). When Live Photo was uploaded: `isLivePhoto`, `livePhotoVideoAvailable`, optional `livePhotoVideoDownloadUrl` + companion name/type (default 60 min expiry). Client must save **both** to restore Live Photo on iOS. |
-| DELETE | `/{id}` | Delete photo: remove S3 objects; delete DB row (cascades `memory_photos` so **我的回憶** lose that photo id only); decrease uploader quota; **prune** deleted id from all `today_memories_cache` rows for the family |
+| DELETE | `/{id}` | Delete photo: S3 + DB row; quota; **`memory_photos` cascade** for manual memory albums; **prune** deleted `photoId` from all family **`today_memories_cache`** (updates App 今日回憶 + 回憶頁 snapshot) |
 | GET | `/by-date/{date}` | Photos by date |
 | GET | `/by-member/{memberId}` | Photos by family member |
 | PUT | `/{id}` | Update photo metadata |
 | POST | `/{id}/hide` | Hide photo |
 | GET | `/timeline` | Timeline photos (cursor pagination; default `limit=20`, max 50). Query: `?limit=20&cursor=...`. Response: `{ items, nextCursor, hasMore }` |
-| POST | `/today-memories` | **今日回憶** (lazy cache per family per calendar day). Body: optional `date`, location/travel/occasions — **used on first successful compose that day**; later calls return cached snapshot (`fromCache: true`). **Exception:** if the cached result is **empty** (`strategy: empty`) and the family later has **≥ 4 eligible photos**, the next call **recomputes** (drops stale empty cache, `fromCache: false`). Response: `{ items, strategy, referenceDate, fromCache }` |
+| POST | `/today-memories` | **MemoressaApp：首頁「今日回憶」+「回憶」頁**（同一 API、同一 per-family/per-day cache）。Lazy compose on first successful call each calendar day; later calls return `fromCache: true` unless empty-cache refresh (≥ 4 eligible photos). Body: optional `date`, `currentLocation`, travel, `occasions` — **only affects the first compose that day** (whichever screen calls first). Response: `{ items, strategy, referenceDate, fromCache }`. Does **not** create `memories` table rows. |
 
 ### Activities — `api/v1/activities`
 

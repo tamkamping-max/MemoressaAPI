@@ -4,7 +4,7 @@ using Memoressa.Domain.Enums;
 namespace Memoressa.Application.Common;
 
 /// <summary>
-/// 我的回憶 — user-created via <c>POST /api/v1/memories</c> only. Excludes server-curated AI / today-highlight rows.
+/// User-created memory albums (<c>POST /api/v1/memories</c>). Not used for MemoressaApp 回憶 tab (see POST /photos/today-memories).
 /// </summary>
 public static class MyMemoriesScope
 {

@@ -6,8 +6,8 @@ namespace Memoressa.Application.Common;
 public static class PhotoDeletionCleanup
 {
     /// <summary>
-    /// After a photo row is removed, prune 今日回憶 caches only. 我的回憶 rows are user-created;
-    /// photo links drop via FK cascade on <c>memory_photos</c> — do not auto-delete or create memories here.
+    /// After a photo row is removed, prune <c>today_memories_cache</c> (App 今日回憶 + 回憶頁 via POST /photos/today-memories).
+    /// Manual <c>memories</c> albums only lose links via FK cascade — no auto compose/delete here.
     /// </summary>
     public static void PruneTodayMemoriesCaches(IReadOnlyList<TodayMemoriesCache> todayMemoriesCaches, Guid photoId)
     {

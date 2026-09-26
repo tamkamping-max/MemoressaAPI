@@ -84,6 +84,9 @@ public class PhotosController : ControllerBase
         return result.ToActionResult();
     }
 
+    /// <summary>
+    /// Today memories for the family (MemoressaApp: home + 回憶 tab). Cached per calendar day.
+    /// </summary>
     [HttpPost("today-memories")]
     public async Task<IActionResult> GetTodayMemories(
         [FromBody] TodayMemoriesRequestDto request,

@@ -24,7 +24,10 @@ public record TodayMemoryOccasionDto
 
 public record TodayMemoriesRequestDto
 {
-    /// <summary>Calendar date for &quot;today&quot; (defaults to UTC date).</summary>
+    /// <summary>
+    /// Calendar date for &quot;today&quot; (defaults to UTC date).
+    /// MemoressaApp: home 今日回憶 and 回憶 tab share this request; use the same <c>date</c> on both.
+    /// </summary>
     [JsonPropertyName("date")] public DateOnly? Date { get; init; }
     [JsonPropertyName("currentLocation")] public string? CurrentLocation { get; init; }
     [JsonPropertyName("isTraveling")] public bool IsTraveling { get; init; }
