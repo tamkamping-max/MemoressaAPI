@@ -30,8 +30,9 @@ public static class PhotoDeletionCleanup
 
         foreach (var memoryId in memoryIdsThatReferencedPhoto)
         {
+            // Exclude photoId: cleanup runs in the same transaction before SaveChanges, so the link row may still exist in DB.
             var hasPhotos = await db.MemoryPhotos.AsNoTracking()
-                .AnyAsync(mp => mp.MemoryId == memoryId, cancellationToken);
+                .AnyAsync(mp => mp.MemoryId == memoryId && mp.PhotoId != photoId, cancellationToken);
             if (hasPhotos)
             {
                 continue;
