@@ -213,7 +213,7 @@ Create **SMTP credentials** in the AWS SES console (IAM → SMTP user — not th
 | `AwsSes:FromDisplayName` | Display name (default `Memoressa`) |
 | `AwsSes:ConfigurationSetName` | Optional; sent as SMTP header `X-SES-CONFIGURATION-SET` |
 
-Migration **`014_password_reset_codes.sql`**. Dev without SMTP credentials: OTP logged at Information level (not returned in API).
+Migration **`014_password_reset_codes.sql`**. **Local MySQL:** run `database/mysql/migrations/014_password_reset_codes.sql` — **not** `database/migrations/` (that tree is **PostgreSQL** syntax).
 
 ### OAuth Apple
 
