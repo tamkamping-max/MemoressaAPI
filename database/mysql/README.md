@@ -12,6 +12,7 @@ When `Database:Target` is **`Local`**, the API uses **MySQL 8** via Pomelo EF Co
 | `migrations/002_ai_chat_sessions.sql` | AI agent chat tables |
 | `migrations/003_journal_tags.sql` | Journal tag table |
 | `migrations/004_frame_package_external_id.sql` | `frame_playback_packages.ExternalId` |
+| `migrations/014_password_reset_codes.sql` | OTP password reset (`password_reset_codes`) |
 | `schema.sql` | Full schema (greenfield apply) |
 | `apply.sh` | Apply incremental migrations via `mysql` client |
 
