@@ -66,6 +66,13 @@ public record StartUploadRequestDto
     [JsonPropertyName("compressedUsesFullOriginal")] public bool CompressedUsesFullOriginal { get; init; }
 }
 
+/// <summary>Optional metadata applied when the photo row is created on complete.</summary>
+public record CompleteUploadRequestDto
+{
+    [JsonPropertyName("description")] public string? Description { get; init; }
+    [JsonPropertyName("location")] public string? Location { get; init; }
+}
+
 public record UploadPartTargetDto
 {
     [JsonPropertyName("presignedUrl")] public string PresignedUrl { get; init; } = string.Empty;

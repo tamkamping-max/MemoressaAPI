@@ -202,7 +202,7 @@ Upload flow (photos only — **no video** as the main asset):
 
 1. `POST /api/v1/uploads/start` with `fileSizeBytes` = **original still** size, plus **`originalFileName`** / **`originalContentType`** (e.g. `IMG_1234.HEIC`, `image/heic`). Optional **`privacyScope`**: `onlySelf` | `family` | `friends` | `friendsAndFamily` | `custom` (App may also send Memory Visibility aliases `private` → onlySelf, `specificMembers` → custom). Optional **`compressedUsesFullOriginal`: true** — skip separate compressed PUT; response omits `uploads.compressed`; on **complete**, `Photo.S3Key` (display/`remoteUrl`) points at the **full original** object (same key as `S3KeyFull`). Otherwise returns **three** presigned PUT URLs (`full`, `compressed`, `thumbnail`), optional **`livePhotoVideo`**, plus **`presignedUrlExpiryMinutes`** and **`expiresAt`** (UTC).
 2. Client PUTs `full` with the **original** file (HEIC/JPEG/PNG), PUTs compressed + thumbnail JPEGs unless `compressedUsesFullOriginal` (then PUT **full + thumbnail** only). If the user chose Live Photo (`isLivePhoto: true`), also PUT the companion **`.mov`/`.mp4`** to `livePhotoVideo`.
-3. `POST /api/v1/uploads/{sessionId}/complete` after S3 Head checks pass → creates `Photo`; **`CloudStorageUsedBytes` increases by still original + Live video** (when uploaded). Compressed/thumbnail JPEGs are not counted toward the 1 GiB quota.
+3. `POST /api/v1/uploads/{sessionId}/complete` after S3 Head checks pass → creates `Photo`; optional JSON body **`{ "description", "location" }`** (e.g. EXIF/caption from App — omitted or blank → `null`). **`CloudStorageUsedBytes` increases by still original + Live video** (when uploaded). Compressed/thumbnail JPEGs are not counted toward the 1 GiB quota.
 4. `GET /api/v1/storage/usage` → `{ usedBytes, limitBytes }`
 
 **User choice:** set `isLivePhoto: false` (default) to upload **only** the still original; set `isLivePhoto: true` and pass `livePhotoVideoFileSizeBytes` to include the paired video in storage and quota.
@@ -470,7 +470,7 @@ User-scoped custom journal tags (built-in tags remain client-side). Returns only
 |--------|------|-------------|
 | POST | `/start` | Photo upload session (3 presigned PUTs; rejects video) |
 | GET | `/incomplete` | Pending sessions for current user (not expired) |
-| POST | `/{sessionId}/complete` | Verify S3 variants exist, create photo, apply quota |
+| POST | `/{sessionId}/complete` | Verify S3 variants exist, create photo, apply quota. Optional body: `{ "description"?, "location"? }` written on insert. |
 
 ### Storage — `api/v1/storage`
 

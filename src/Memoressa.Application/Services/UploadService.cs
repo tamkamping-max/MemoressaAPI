@@ -267,6 +267,7 @@ public class UploadService : IUploadService
 
     public async Task<ServiceResult<PhotoDto>> CompleteUploadAsync(
         Guid sessionId,
+        CompleteUploadRequestDto? request = null,
         CancellationToken cancellationToken = default)
     {
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
@@ -375,7 +376,9 @@ public class UploadService : IUploadService
             PrivacyScope = session.PrivacyScope,
             SharedAlbumId = session.SharedAlbumId,
             TakenAt = session.TakenAt ?? session.CreatedAt,
-            Visibility = MemoryVisibility.Family
+            Visibility = MemoryVisibility.Family,
+            Description = UploadMetadata.NormalizeOptionalText(request?.Description),
+            Location = UploadMetadata.NormalizeOptionalText(request?.Location)
         };
 
         _db.Photos.Add(photo);

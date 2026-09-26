@@ -33,9 +33,12 @@ public class UploadsController : ControllerBase
     }
 
     [HttpPost("{sessionId:guid}/complete")]
-    public async Task<IActionResult> CompleteUpload(Guid sessionId, CancellationToken cancellationToken)
+    public async Task<IActionResult> CompleteUpload(
+        Guid sessionId,
+        [FromBody] CompleteUploadRequestDto? request,
+        CancellationToken cancellationToken)
     {
-        var result = await _uploadService.CompleteUploadAsync(sessionId, cancellationToken);
+        var result = await _uploadService.CompleteUploadAsync(sessionId, request, cancellationToken);
         return result.ToActionResult();
     }
 }
