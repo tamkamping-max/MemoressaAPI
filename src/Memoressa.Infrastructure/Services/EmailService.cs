@@ -1,8 +1,5 @@
 using System.Net;
-using Amazon;
-using Amazon.Runtime;
-using Amazon.SimpleEmail;
-using Amazon.SimpleEmail.Model;
+using System.Net.Mail;
 using Memoressa.Application.Common;
 using Memoressa.Application.Interfaces;
 using Memoressa.Infrastructure.Options;
@@ -17,18 +14,15 @@ public class EmailService : IEmailService
     private readonly ILogger<EmailService> _logger;
     private readonly IHostEnvironment _environment;
     private readonly AwsSesOptions _sesOptions;
-    private readonly AwsS3Options _s3Options;
 
     public EmailService(
         ILogger<EmailService> logger,
         IHostEnvironment environment,
-        IOptions<AwsSesOptions> sesOptions,
-        IOptions<AwsS3Options> s3Options)
+        IOptions<AwsSesOptions> sesOptions)
     {
         _logger = logger;
         _environment = environment;
         _sesOptions = sesOptions.Value;
-        _s3Options = s3Options.Value;
     }
 
     public Task SendPasswordResetAsync(string email, string resetToken, CancellationToken cancellationToken = default)
@@ -45,7 +39,7 @@ public class EmailService : IEmailService
 
     public async Task SendPasswordResetCodeAsync(string email, string code, CancellationToken cancellationToken = default)
     {
-        if (_environment.IsDevelopment() && string.IsNullOrWhiteSpace(_sesOptions.FromEmail))
+        if (_environment.IsDevelopment() && !IsSmtpConfigured())
         {
             _logger.LogInformation("DEV password reset OTP for {Email}. Code: {Code}", email, code);
             return;
@@ -57,6 +51,12 @@ public class EmailService : IEmailService
             throw new InvalidOperationException("Email is not configured");
         }
 
+        if (!IsSmtpConfigured())
+        {
+            _logger.LogWarning("AwsSes SMTP (host/username/password) is not configured");
+            throw new InvalidOperationException("Email SMTP is not configured");
+        }
+
         var subject = "Memoressa 密碼重設驗證碼";
         var textBody =
             $"您的 Memoressa 密碼重設驗證碼為：{code}\n\n" +
@@ -65,50 +65,52 @@ public class EmailService : IEmailService
             $"<p>您的 Memoressa 密碼重設驗證碼為：<strong>{WebUtility.HtmlEncode(code)}</strong></p>" +
             $"<p>此驗證碼 {PasswordResetCodeRules.TtlMinutes} 分鐘內有效。如非本人操作，請忽略此信。</p>";
 
-        using var client = CreateSesClient();
-        var from = string.IsNullOrWhiteSpace(_sesOptions.FromDisplayName)
-            ? _sesOptions.FromEmail
-            : $"{_sesOptions.FromDisplayName} <{_sesOptions.FromEmail}>";
+        var fromAddress = new MailAddress(
+            _sesOptions.FromEmail.Trim(),
+            string.IsNullOrWhiteSpace(_sesOptions.FromDisplayName)
+                ? "Memoressa"
+                : _sesOptions.FromDisplayName.Trim());
 
-        var request = new SendEmailRequest
+        using var message = new MailMessage
         {
-            Source = from,
-            Destination = new Destination { ToAddresses = [email] },
-            Message = new Message
-            {
-                Subject = new Content(subject),
-                Body = new Body
-                {
-                    Text = new Content(textBody),
-                    Html = new Content(htmlBody)
-                }
-            }
+            From = fromAddress,
+            Subject = subject,
+            Body = textBody,
+            IsBodyHtml = false
         };
+        message.To.Add(email.Trim());
+        message.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(htmlBody, null, "text/html"));
 
         if (!string.IsNullOrWhiteSpace(_sesOptions.ConfigurationSetName))
         {
-            request.ConfigurationSetName = _sesOptions.ConfigurationSetName;
+            message.Headers.Add("X-SES-CONFIGURATION-SET", _sesOptions.ConfigurationSetName.Trim());
         }
 
-        await client.SendEmailAsync(request, cancellationToken);
-        _logger.LogInformation("Password reset OTP email sent to {Email} via SES", email);
+        using var client = new SmtpClient(ResolveSmtpHost(), _sesOptions.SmtpPort)
+        {
+            EnableSsl = true,
+            Credentials = new NetworkCredential(
+                _sesOptions.SmtpUsername!.Trim(),
+                _sesOptions.SmtpPassword)
+        };
+
+        await client.SendMailAsync(message, cancellationToken);
+        _logger.LogInformation("Password reset OTP email sent to {Email} via SES SMTP", email);
     }
 
-    private IAmazonSimpleEmailService CreateSesClient()
-    {
-        var region = RegionEndpoint.GetBySystemName(_sesOptions.Region);
-        var accessKey = !string.IsNullOrWhiteSpace(_sesOptions.AccessKey)
-            ? _sesOptions.AccessKey
-            : _s3Options.AccessKey;
-        var secretKey = !string.IsNullOrWhiteSpace(_sesOptions.SecretKey)
-            ? _sesOptions.SecretKey
-            : _s3Options.SecretKey;
+    private bool IsSmtpConfigured() =>
+        !string.IsNullOrWhiteSpace(_sesOptions.SmtpUsername)
+        && !string.IsNullOrWhiteSpace(_sesOptions.SmtpPassword)
+        && !string.IsNullOrWhiteSpace(ResolveSmtpHost());
 
-        if (!string.IsNullOrWhiteSpace(accessKey) && !string.IsNullOrWhiteSpace(secretKey))
+    private string ResolveSmtpHost()
+    {
+        if (!string.IsNullOrWhiteSpace(_sesOptions.SmtpHost))
         {
-            return new AmazonSimpleEmailServiceClient(new BasicAWSCredentials(accessKey, secretKey), region);
+            return _sesOptions.SmtpHost.Trim();
         }
 
-        return new AmazonSimpleEmailServiceClient(region);
+        var region = string.IsNullOrWhiteSpace(_sesOptions.Region) ? "us-east-1" : _sesOptions.Region.Trim();
+        return $"email-smtp.{region}.amazonaws.com";
     }
 }

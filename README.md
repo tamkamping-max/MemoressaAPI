@@ -198,16 +198,22 @@ After `POST /api/v1/uploads/{sessionId}/complete`, the API:
 
 Configure via `AwsS3:ThumbnailMaxEdgePixels`, `ThumbnailJpegQuality`, `ThumbnailMaxSourceBytes`, `FfmpegPath`.
 
-### AwsSes (password reset OTP)
+### AwsSes (password reset OTP via **SMTP**)
+
+Create **SMTP credentials** in the AWS SES console (IAM → SMTP user — not the same as S3 access keys).
 
 | Key | Description |
 |-----|-------------|
-| `AwsSes:Region` | SES region (default `us-east-1`) |
+| `AwsSes:Region` | SES region; default SMTP host `email-smtp.{region}.amazonaws.com` when `SmtpHost` is empty |
+| `AwsSes:SmtpHost` | Optional override (e.g. `email-smtp.us-east-1.amazonaws.com`) |
+| `AwsSes:SmtpPort` | Default **587** (STARTTLS) |
+| `AwsSes:SmtpUsername` | SES SMTP username |
+| `AwsSes:SmtpPassword` | SES SMTP password |
 | `AwsSes:FromEmail` | Verified sender address (required in production) |
 | `AwsSes:FromDisplayName` | Display name (default `Memoressa`) |
-| `AwsSes:AccessKey` / `SecretKey` | Optional; falls back to `AwsS3` keys or instance profile |
+| `AwsSes:ConfigurationSetName` | Optional; sent as SMTP header `X-SES-CONFIGURATION-SET` |
 
-Migration **`014_password_reset_codes.sql`**. Dev without `FromEmail`: OTP logged at Information level (not returned in API).
+Migration **`014_password_reset_codes.sql`**. Dev without SMTP credentials: OTP logged at Information level (not returned in API).
 
 ### OAuth Apple
 
