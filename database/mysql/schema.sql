@@ -742,4 +742,8 @@ ALTER TABLE user_ai_settings MODIFY `Key` varchar(128) NOT NULL;
 
 ALTER TABLE user_oauth_links MODIFY `ProviderUserId` varchar(256) NOT NULL;
 
+-- Memoressa MySQL schema migration: 012_upload_compressed_uses_full.sql
+
+ALTER TABLE upload_sessions ADD `CompressedUsesFullOriginal` tinyint(1) NOT NULL DEFAULT 0;
+
 SET FOREIGN_KEY_CHECKS = 1;

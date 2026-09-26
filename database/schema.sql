@@ -754,3 +754,9 @@ ALTER TABLE user_ai_settings ALTER COLUMN "Key" TYPE character varying(128);
 -- Memoressa schema migration: 011_user_oauth_links_provider_user_id_varchar.sql
 
 ALTER TABLE user_oauth_links ALTER COLUMN "ProviderUserId" TYPE character varying(256);
+
+
+
+-- Memoressa schema migration: 012_upload_compressed_uses_full.sql
+
+ALTER TABLE upload_sessions ADD "CompressedUsesFullOriginal" boolean NOT NULL DEFAULT false;

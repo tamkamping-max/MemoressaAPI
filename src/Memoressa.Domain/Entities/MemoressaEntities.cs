@@ -367,6 +367,8 @@ public class UploadSession : Entity
     public UploadPrivacyScope PrivacyScope { get; set; } = UploadPrivacyScope.Family;
     public Guid? SharedAlbumId { get; set; }
     public Guid? ActivityAlbumId { get; set; }
+    /// <summary>When true, display key (S3Key) references the same object as S3KeyFull; no separate compressed PUT.</summary>
+    public bool CompressedUsesFullOriginal { get; set; }
     public DateTime ExpiresAt { get; set; }
     public Guid? ResultPhotoId { get; set; }
     public UserAccount User { get; set; } = null!;

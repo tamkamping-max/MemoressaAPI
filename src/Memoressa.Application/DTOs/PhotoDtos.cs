@@ -62,6 +62,8 @@ public record StartUploadRequestDto
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
     /// <summary>Link completed upload to an in-progress activity album (external id, e.g. act_...).</summary>
     [JsonPropertyName("activityAlbumId")] public string? ActivityAlbumId { get; init; }
+    /// <summary>When true, client uploads only full + thumbnail; compressed display uses the full original object.</summary>
+    [JsonPropertyName("compressedUsesFullOriginal")] public bool CompressedUsesFullOriginal { get; init; }
 }
 
 public record UploadPartTargetDto
@@ -76,13 +78,14 @@ public record StartUploadResponseDto
     /// <summary>Presigned PUT and session TTL; App may compute expiry as response time + this value.</summary>
     [JsonPropertyName("presignedUrlExpiryMinutes")] public int PresignedUrlExpiryMinutes { get; init; }
     [JsonPropertyName("expiresAt")] public DateTime ExpiresAt { get; init; }
+    [JsonPropertyName("compressedUsesFullOriginal")] public bool CompressedUsesFullOriginal { get; init; }
     [JsonPropertyName("uploads")] public StartUploadTargetsDto Uploads { get; init; } = new();
 }
 
 public record StartUploadTargetsDto
 {
     [JsonPropertyName("full")] public UploadPartTargetDto Full { get; init; } = new();
-    [JsonPropertyName("compressed")] public UploadPartTargetDto Compressed { get; init; } = new();
+    [JsonPropertyName("compressed")] public UploadPartTargetDto? Compressed { get; init; }
     [JsonPropertyName("thumbnail")] public UploadPartTargetDto Thumbnail { get; init; } = new();
     [JsonPropertyName("livePhotoVideo")] public UploadPartTargetDto? LivePhotoVideo { get; init; }
 }
