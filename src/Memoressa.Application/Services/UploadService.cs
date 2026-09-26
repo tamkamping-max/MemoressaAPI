@@ -449,7 +449,8 @@ public class UploadService : IUploadService
                 OriginalStillFileSizeBytes = s.OriginalStillFileSizeBytes,
                 LivePhotoVideoFileSizeBytes = s.LivePhotoVideoFileSizeBytes,
                 QuotaReservedBytes = s.FileSizeBytes,
-                FullOriginalFileSizeBytes = s.OriginalStillFileSizeBytes
+                FullOriginalFileSizeBytes = s.OriginalStillFileSizeBytes,
+                CompressedUsesFullOriginal = s.CompressedUsesFullOriginal
             })
             .ToListAsync(cancellationToken);
 

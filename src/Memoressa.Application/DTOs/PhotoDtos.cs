@@ -107,4 +107,5 @@ public record IncompleteUploadSessionDto
     [JsonPropertyName("livePhotoVideoFileSizeBytes")] public long LivePhotoVideoFileSizeBytes { get; init; }
     [JsonPropertyName("quotaReservedBytes")] public long QuotaReservedBytes { get; init; }
     [JsonPropertyName("fullOriginalFileSizeBytes")] public long FullOriginalFileSizeBytes { get; init; }
+    [JsonPropertyName("compressedUsesFullOriginal")] public bool CompressedUsesFullOriginal { get; init; }
 }
