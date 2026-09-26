@@ -91,22 +91,18 @@ Local schema is defined by **SQL files** in `database/mysql/migrations/` (see `d
 
 Configuration is loaded from `src/Memoressa.Api/appsettings.json` and environment-specific overrides.
 
-### Kestrel (local dev)
+### Kestrel (local LAN dev)
 
-Default (repo): **`127.0.0.1`** so the API starts on any machine (avoids Windows **10049** when binding to an IP that is not assigned to a NIC).
+Development binds Kestrel in `appsettings.Development.json` (this wins over `launchSettings.json` `applicationUrl` when both are set):
 
 | Endpoint | URL |
 |----------|-----|
-| HTTP | `http://127.0.0.1:5047` |
-| HTTPS | `https://127.0.0.1:7286` |
+| HTTP | `http://192.168.1.131:5047` |
+| HTTPS | `https://192.168.1.131:7286` |
 
-**LAN / physical device testing:** copy `src/Memoressa.Api/appsettings.Development.local.json.example` → `appsettings.Development.local.json` (gitignored) and set your PC’s LAN IP, e.g. `https://192.168.1.x:7286`. Only bind addresses that exist on your network adapter.
+Replace `192.168.1.131` with your machine’s LAN address. Trust the ASP.NET dev HTTPS certificate on phones/tablets (`dotnet dev-certs https --trust` on the dev machine, or install the cert on the device).
 
-Alternatively: `set ASPNETCORE_URLS=https://192.168.1.x:7286;http://192.168.1.x:5047` (Windows) before `dotnet run`.
-
-Trust the ASP.NET dev HTTPS certificate on phones/tablets (`dotnet dev-certs https --trust` on the dev machine, or install the cert on the device).
-
-REST base URL for the mobile app: `https://<host>:7286/api/v1/...`
+REST base URL for the mobile app: `https://<lan-ip>:7286/api/v1/...`
 
 ### WebSocket (same port as HTTPS)
 
