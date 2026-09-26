@@ -50,4 +50,7 @@ public static class TodayMemoriesCacheCodec
 
         return JsonSerializer.Deserialize<List<CachedItem>>(json, JsonOptions) ?? [];
     }
+
+    public static string SerializeCachedItems(IReadOnlyList<CachedItem> items) =>
+        items.Count == 0 ? "[]" : JsonSerializer.Serialize(items, JsonOptions);
 }

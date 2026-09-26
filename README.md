@@ -320,7 +320,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | GET | `/` | List photos |
 | GET | `/{id}` | Get photo by ID |
 | GET | `/{id}/download` | Presigned GET for **true original** still (`downloadUrl`, `fileName`, `contentType`). When Live Photo was uploaded: `isLivePhoto`, `livePhotoVideoAvailable`, optional `livePhotoVideoDownloadUrl` + companion name/type (default 60 min expiry). Client must save **both** to restore Live Photo on iOS. |
-| DELETE | `/{id}` | Delete photo: remove compressed, full, nail from S3; delete DB row; decrease uploader storage quota |
+| DELETE | `/{id}` | Delete photo: remove S3 objects; delete DB row (cascades `memory_photos`, etc.); decrease uploader quota; **prune** deleted id from all `today_memories_cache` rows for the family; remove **我的回憶** entries that no longer contain any photo/video |
 | GET | `/by-date/{date}` | Photos by date |
 | GET | `/by-member/{memberId}` | Photos by family member |
 | PUT | `/{id}` | Update photo metadata |
