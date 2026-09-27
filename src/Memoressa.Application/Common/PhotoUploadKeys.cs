@@ -4,12 +4,12 @@ public static class PhotoUploadKeys
 {
     private static readonly HashSet<string> AllowedOriginalExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".jpg", ".jpeg", ".heic", ".heif", ".png"
+        ".jpg", ".jpeg", ".heic", ".heif", ".png", ".webp"
     };
 
     private static readonly HashSet<string> AllowedOriginalContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "image/jpeg", "image/jpg", "image/heic", "image/heif", "image/png"
+        "image/jpeg", "image/jpg", "image/heic", "image/heif", "image/png", "image/webp"
     };
 
     private static readonly HashSet<string> AllowedLiveVideoContentTypes = new(StringComparer.OrdinalIgnoreCase)

@@ -5,6 +5,14 @@ namespace Memoressa.Api.Tests;
 public class PhotoUploadKeysTests
 {
     [Fact]
+    public void TryNormalizeOriginalFileName_AcceptsWebp()
+    {
+        Assert.True(PhotoUploadKeys.TryNormalizeOriginalFileName("photo.webp", out var normalized));
+        Assert.Equal("photo.webp", normalized);
+        Assert.True(PhotoUploadKeys.IsAllowedOriginalContentType("image/webp"));
+    }
+
+    [Fact]
     public void Build_UsesTrueOriginalFileNameForFullObject()
     {
         var folderId = Guid.NewGuid();
