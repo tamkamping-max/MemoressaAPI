@@ -212,4 +212,11 @@ public static class EntityMapping
         ColorArgb = tag.ColorArgb,
         IsCustom = tag.IsCustom
     };
+
+    public static PhotoUserTagLibraryEntryDto ToDto(this UserPhotoTagLibraryEntry entry) => new()
+    {
+        Id = entry.Id,
+        Tag = entry.Tag,
+        CreatedAt = entry.CreatedAt
+    };
 }

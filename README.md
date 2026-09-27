@@ -238,7 +238,19 @@ Quota is checked at `start` (includes pending sessions). `complete` returns **40
 
 **`POST /api/v1/photos/today-memories`** resolves the caller’s family from the JWT (`sub` + `family_id` claim validated against `family_memberships`) and only returns photos that family (and the viewer may see, e.g. not another member’s `onlySelf` uploads).
 
-**Photo user tags vs AI tags:** `PhotoDto.userTags` = user-selected tags (photo experience chips). `PhotoDto.aiTags` = AI-generated tags in `photo_ai_tags` only. **`PUT /api/v1/photos/{id}`** accepts **`userTags`** and/or legacy **`aiTags`** in the body as a **full replace** of user tags only; **`photo_ai_tags` is never modified** by this endpoint. JWT access tokens include a **`family_id`** claim (same as login `familyId`). **MemoressaApp** should bind the tag UI to **`userTags`** only (see App notes below — do not treat `aiTags` as user tags when `userTags` is present, even if empty).
+**Photo user tags vs AI tags:** `PhotoDto.userTags` = user-selected tags (photo experience chips). `PhotoDto.aiTags` = AI-generated tags in `photo_ai_tags` only. **`PUT /api/v1/photos/{id}`** accepts **`userTags`** and/or legacy **`aiTags`** in the body as a **full replace** of user tags on **that photo only**; **`photo_ai_tags` is never modified** by this endpoint. JWT access tokens include a **`family_id`** claim (same as login `familyId`). **MemoressaApp** should bind the tag UI to **`userTags`** only (do not treat `aiTags` as user tags when `userTags` is present, even if empty).
+
+**Photo user tag library (tags sheet — per user, reusable across photos):**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/photo-tags/library` | List the signed-in user’s saved custom tag labels |
+| POST | `/api/v1/photo-tags/library` | Add a label to the library (`{ "tag": "..." }`; idempotent if the same tag already exists, case-insensitive) |
+| DELETE | `/api/v1/photo-tags/library/{id}` | Remove a label from the **library picker only** — does **not** remove that string from `photo_user_tags` on photos already tagged |
+
+Preset/built-in tags (e.g. client `defaultPhotoUserTagIds`) stay **client-only**. Library entries are **user-added** strings the App shows with a deletable **X** in the tags sheet. Removing a tag on a photo (experience / fullscreen chip **X**) is still **`PUT /api/v1/photos/{id}`** with a reduced `userTags` list — **never** library DELETE.
+
+Migration **`016_user_photo_tag_library.sql`** (MySQL: `database/mysql/migrations/016_user_photo_tag_library.sql`). Requires **`015_photo_user_tags_and_comments.sql`** for per-photo tags.
 
 **Photo comments (MemoressaApp photo experience):**
 
@@ -249,6 +261,8 @@ Quota is checked at `start` (includes pending sessions). `complete` returns **40
 | DELETE | `/api/v1/photos/{photoId}/comments/{commentId}` | — (author only) |
 
 Migration **`015_photo_user_tags_and_comments.sql`** (MySQL: `database/mysql/migrations/015_photo_user_tags_and_comments.sql`).
+
+See **Photo user tag library** above for tags sheet persistence (`016`).
 
 For production at scale, you can swap presigned GET for **CloudFront signed URLs** inside `IPhotoUrlResolver` without changing the REST contract.
 
@@ -496,6 +510,16 @@ User-scoped custom journal tags (built-in tags remain client-side). Returns only
 | POST | `/` | Create custom tag (`labelKey`, `colorArgb`) |
 | PUT | `/{id}` | Update tag |
 | DELETE | `/{id}` | Delete tag |
+
+### Photo user tag library — `api/v1/photo-tags/library`
+
+User-scoped reusable labels for the photo tags sheet (not journal tags). See Photos section for interaction with `PUT /photos/{id}` `userTags`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | List library entries `{ id, tag, createdAt }` |
+| POST | `/` | Create library entry `{ tag }` |
+| DELETE | `/{id}` | Remove from library (photos keep existing assignments) |
 
 `FrameCommentDto` also includes `authorName` and `authorAvatarUrl` (populated from the comment author's profile).
 

@@ -183,6 +183,16 @@ public class PhotoUserTag : Entity
     public Photo Photo { get; set; } = null!;
 }
 
+/// <summary>
+/// Per-user reusable photo tag labels (tags sheet). Distinct from tags assigned on a photo (<see cref="PhotoUserTag"/>).
+/// </summary>
+public class UserPhotoTagLibraryEntry : Entity
+{
+    public Guid UserId { get; set; }
+    public string Tag { get; set; } = string.Empty;
+    public UserAccount User { get; set; } = null!;
+}
+
 public class PhotoComment : Entity
 {
     public Guid PhotoId { get; set; }

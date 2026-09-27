@@ -56,6 +56,19 @@ public class PhotoUserTagConfiguration : IEntityTypeConfiguration<PhotoUserTag>
     }
 }
 
+public class UserPhotoTagLibraryEntryConfiguration : IEntityTypeConfiguration<UserPhotoTagLibraryEntry>
+{
+    public void Configure(EntityTypeBuilder<UserPhotoTagLibraryEntry> builder)
+    {
+        builder.ToTable("user_photo_tag_library");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Tag).HasMaxLength(128).IsRequired();
+        builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => new { x.UserId, x.Tag }).IsUnique();
+        builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 public class PhotoCommentConfiguration : IEntityTypeConfiguration<PhotoComment>
 {
     public void Configure(EntityTypeBuilder<PhotoComment> builder)

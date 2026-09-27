@@ -29,4 +29,12 @@ public class PhotoUserTagRulesTests
 
         Assert.Equal(["Family", "pet"], tags);
     }
+
+    [Fact]
+    public void TryNormalizeSingle_TrimsAndRejectsEmpty()
+    {
+        Assert.False(PhotoUserTagRules.TryNormalizeSingle("   ", out _));
+        Assert.True(PhotoUserTagRules.TryNormalizeSingle("  holiday  ", out var tag));
+        Assert.Equal("holiday", tag);
+    }
 }

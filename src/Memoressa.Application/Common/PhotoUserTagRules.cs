@@ -8,6 +8,22 @@ public static class PhotoUserTagRules
     /// <summary>
     /// Normalizes a user tag list for full replace (trim, drop empty, dedupe case-insensitive).
     /// </summary>
+    public static bool TryNormalizeSingle(string raw, out string tag)
+    {
+        tag = raw.Trim();
+        if (tag.Length == 0)
+        {
+            return false;
+        }
+
+        if (tag.Length > MaxTagLength)
+        {
+            tag = tag[..MaxTagLength];
+        }
+
+        return true;
+    }
+
     public static IReadOnlyList<string> NormalizeReplaceList(IEnumerable<string> tags)
     {
         var result = new List<string>();

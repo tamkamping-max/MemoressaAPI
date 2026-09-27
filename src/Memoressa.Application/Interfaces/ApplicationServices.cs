@@ -131,6 +131,16 @@ public interface IJournalTagService
     Task<ServiceResult> DeleteTagAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
+public interface IPhotoUserTagLibraryService
+{
+    Task<ServiceResult<IReadOnlyList<PhotoUserTagLibraryEntryDto>>> GetEntriesAsync(
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoUserTagLibraryEntryDto>> CreateEntryAsync(
+        CreatePhotoUserTagLibraryEntryRequestDto request,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult> DeleteEntryAsync(Guid id, CancellationToken cancellationToken = default);
+}
+
 public interface IActivityService
 {
     Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>> GetInProgressAsync(CancellationToken cancellationToken = default);

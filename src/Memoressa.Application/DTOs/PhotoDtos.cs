@@ -133,3 +133,15 @@ public record IncompleteUploadSessionDto
     [JsonPropertyName("fullOriginalFileSizeBytes")] public long FullOriginalFileSizeBytes { get; init; }
     [JsonPropertyName("compressedUsesFullOriginal")] public bool CompressedUsesFullOriginal { get; init; }
 }
+
+public record PhotoUserTagLibraryEntryDto
+{
+    [JsonPropertyName("id")] public Guid Id { get; init; }
+    [JsonPropertyName("tag")] public string Tag { get; init; } = string.Empty;
+    [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
+}
+
+public record CreatePhotoUserTagLibraryEntryRequestDto
+{
+    [JsonPropertyName("tag")] public string Tag { get; init; } = string.Empty;
+}
