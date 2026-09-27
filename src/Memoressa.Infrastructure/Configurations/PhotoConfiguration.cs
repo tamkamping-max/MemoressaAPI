@@ -17,6 +17,8 @@ public class PhotoConfiguration : IEntityTypeConfiguration<Photo>
         builder.HasOne(x => x.SharedAlbum).WithMany(x => x.Photos).HasForeignKey(x => x.SharedAlbumId).OnDelete(DeleteBehavior.SetNull);
         builder.HasMany(x => x.PhotoMembers).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(x => x.AiTags).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(x => x.UserTags).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(x => x.Comments).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(x => x.AiInferences).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
     }
 }
@@ -39,6 +41,32 @@ public class PhotoAiTagConfiguration : IEntityTypeConfiguration<PhotoAiTag>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Tag).HasMaxLength(128).IsRequired();
         builder.HasIndex(x => x.Tag);
+    }
+}
+
+public class PhotoUserTagConfiguration : IEntityTypeConfiguration<PhotoUserTag>
+{
+    public void Configure(EntityTypeBuilder<PhotoUserTag> builder)
+    {
+        builder.ToTable("photo_user_tags");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Tag).HasMaxLength(128).IsRequired();
+        builder.HasIndex(x => new { x.PhotoId, x.Tag }).IsUnique();
+        builder.HasIndex(x => x.Tag);
+    }
+}
+
+public class PhotoCommentConfiguration : IEntityTypeConfiguration<PhotoComment>
+{
+    public void Configure(EntityTypeBuilder<PhotoComment> builder)
+    {
+        builder.ToTable("photo_comments");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Message).IsRequired();
+        builder.HasIndex(x => x.PhotoId);
+        builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => x.CreatedAt);
+        builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }
 

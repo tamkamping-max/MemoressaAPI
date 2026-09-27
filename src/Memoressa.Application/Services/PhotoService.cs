@@ -108,6 +108,7 @@ public class PhotoService : IPhotoService
         var photo = await _db.Photos
             .Include(p => p.PhotoMembers)
             .Include(p => p.AiTags)
+            .Include(p => p.UserTags)
             .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == ctx.Value.FamilyId, cancellationToken);
 
         if (photo is null || !PhotoViewerAccess.CanView(photo, ctx.Value.UserId))
@@ -146,6 +147,12 @@ public class PhotoService : IPhotoService
                     FamilyMemberId = memberId
                 });
             }
+        }
+
+        var userTagReplace = PhotoUserTagRules.ResolveReplacePayload(request.UserTags, request.AiTags);
+        if (userTagReplace is not null)
+        {
+            ReplaceUserTags(photo, userTagReplace);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -594,5 +601,126 @@ public class PhotoService : IPhotoService
                 viewerUserId)
             .Include(p => p.PhotoMembers)
             .Include(p => p.AiTags)
-            .Include(p => p.UploadedBy);
+            .Include(p => p.UploadedBy)
+            .Include(p => p.UserTags);
+
+    public async Task<ServiceResult<IReadOnlyList<PhotoCommentDto>>> GetPhotoCommentsAsync(
+        Guid photoId,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<IReadOnlyList<PhotoCommentDto>>.Fail("Unauthorized", 401);
+        }
+
+        var photoExists = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId)
+            .AnyAsync(p => p.Id == photoId, cancellationToken);
+        if (!photoExists)
+        {
+            return ServiceResult<IReadOnlyList<PhotoCommentDto>>.NotFound("Photo not found");
+        }
+
+        var comments = await _db.PhotoComments.AsNoTracking()
+            .Include(c => c.User)
+            .Where(c => c.PhotoId == photoId)
+            .OrderByDescending(c => c.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        return ServiceResult<IReadOnlyList<PhotoCommentDto>>.Ok(comments.Select(c => c.ToDto()).ToList());
+    }
+
+    public async Task<ServiceResult<PhotoCommentDto>> AddPhotoCommentAsync(
+        Guid photoId,
+        AddPhotoCommentRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<PhotoCommentDto>.Fail("Unauthorized", 401);
+        }
+
+        var message = request.Message?.Trim() ?? string.Empty;
+        if (message.Length == 0)
+        {
+            return ServiceResult<PhotoCommentDto>.Fail("message is required");
+        }
+
+        if (message.Length > 4000)
+        {
+            message = message[..4000];
+        }
+
+        var photo = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId)
+            .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
+        if (photo is null)
+        {
+            return ServiceResult<PhotoCommentDto>.NotFound("Photo not found");
+        }
+
+        var comment = new PhotoComment
+        {
+            PhotoId = photoId,
+            UserId = ctx.Value.UserId,
+            Message = message
+        };
+
+        _db.PhotoComments.Add(comment);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var saved = await _db.PhotoComments.AsNoTracking()
+            .Include(c => c.User)
+            .FirstAsync(c => c.Id == comment.Id, cancellationToken);
+
+        return ServiceResult<PhotoCommentDto>.Ok(saved.ToDto());
+    }
+
+    public async Task<ServiceResult> DeletePhotoCommentAsync(
+        Guid photoId,
+        Guid commentId,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult.Fail("Unauthorized", 401);
+        }
+
+        var photoExists = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId)
+            .AnyAsync(p => p.Id == photoId, cancellationToken);
+        if (!photoExists)
+        {
+            return ServiceResult.NotFound("Photo not found");
+        }
+
+        var comment = await _db.PhotoComments
+            .FirstOrDefaultAsync(c => c.Id == commentId && c.PhotoId == photoId, cancellationToken);
+        if (comment is null)
+        {
+            return ServiceResult.NotFound("Comment not found");
+        }
+
+        if (comment.UserId != ctx.Value.UserId)
+        {
+            return ServiceResult.Fail("Forbidden", 403);
+        }
+
+        _db.PhotoComments.Remove(comment);
+        await _db.SaveChangesAsync(cancellationToken);
+        return ServiceResult.Ok();
+    }
+
+    private static void ReplaceUserTags(Domain.Entities.Photo photo, IReadOnlyList<string> tags)
+    {
+        photo.UserTags.Clear();
+        foreach (var tag in tags)
+        {
+            photo.UserTags.Add(new PhotoUserTag
+            {
+                PhotoId = photo.Id,
+                Tag = tag
+            });
+        }
+    }
 }

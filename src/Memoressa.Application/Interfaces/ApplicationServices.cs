@@ -54,6 +54,17 @@ public interface IPhotoService
     Task<ServiceResult<TodayMemoriesResponseDto>> GetTodayMemoriesAsync(
         TodayMemoriesRequestDto request,
         CancellationToken cancellationToken = default);
+    Task<ServiceResult<IReadOnlyList<PhotoCommentDto>>> GetPhotoCommentsAsync(
+        Guid photoId,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoCommentDto>> AddPhotoCommentAsync(
+        Guid photoId,
+        AddPhotoCommentRequestDto request,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult> DeletePhotoCommentAsync(
+        Guid photoId,
+        Guid commentId,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IFamilyService

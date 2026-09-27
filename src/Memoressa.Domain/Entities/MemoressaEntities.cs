@@ -155,6 +155,8 @@ public class Photo : Entity, IFamilyScoped
     public SharedAlbum? SharedAlbum { get; set; }
     public ICollection<PhotoMember> PhotoMembers { get; set; } = [];
     public ICollection<PhotoAiTag> AiTags { get; set; } = [];
+    public ICollection<PhotoUserTag> UserTags { get; set; } = [];
+    public ICollection<PhotoComment> Comments { get; set; } = [];
     public ICollection<PhotoAiInference> AiInferences { get; set; } = [];
     public ICollection<MemoryPhoto> MemoryPhotos { get; set; } = [];
 }
@@ -172,6 +174,22 @@ public class PhotoAiTag : Entity
     public Guid PhotoId { get; set; }
     public string Tag { get; set; } = string.Empty;
     public Photo Photo { get; set; } = null!;
+}
+
+public class PhotoUserTag : Entity
+{
+    public Guid PhotoId { get; set; }
+    public string Tag { get; set; } = string.Empty;
+    public Photo Photo { get; set; } = null!;
+}
+
+public class PhotoComment : Entity
+{
+    public Guid PhotoId { get; set; }
+    public Guid UserId { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public Photo Photo { get; set; } = null!;
+    public UserAccount User { get; set; } = null!;
 }
 
 public class PhotoAiInference : Entity

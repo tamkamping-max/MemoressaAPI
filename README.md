@@ -238,6 +238,18 @@ Quota is checked at `start` (includes pending sessions). `complete` returns **40
 
 **`POST /api/v1/photos/today-memories`** resolves the caller’s family from the JWT (`sub` + `family_id` claim validated against `family_memberships`) and only returns photos that family (and the viewer may see, e.g. not another member’s `onlySelf` uploads).
 
+**Photo user tags vs AI tags:** `PhotoDto.userTags` = user-selected tags (photo experience chips). `PhotoDto.aiTags` = AI-generated tags in `photo_ai_tags` only. **`PUT /api/v1/photos/{id}`** accepts **`userTags`** and/or legacy **`aiTags`** in the body as a **full replace** of user tags only; **`photo_ai_tags` is never modified** by this endpoint. **MemoressaApp 0923+** should map **`userTags`** (fallback `aiTags`) into the tag UI.
+
+**Photo comments (MemoressaApp photo experience):**
+
+| Method | Path | Body |
+|--------|------|------|
+| GET | `/api/v1/photos/{photoId}/comments` | — |
+| POST | `/api/v1/photos/{photoId}/comments` | `{ "message": "..." }` |
+| DELETE | `/api/v1/photos/{photoId}/comments/{commentId}` | — (author only) |
+
+Migration **`015_photo_user_tags_and_comments.sql`** (MySQL: `database/mysql/migrations/015_photo_user_tags_and_comments.sql`).
+
 For production at scale, you can swap presigned GET for **CloudFront signed URLs** inside `IPhotoUrlResolver` without changing the REST contract.
 
 ### Ai

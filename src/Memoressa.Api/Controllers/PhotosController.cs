@@ -95,4 +95,31 @@ public class PhotosController : ControllerBase
         var result = await _photoService.GetTodayMemoriesAsync(request, cancellationToken);
         return result.ToActionResult();
     }
+
+    [HttpGet("{photoId:guid}/comments")]
+    public async Task<IActionResult> GetPhotoComments(Guid photoId, CancellationToken cancellationToken)
+    {
+        var result = await _photoService.GetPhotoCommentsAsync(photoId, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("{photoId:guid}/comments")]
+    public async Task<IActionResult> AddPhotoComment(
+        Guid photoId,
+        [FromBody] AddPhotoCommentRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _photoService.AddPhotoCommentAsync(photoId, request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpDelete("{photoId:guid}/comments/{commentId:guid}")]
+    public async Task<IActionResult> DeletePhotoComment(
+        Guid photoId,
+        Guid commentId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _photoService.DeletePhotoCommentAsync(photoId, commentId, cancellationToken);
+        return result.ToActionResult();
+    }
 }

@@ -30,7 +30,8 @@ public static class EntityMapping
         Location = photo.Location,
         Description = photo.Description,
         MemberIds = photo.PhotoMembers.Select(pm => pm.FamilyMemberId).ToList(),
-        AiTags = photo.AiTags.Select(t => t.Tag).ToList(),
+        UserTags = photo.UserTags.OrderBy(t => t.Tag).Select(t => t.Tag).ToList(),
+        AiTags = photo.AiTags.OrderBy(t => t.Tag).Select(t => t.Tag).ToList(),
         EventId = photo.EventId,
         UploadedBy = photo.UploadedByUserId,
         UploaderNickname = uploader.Nickname,
@@ -191,6 +192,17 @@ public static class EntityMapping
         CreatedAt = comment.CreatedAt,
         AuthorName = comment.User?.Nickname ?? comment.User?.Email,
         AuthorAvatarUrl = comment.User?.AvatarUrl
+    };
+
+    public static PhotoCommentDto ToDto(this PhotoComment comment) => new()
+    {
+        Id = comment.Id,
+        PhotoId = comment.PhotoId,
+        Message = comment.Message,
+        CreatedAt = comment.CreatedAt,
+        AuthorId = comment.UserId,
+        UserId = comment.UserId,
+        AuthorName = comment.User?.Nickname ?? comment.User?.Email
     };
 
     public static JournalTagDto ToDto(this JournalTag tag) => new()

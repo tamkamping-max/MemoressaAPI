@@ -23,6 +23,9 @@ public record PhotoDto
     [JsonPropertyName("location")] public string? Location { get; init; }
     [JsonPropertyName("description")] public string? Description { get; init; }
     [JsonPropertyName("memberIds")] public IReadOnlyList<Guid> MemberIds { get; init; } = [];
+    /// <summary>User-selected tags (App photo experience). Full replace on PUT.</summary>
+    [JsonPropertyName("userTags")] public IReadOnlyList<string> UserTags { get; init; } = [];
+    /// <summary>AI-generated tags only; never modified by user tag PUT.</summary>
     [JsonPropertyName("aiTags")] public IReadOnlyList<string> AiTags { get; init; } = [];
     [JsonPropertyName("eventId")] public string? EventId { get; init; }
     [JsonPropertyName("uploadedBy")] public Guid UploadedBy { get; init; }
@@ -48,6 +51,10 @@ public record UpdatePhotoRequestDto
     [JsonPropertyName("memberIds")] public IReadOnlyList<Guid>? MemberIds { get; init; }
     [JsonPropertyName("visibility")] public MemoryVisibility? Visibility { get; init; }
     [JsonPropertyName("isHidden")] public bool? IsHidden { get; init; }
+    /// <summary>Full replace of user tags. Does not affect AI tags in <c>photo_ai_tags</c>.</summary>
+    [JsonPropertyName("userTags")] public IReadOnlyList<string>? UserTags { get; init; }
+    /// <summary>Legacy App alias for <see cref="UserTags"/> on PUT.</summary>
+    [JsonPropertyName("aiTags")] public IReadOnlyList<string>? AiTags { get; init; }
 }
 
 public record StartUploadRequestDto

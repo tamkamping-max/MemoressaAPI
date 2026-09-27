@@ -19,6 +19,8 @@ public interface IMemoressaDbContext
     DbSet<Photo> Photos { get; }
     DbSet<PhotoMember> PhotoMembers { get; }
     DbSet<PhotoAiTag> PhotoAiTags { get; }
+    DbSet<PhotoUserTag> PhotoUserTags { get; }
+    DbSet<PhotoComment> PhotoComments { get; }
     DbSet<PhotoAiInference> PhotoAiInferences { get; }
     DbSet<Memory> Memories { get; }
     DbSet<MemoryPhoto> MemoryPhotos { get; }
