@@ -16,19 +16,22 @@ public class PhotoService : IPhotoService
     private readonly IPhotoUrlResolver _photoUrls;
     private readonly IS3StorageService _s3;
     private readonly MediaStorageSettings _storageSettings;
+    private readonly IPhotoAlbumService _photoAlbums;
 
     public PhotoService(
         IMemoressaDbContext db,
         ICurrentUserService currentUser,
         IPhotoUrlResolver photoUrls,
         IS3StorageService s3,
-        IOptions<MediaStorageSettings> storageSettings)
+        IOptions<MediaStorageSettings> storageSettings,
+        IPhotoAlbumService photoAlbums)
     {
         _db = db;
         _currentUser = currentUser;
         _photoUrls = photoUrls;
         _s3 = s3;
         _storageSettings = storageSettings.Value;
+        _photoAlbums = photoAlbums;
     }
 
     public async Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetPhotosAsync(CancellationToken cancellationToken = default)
@@ -57,7 +60,23 @@ public class PhotoService : IPhotoService
             return ServiceResult<PhotoDto>.NotFound("Photo not found");
         }
 
-        return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken));
+        var dto = await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken);
+        var albumContext = await _photoAlbums.TryGetPrimaryAlbumForPhotoAsync(
+            photo.Id,
+            ctx.Value.FamilyId,
+            cancellationToken);
+
+        if (albumContext is not null)
+        {
+            dto = dto with
+            {
+                AlbumId = albumContext.Value.AlbumId,
+                AlbumUserTags = albumContext.Value.UserTags,
+                AlbumDescription = albumContext.Value.Description
+            };
+        }
+
+        return ServiceResult<PhotoDto>.Ok(dto);
     }
 
     public async Task<ServiceResult<IReadOnlyList<PhotoDto>>> GetPhotosByDateAsync(DateTime date, CancellationToken cancellationToken = default)

@@ -42,6 +42,9 @@ public record PhotoDto
     [JsonPropertyName("visibility")] public MemoryVisibility Visibility { get; init; }
     [JsonPropertyName("originalFileName")] public string? OriginalFileName { get; init; }
     [JsonPropertyName("isLivePhoto")] public bool IsLivePhoto { get; init; }
+    [JsonPropertyName("albumId")] public Guid? AlbumId { get; init; }
+    [JsonPropertyName("albumUserTags")] public IReadOnlyList<string>? AlbumUserTags { get; init; }
+    [JsonPropertyName("albumDescription")] public string? AlbumDescription { get; init; }
 }
 
 public record UpdatePhotoRequestDto

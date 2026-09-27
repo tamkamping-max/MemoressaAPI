@@ -15,6 +15,8 @@ When `Database:Target` is **`Local`**, the API uses **MySQL 8** via Pomelo EF Co
 | `migrations/014_password_reset_codes.sql` | OTP password reset (`password_reset_codes`) |
 | `migrations/015_photo_user_tags_and_comments.sql` | User photo tags (`photo_user_tags`) and photo comments |
 | `migrations/016_user_photo_tag_library.sql` | Per-user photo tag library (tags sheet) |
+| `migrations/017_photo_albums.sql` | Photo albums (experience groups) |
+| `migrations/018_photo_albums_backfill_note.sql` | Optional legacy backfill notes (no-op) |
 | `schema.sql` | Full schema (greenfield apply) |
 | `apply.sh` | Apply incremental migrations via `mysql` client |
 

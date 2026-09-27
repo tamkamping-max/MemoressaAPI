@@ -141,6 +141,42 @@ public interface IPhotoUserTagLibraryService
     Task<ServiceResult> DeleteEntryAsync(Guid id, CancellationToken cancellationToken = default);
 }
 
+public interface IPhotoAlbumService
+{
+    Task<ServiceResult<PhotoAlbumDto>> CreateOrFindAsync(
+        CreatePhotoAlbumRequestDto request,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoAlbumDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoAlbumListPageDto>> ListCardsAsync(
+        int? limit = null,
+        string? cursor = null,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoAlbumDto>> UpdateAsync(
+        Guid id,
+        UpdatePhotoAlbumRequestDto request,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoAlbumDto>> PatchPhotosAsync(
+        Guid id,
+        PatchPhotoAlbumPhotosRequestDto request,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult<IReadOnlyList<PhotoAlbumCommentDto>>> GetCommentsAsync(
+        Guid albumId,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoAlbumCommentDto>> AddCommentAsync(
+        Guid albumId,
+        AddPhotoAlbumCommentRequestDto request,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult> DeleteCommentAsync(
+        Guid albumId,
+        Guid commentId,
+        CancellationToken cancellationToken = default);
+    Task<(Guid AlbumId, IReadOnlyList<string> UserTags, string? Description)?> TryGetPrimaryAlbumForPhotoAsync(
+        Guid photoId,
+        Guid familyId,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IActivityService
 {
     Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>> GetInProgressAsync(CancellationToken cancellationToken = default);

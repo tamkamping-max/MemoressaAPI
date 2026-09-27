@@ -219,4 +219,15 @@ public static class EntityMapping
         Tag = entry.Tag,
         CreatedAt = entry.CreatedAt
     };
+
+    public static PhotoAlbumCommentDto ToDto(this PhotoAlbumComment comment) => new()
+    {
+        Id = comment.Id,
+        AlbumId = comment.PhotoAlbumId,
+        Message = comment.Message,
+        CreatedAt = comment.CreatedAt,
+        AuthorId = comment.UserId,
+        UserId = comment.UserId,
+        AuthorName = comment.User?.Nickname ?? comment.User?.Email
+    };
 }

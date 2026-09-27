@@ -193,6 +193,57 @@ public class UserPhotoTagLibraryEntry : Entity
     public UserAccount User { get; set; } = null!;
 }
 
+public class PhotoAlbum : Entity, IFamilyScoped
+{
+    public Guid FamilyId { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public string? Description { get; set; }
+    public MemoryVisibility Visibility { get; set; } = MemoryVisibility.Family;
+    public Guid? CoverPhotoId { get; set; }
+    /// <summary>Sorted photo-id set key for find-or-create within a family.</summary>
+    public string PhotoSetFingerprint { get; set; } = string.Empty;
+
+    public Family Family { get; set; } = null!;
+    public UserAccount CreatedBy { get; set; } = null!;
+    public ICollection<PhotoAlbumPhoto> AlbumPhotos { get; set; } = [];
+    public ICollection<PhotoAlbumUserTag> UserTags { get; set; } = [];
+    public ICollection<PhotoAlbumMember> AlbumMembers { get; set; } = [];
+    public ICollection<PhotoAlbumComment> Comments { get; set; } = [];
+}
+
+public class PhotoAlbumPhoto : Entity
+{
+    public Guid PhotoAlbumId { get; set; }
+    public Guid PhotoId { get; set; }
+    public int SortOrder { get; set; }
+    public PhotoAlbum PhotoAlbum { get; set; } = null!;
+    public Photo Photo { get; set; } = null!;
+}
+
+public class PhotoAlbumUserTag : Entity
+{
+    public Guid PhotoAlbumId { get; set; }
+    public string Tag { get; set; } = string.Empty;
+    public PhotoAlbum PhotoAlbum { get; set; } = null!;
+}
+
+public class PhotoAlbumMember : Entity
+{
+    public Guid PhotoAlbumId { get; set; }
+    public Guid FamilyMemberId { get; set; }
+    public PhotoAlbum PhotoAlbum { get; set; } = null!;
+    public FamilyMember FamilyMember { get; set; } = null!;
+}
+
+public class PhotoAlbumComment : Entity
+{
+    public Guid PhotoAlbumId { get; set; }
+    public Guid UserId { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public PhotoAlbum PhotoAlbum { get; set; } = null!;
+    public UserAccount User { get; set; } = null!;
+}
+
 public class PhotoComment : Entity
 {
     public Guid PhotoId { get; set; }

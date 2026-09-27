@@ -252,6 +252,18 @@ Preset/built-in tags (e.g. client `defaultPhotoUserTagIds`) stay **client-only**
 
 Migration **`016_user_photo_tag_library.sql`** (MySQL: `database/mysql/migrations/016_user_photo_tag_library.sql`). Requires **`015_photo_user_tags_and_comments.sql`** for per-photo tags.
 
+**Photo albums (experience / MediaGroup):** Album-level `userTags`, `description`, `visibility`, `memberIds`, and comments. Photos keep file metadata and `aiTags`. **`POST /api/v1/photo-albums`** with `{ photoIds[] }` **find-or-create** by canonical photo-set fingerprint (sorted photo ids, SHA-256) within the JWT family. Response includes `created: true|false`. **`DELETE /api/v1/photo-albums/{id}`** removes the album row only (photos are not deleted). **`GET /api/v1/photos/{id}`** may include `albumId`, `albumUserTags`, `albumDescription` when the photo belongs to an album (most recently updated album wins). **`GET /api/v1/photo-albums`** returns paginated **card** items (`albumId`, `photoIds`, `userTags`, `description`, `coverPhotoId`). Migration **`017_photo_albums.sql`**. Optional legacy backfill notes: **`018_photo_albums_backfill_note.sql`**.
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/api/v1/photo-albums` | Card list (`items`, `nextCursor`, `hasMore`) |
+| POST | `/api/v1/photo-albums` | Create or find `{ photoIds, userTags?, description?, visibility?, memberIds? }` |
+| GET | `/api/v1/photo-albums/{id}` | Detail + optional `photos[]` summaries |
+| PUT | `/api/v1/photo-albums/{id}` | Update tags, description, visibility, members, cover |
+| DELETE | `/api/v1/photo-albums/{id}` | Delete album metadata only |
+| PATCH | `/api/v1/photo-albums/{id}/photos` | `{ addPhotoIds?, removePhotoIds? }` |
+| GET/POST/DELETE | `/api/v1/photo-albums/{albumId}/comments` | Same rules as photo comments (author delete) |
+
 **Photo comments (MemoressaApp photo experience):**
 
 | Method | Path | Body |
