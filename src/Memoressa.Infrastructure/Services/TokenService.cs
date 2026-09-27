@@ -24,14 +24,15 @@ public class TokenService : ITokenService
         _db = db;
     }
 
-    public AuthTokensDto GenerateTokens(UserAccount user)
+    public AuthTokensDto GenerateTokens(UserAccount user, Guid familyId)
     {
         var expiresAt = DateTime.UtcNow.AddMinutes(_options.AccessTokenMinutes);
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("family_id", familyId.ToString())
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SecretKey));

@@ -606,7 +606,7 @@ public partial class AuthService : IAuthService
         Guid familyId,
         CancellationToken cancellationToken)
     {
-        var tokens = _tokenService.GenerateTokens(user);
+        var tokens = _tokenService.GenerateTokens(user, familyId);
         var refresh = await _tokenService.CreateRefreshTokenAsync(user.Id, cancellationToken);
         tokens = tokens with { RefreshToken = refresh.Token };
 

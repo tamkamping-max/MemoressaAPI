@@ -50,6 +50,28 @@ public class PhotoDtoMappingTests
         Assert.Null(dto.UploaderEmail);
         Assert.Null(dto.Uploader);
     }
+
+    [Fact]
+    public void ToDto_MapsUserTagsAndAiTagsSeparately()
+    {
+        var photo = new Photo
+        {
+            UserTags =
+            [
+                new PhotoUserTag { Tag = "pet" },
+                new PhotoUserTag { Tag = "family" }
+            ],
+            AiTags =
+            [
+                new PhotoAiTag { Tag = "outdoor" }
+            ]
+        };
+
+        var dto = photo.ToDto();
+
+        Assert.Equal(["family", "pet"], dto.UserTags);
+        Assert.Equal(["outdoor"], dto.AiTags);
+    }
 }
 
 public class PhotoViewerAccessTests

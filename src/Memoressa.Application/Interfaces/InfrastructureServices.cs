@@ -6,7 +6,7 @@ namespace Memoressa.Application.Interfaces;
 
 public interface ITokenService
 {
-    AuthTokensDto GenerateTokens(UserAccount user);
+    AuthTokensDto GenerateTokens(UserAccount user, Guid familyId);
     Guid? ValidateAccessToken(string token);
     Task<RefreshToken?> ValidateRefreshTokenAsync(string token, CancellationToken cancellationToken = default);
     Task<RefreshToken> CreateRefreshTokenAsync(Guid userId, CancellationToken cancellationToken = default);

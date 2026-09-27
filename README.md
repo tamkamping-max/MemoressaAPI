@@ -238,7 +238,7 @@ Quota is checked at `start` (includes pending sessions). `complete` returns **40
 
 **`POST /api/v1/photos/today-memories`** resolves the caller’s family from the JWT (`sub` + `family_id` claim validated against `family_memberships`) and only returns photos that family (and the viewer may see, e.g. not another member’s `onlySelf` uploads).
 
-**Photo user tags vs AI tags:** `PhotoDto.userTags` = user-selected tags (photo experience chips). `PhotoDto.aiTags` = AI-generated tags in `photo_ai_tags` only. **`PUT /api/v1/photos/{id}`** accepts **`userTags`** and/or legacy **`aiTags`** in the body as a **full replace** of user tags only; **`photo_ai_tags` is never modified** by this endpoint. **MemoressaApp 0923+** should map **`userTags`** (fallback `aiTags`) into the tag UI.
+**Photo user tags vs AI tags:** `PhotoDto.userTags` = user-selected tags (photo experience chips). `PhotoDto.aiTags` = AI-generated tags in `photo_ai_tags` only. **`PUT /api/v1/photos/{id}`** accepts **`userTags`** and/or legacy **`aiTags`** in the body as a **full replace** of user tags only; **`photo_ai_tags` is never modified** by this endpoint. JWT access tokens include a **`family_id`** claim (same as login `familyId`). **MemoressaApp** should bind the tag UI to **`userTags`** only (see App notes below — do not treat `aiTags` as user tags when `userTags` is present, even if empty).
 
 **Photo comments (MemoressaApp photo experience):**
 
