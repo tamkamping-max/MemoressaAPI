@@ -711,9 +711,14 @@ public class PhotoService : IPhotoService
         return ServiceResult.Ok();
     }
 
-    private static void ReplaceUserTags(Domain.Entities.Photo photo, IReadOnlyList<string> tags)
+    private void ReplaceUserTags(Domain.Entities.Photo photo, IReadOnlyList<string> tags)
     {
-        photo.UserTags.Clear();
+        if (photo.UserTags.Count > 0)
+        {
+            _db.PhotoUserTags.RemoveRange(photo.UserTags);
+            photo.UserTags.Clear();
+        }
+
         foreach (var tag in tags)
         {
             photo.UserTags.Add(new PhotoUserTag
