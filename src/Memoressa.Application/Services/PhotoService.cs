@@ -108,13 +108,14 @@ public class PhotoService : IPhotoService
         var photo = await _db.Photos
             .Include(p => p.PhotoMembers)
             .Include(p => p.AiTags)
-            .Include(p => p.UserTags)
             .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == ctx.Value.FamilyId, cancellationToken);
 
         if (photo is null || !PhotoViewerAccess.CanView(photo, ctx.Value.UserId))
         {
             return ServiceResult<PhotoDto>.NotFound("Photo not found");
         }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
         if (request.Description is not null)
         {
@@ -138,24 +139,17 @@ public class PhotoService : IPhotoService
 
         if (request.MemberIds is not null)
         {
-            _db.PhotoMembers.RemoveRange(photo.PhotoMembers);
-            foreach (var memberId in request.MemberIds)
-            {
-                _db.PhotoMembers.Add(new Domain.Entities.PhotoMember
-                {
-                    PhotoId = photo.Id,
-                    FamilyMemberId = memberId
-                });
-            }
+            await ReplacePhotoMembersAsync(photo, request.MemberIds, cancellationToken);
         }
 
         var userTagReplace = PhotoUserTagRules.ResolveReplacePayload(request.UserTags, request.AiTags);
         if (userTagReplace is not null)
         {
-            ReplaceUserTags(photo, userTagReplace);
+            await ReplaceUserTagsAsync(photo, userTagReplace, cancellationToken);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         var updated = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId).FirstAsync(p => p.Id == id, cancellationToken);
         return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(updated, cancellationToken: cancellationToken));
     }
@@ -711,17 +705,51 @@ public class PhotoService : IPhotoService
         return ServiceResult.Ok();
     }
 
-    private void ReplaceUserTags(Domain.Entities.Photo photo, IReadOnlyList<string> tags)
+    private async Task ReplacePhotoMembersAsync(
+        Photo photo,
+        IReadOnlyList<Guid> memberIds,
+        CancellationToken cancellationToken)
     {
-        if (photo.UserTags.Count > 0)
+        var existing = await _db.PhotoMembers
+            .Where(pm => pm.PhotoId == photo.Id)
+            .ToListAsync(cancellationToken);
+
+        if (existing.Count > 0)
         {
-            _db.PhotoUserTags.RemoveRange(photo.UserTags);
-            photo.UserTags.Clear();
+            _db.PhotoMembers.RemoveRange(existing);
+        }
+
+        photo.PhotoMembers.Clear();
+
+        foreach (var memberId in memberIds.Distinct())
+        {
+            var member = new PhotoMember
+            {
+                PhotoId = photo.Id,
+                FamilyMemberId = memberId
+            };
+            _db.PhotoMembers.Add(member);
+            photo.PhotoMembers.Add(member);
+        }
+    }
+
+    private async Task ReplaceUserTagsAsync(
+        Photo photo,
+        IReadOnlyList<string> tags,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _db.PhotoUserTags
+            .Where(t => t.PhotoId == photo.Id)
+            .ToListAsync(cancellationToken);
+
+        if (existing.Count > 0)
+        {
+            _db.PhotoUserTags.RemoveRange(existing);
         }
 
         foreach (var tag in tags)
         {
-            photo.UserTags.Add(new PhotoUserTag
+            _db.PhotoUserTags.Add(new PhotoUserTag
             {
                 PhotoId = photo.Id,
                 Tag = tag
