@@ -15,7 +15,10 @@ public static class EntityMapping
         CreatedAt = user.CreatedAt
     };
 
-    public static PhotoDto ToDto(this Photo photo, string? remoteUrl = null, string? thumbnailUrl = null, string? fullUrl = null) => new()
+    public static PhotoDto ToDto(this Photo photo, string? remoteUrl = null, string? thumbnailUrl = null, string? fullUrl = null)
+    {
+        var uploader = BuildUploaderFields(photo);
+        return new PhotoDto
     {
         Id = photo.Id,
         AssetPath = photo.LocalAssetPath ?? remoteUrl ?? string.Empty,
@@ -30,6 +33,9 @@ public static class EntityMapping
         AiTags = photo.AiTags.Select(t => t.Tag).ToList(),
         EventId = photo.EventId,
         UploadedBy = photo.UploadedByUserId,
+        UploaderNickname = uploader.Nickname,
+        UploaderEmail = uploader.Email,
+        Uploader = uploader.Nested,
         Generation = photo.Generation,
         IsHidden = photo.IsHidden,
         IsDuplicate = photo.IsDuplicate,
@@ -41,6 +47,32 @@ public static class EntityMapping
         OriginalFileName = photo.OriginalFileName,
         IsLivePhoto = photo.IsLivePhoto
     };
+    }
+
+    private static (string? Nickname, string? Email, PhotoUploaderDto? Nested) BuildUploaderFields(Photo photo)
+    {
+        var account = photo.UploadedBy;
+        if (account is null || account.Id == Guid.Empty)
+        {
+            return (null, null, null);
+        }
+
+        var nickname = string.IsNullOrWhiteSpace(account.Nickname) ? null : account.Nickname.Trim();
+        var email = string.IsNullOrWhiteSpace(account.Email) ? null : account.Email.Trim();
+        if (nickname is null && email is null)
+        {
+            return (null, null, null);
+        }
+
+        var nested = new PhotoUploaderDto
+        {
+            Id = account.Id,
+            Nickname = nickname,
+            Email = email
+        };
+
+        return (nickname, email, nested);
+    }
 
     public static MemoryDto ToDto(this Memory memory) => new()
     {

@@ -289,6 +289,7 @@ public class UploadService : IUploadService
             var existing = await _db.Photos
                 .Include(p => p.PhotoMembers)
                 .Include(p => p.AiTags)
+                .Include(p => p.UploadedBy)
                 .FirstAsync(p => p.Id == session.ResultPhotoId.Value, cancellationToken);
 
             return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(existing, cancellationToken: cancellationToken));
@@ -403,6 +404,7 @@ public class UploadService : IUploadService
         photo = await _db.Photos
             .Include(p => p.PhotoMembers)
             .Include(p => p.AiTags)
+            .Include(p => p.UploadedBy)
             .FirstAsync(p => p.Id == photo.Id, cancellationToken);
 
         return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken));

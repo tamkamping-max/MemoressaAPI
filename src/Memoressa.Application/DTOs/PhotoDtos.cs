@@ -4,6 +4,13 @@ using Memoressa.Domain.Enums;
 
 namespace Memoressa.Application.DTOs;
 
+public record PhotoUploaderDto
+{
+    [JsonPropertyName("id")] public Guid Id { get; init; }
+    [JsonPropertyName("nickname")] public string? Nickname { get; init; }
+    [JsonPropertyName("email")] public string? Email { get; init; }
+}
+
 public record PhotoDto
 {
     [JsonPropertyName("id")] public Guid Id { get; init; }
@@ -19,6 +26,9 @@ public record PhotoDto
     [JsonPropertyName("aiTags")] public IReadOnlyList<string> AiTags { get; init; } = [];
     [JsonPropertyName("eventId")] public string? EventId { get; init; }
     [JsonPropertyName("uploadedBy")] public Guid UploadedBy { get; init; }
+    [JsonPropertyName("uploaderNickname")] public string? UploaderNickname { get; init; }
+    [JsonPropertyName("uploaderEmail")] public string? UploaderEmail { get; init; }
+    [JsonPropertyName("uploader")] public PhotoUploaderDto? Uploader { get; init; }
     [JsonPropertyName("generation")] public Generation? Generation { get; init; }
     [JsonPropertyName("isHidden")] public bool IsHidden { get; init; }
     [JsonPropertyName("isDuplicate")] public bool IsDuplicate { get; init; }

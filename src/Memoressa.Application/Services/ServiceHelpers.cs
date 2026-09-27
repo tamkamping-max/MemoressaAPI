@@ -27,7 +27,13 @@ internal static class ServiceHelpers
 
         if (currentUser.FamilyId.HasValue)
         {
-            return (currentUser.UserId.Value, currentUser.FamilyId.Value);
+            var familyId = currentUser.FamilyId.Value;
+            var isMember = await db.FamilyMemberships.AsNoTracking()
+                .AnyAsync(
+                    m => m.UserId == currentUser.UserId.Value && m.FamilyId == familyId,
+                    cancellationToken);
+
+            return isMember ? (currentUser.UserId.Value, familyId) : null;
         }
 
         var membership = await db.FamilyMemberships.AsNoTracking()

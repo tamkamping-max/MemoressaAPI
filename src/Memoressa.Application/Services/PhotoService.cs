@@ -39,7 +39,7 @@ public class PhotoService : IPhotoService
             return ServiceResult<IReadOnlyList<PhotoDto>>.Fail("Unauthorized", 401);
         }
 
-        var photos = await QueryPhotos(ctx.Value.FamilyId).OrderByDescending(p => p.TakenAt).ToListAsync(cancellationToken);
+        var photos = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId).OrderByDescending(p => p.TakenAt).ToListAsync(cancellationToken);
         return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken));
     }
 
@@ -51,7 +51,7 @@ public class PhotoService : IPhotoService
             return ServiceResult<PhotoDto>.Fail("Unauthorized", 401);
         }
 
-        var photo = await QueryPhotos(ctx.Value.FamilyId).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        var photo = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (photo is null)
         {
             return ServiceResult<PhotoDto>.NotFound("Photo not found");
@@ -68,7 +68,7 @@ public class PhotoService : IPhotoService
             return ServiceResult<IReadOnlyList<PhotoDto>>.Fail("Unauthorized", 401);
         }
 
-        var photos = await QueryPhotos(ctx.Value.FamilyId)
+        var photos = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId)
             .Where(p => p.TakenAt.HasValue && p.TakenAt.Value.Date == date.Date)
             .OrderBy(p => p.TakenAt)
             .ToListAsync(cancellationToken);
@@ -86,7 +86,7 @@ public class PhotoService : IPhotoService
             return ServiceResult<IReadOnlyList<PhotoDto>>.Fail("Unauthorized", 401);
         }
 
-        var photos = await QueryPhotos(ctx.Value.FamilyId)
+        var photos = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId)
             .Where(p => p.PhotoMembers.Any(pm => pm.FamilyMemberId == memberId))
             .OrderByDescending(p => p.TakenAt)
             .ToListAsync(cancellationToken);
@@ -110,7 +110,7 @@ public class PhotoService : IPhotoService
             .Include(p => p.AiTags)
             .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == ctx.Value.FamilyId, cancellationToken);
 
-        if (photo is null)
+        if (photo is null || !PhotoViewerAccess.CanView(photo, ctx.Value.UserId))
         {
             return ServiceResult<PhotoDto>.NotFound("Photo not found");
         }
@@ -149,7 +149,7 @@ public class PhotoService : IPhotoService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
-        var updated = await QueryPhotos(ctx.Value.FamilyId).FirstAsync(p => p.Id == id, cancellationToken);
+        var updated = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId).FirstAsync(p => p.Id == id, cancellationToken);
         return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(updated, cancellationToken: cancellationToken));
     }
 
@@ -183,7 +183,7 @@ public class PhotoService : IPhotoService
         var pageSize = PhotoTimelinePagination.NormalizeLimit(limit);
         var takeCount = pageSize + 1;
 
-        var query = QueryPhotos(ctx.Value.FamilyId).Where(p => !p.IsHidden);
+        var query = QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId).Where(p => !p.IsHidden);
 
         if (decodedCursor is not null)
         {
@@ -232,7 +232,7 @@ public class PhotoService : IPhotoService
             return ServiceResult<PhotoDownloadDto>.Fail("Unauthorized", 401);
         }
 
-        var photo = await QueryPhotos(ctx.Value.FamilyId).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        var photo = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId).FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (photo is null)
         {
             return ServiceResult<PhotoDownloadDto>.NotFound("Photo not found");
@@ -286,7 +286,7 @@ public class PhotoService : IPhotoService
         var photo = await _db.Photos
             .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == ctx.Value.FamilyId, cancellationToken);
 
-        if (photo is null)
+        if (photo is null || !PhotoViewerAccess.CanView(photo, ctx.Value.UserId))
         {
             return ServiceResult.NotFound("Photo not found");
         }
@@ -339,11 +339,12 @@ public class PhotoService : IPhotoService
 
         if (cached is not null)
         {
-            var eligibleCount = await CountEligiblePhotosAsync(ctx.Value.FamilyId, cancellationToken);
+            var eligibleCount = await CountEligiblePhotosAsync(ctx.Value.FamilyId, ctx.Value.UserId, cancellationToken);
             if (!TodayMemoriesCacheRefresh.ShouldRecomposeEmptyCache(cached, eligibleCount))
             {
                 var fromCache = await BuildResponseFromCacheAsync(
                     ctx.Value.FamilyId,
+                    ctx.Value.UserId,
                     referenceDate,
                     cached.Strategy,
                     cached.ItemsJson,
@@ -366,6 +367,7 @@ public class PhotoService : IPhotoService
 
         var built = await ComposeAndPersistTodayMemoriesAsync(
             ctx.Value.FamilyId,
+            ctx.Value.UserId,
             referenceDate,
             request,
             cancellationToken);
@@ -375,11 +377,12 @@ public class PhotoService : IPhotoService
 
     private async Task<TodayMemoriesResponseDto> ComposeAndPersistTodayMemoriesAsync(
         Guid familyId,
+        Guid viewerUserId,
         DateOnly referenceDate,
         TodayMemoriesRequestDto request,
         CancellationToken cancellationToken)
     {
-        var photos = await QueryPhotos(familyId)
+        var photos = await QueryPhotos(familyId, viewerUserId)
             .Include(p => p.AiTags)
             .ToListAsync(cancellationToken);
 
@@ -429,6 +432,7 @@ public class PhotoService : IPhotoService
 
             return await BuildResponseFromCacheAsync(
                 familyId,
+                viewerUserId,
                 referenceDate,
                 existing.Strategy,
                 existing.ItemsJson,
@@ -449,6 +453,7 @@ public class PhotoService : IPhotoService
 
         return await BuildResponseFromEntriesAsync(
             familyId,
+            viewerUserId,
             referenceDate,
             skeleton.Strategy,
             entries,
@@ -458,6 +463,7 @@ public class PhotoService : IPhotoService
 
     private async Task<TodayMemoriesResponseDto> BuildResponseFromCacheAsync(
         Guid familyId,
+        Guid viewerUserId,
         DateOnly referenceDate,
         TodayMemoriesStrategy strategy,
         string itemsJson,
@@ -477,7 +483,7 @@ public class PhotoService : IPhotoService
         }
 
         var photoIds = cachedItems.Select(i => i.PhotoId).ToList();
-        var photosById = await QueryPhotos(familyId)
+        var photosById = await QueryPhotos(familyId, viewerUserId)
             .Where(p => photoIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, cancellationToken);
 
@@ -485,6 +491,11 @@ public class PhotoService : IPhotoService
         foreach (var item in cachedItems)
         {
             if (!photosById.TryGetValue(item.PhotoId, out var photo) || photo.IsHidden)
+            {
+                continue;
+            }
+
+            if (!PhotoViewerAccess.CanView(photo, viewerUserId))
             {
                 continue;
             }
@@ -498,6 +509,7 @@ public class PhotoService : IPhotoService
 
         return await BuildResponseFromEntriesAsync(
             familyId,
+            viewerUserId,
             referenceDate,
             strategy,
             entries,
@@ -507,6 +519,7 @@ public class PhotoService : IPhotoService
 
     private async Task<TodayMemoriesResponseDto> BuildResponseFromEntriesAsync(
         Guid familyId,
+        Guid viewerUserId,
         DateOnly referenceDate,
         TodayMemoriesStrategy strategy,
         IReadOnlyList<TodayMemoriesComposer.SelectionEntry> entries,
@@ -524,12 +537,27 @@ public class PhotoService : IPhotoService
             };
         }
 
-        var photoEntities = entries.Select(e => e.Photo).ToList();
-        var dtos = await _photoUrls.ToDtosAsync(photoEntities, cancellationToken: cancellationToken);
-        var items = new List<TodayMemoryPhotoItemDto>(entries.Count);
-        for (var i = 0; i < entries.Count; i++)
+        var visibleEntries = entries
+            .Where(e => e.Photo.FamilyId == familyId && PhotoViewerAccess.CanView(e.Photo, viewerUserId))
+            .ToList();
+
+        if (visibleEntries.Count == 0)
         {
-            var entry = entries[i];
+            return new TodayMemoriesResponseDto
+            {
+                ReferenceDate = referenceDate,
+                Strategy = strategy == TodayMemoriesStrategy.Empty ? strategy : TodayMemoriesStrategy.Empty,
+                Items = [],
+                FromCache = fromCache
+            };
+        }
+
+        var photoEntities = visibleEntries.Select(e => e.Photo).ToList();
+        var dtos = await _photoUrls.ToDtosAsync(photoEntities, cancellationToken: cancellationToken);
+        var items = new List<TodayMemoryPhotoItemDto>(visibleEntries.Count);
+        for (var i = 0; i < visibleEntries.Count; i++)
+        {
+            var entry = visibleEntries[i];
             items.Add(new TodayMemoryPhotoItemDto
             {
                 Photo = dtos[i],
@@ -548,17 +576,23 @@ public class PhotoService : IPhotoService
         };
     }
 
-    private async Task<int> CountEligiblePhotosAsync(Guid familyId, CancellationToken cancellationToken) =>
-        await _db.Photos.AsNoTracking()
-            .Where(p => p.FamilyId == familyId)
+    private async Task<int> CountEligiblePhotosAsync(
+        Guid familyId,
+        Guid viewerUserId,
+        CancellationToken cancellationToken) =>
+        await PhotoViewerAccess.ApplyViewerFilter(
+                _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId),
+                viewerUserId)
             .CountAsync(
                 p => !p.IsHidden
                      && (p.S3Key != null && p.S3Key != "" || p.LocalAssetPath != null && p.LocalAssetPath != ""),
                 cancellationToken);
 
-    private IQueryable<Domain.Entities.Photo> QueryPhotos(Guid familyId) =>
-        _db.Photos.AsNoTracking()
-            .Where(p => p.FamilyId == familyId)
+    private IQueryable<Domain.Entities.Photo> QueryPhotos(Guid familyId, Guid viewerUserId) =>
+        PhotoViewerAccess.ApplyViewerFilter(
+                _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId),
+                viewerUserId)
             .Include(p => p.PhotoMembers)
-            .Include(p => p.AiTags);
+            .Include(p => p.AiTags)
+            .Include(p => p.UploadedBy);
 }
