@@ -174,7 +174,7 @@ public class GrokAgentService : IGrokAgentService
     {
         if (searchResults.Count == 0)
         {
-            return "No matching family memories were found in the database for this query.";
+            return "(Search returned no photo candidates for this query.)";
         }
 
         var topResults = searchResults.Take(_options.AgentMaxContextMemories).ToList();
@@ -262,14 +262,16 @@ public class GrokAgentService : IGrokAgentService
         messages.Add(new
         {
             role = "user",
-            content = $"Candidates:\n{memoryContext}\n\nQuestion: {userMessage}"
+            content =
+                $"Family photo candidates from search (may be empty):\n{memoryContext}\n\n" +
+                $"User message:\n{userMessage}"
         });
 
         var payload = new
         {
             model = _options.ChatModel,
             messages,
-            temperature = 0.4,
+            temperature = 0.65,
             max_tokens = _options.AgentMaxCompletionTokens,
             response_format = new { type = "json_object" }
         };
@@ -315,8 +317,8 @@ public class GrokAgentService : IGrokAgentService
             return new AiAgentChatResponseDto
             {
                 Reply = IsChineseLocale(locale)
-                    ? "我暂时没有在家庭记忆里找到相关的照片，你可以换个说法再试试。"
-                    : "I couldn't find matching family memories yet. Try asking in another way.",
+                    ? "我在你的家庭相册里还没找到符合的照片。你可以试试换个关键词（人名、地点、tag），或加上月份，例如「今年9月的照片」。"
+                    : "I couldn't find matching photos in your family library yet. Try another keyword (name, place, tag) or add a month, e.g. \"photos from September this year\".",
                 MatchReasonKeys = ["semantic"]
             };
         }
@@ -325,11 +327,11 @@ public class GrokAgentService : IGrokAgentService
         var count = searchResults.Count;
         var reply = IsChineseLocale(locale)
             ? count == 1
-                ? $"我找到了 1 張與「{userMessage}」相關的照片。"
-                : $"我找到了 {count} 張與「{userMessage}」相關的照片。"
+                ? $"我找到了 1 张可能相关的照片（见下方缩图）。如果想看更多，可以再说具体一点，例如年份、地点或 tag。"
+                : $"我找到了 {count} 张可能相关的照片（见下方缩图）。你可以点图查看，或继续问我更细的条件。"
             : count == 1
-                ? $"I found 1 photo related to \"{userMessage}\"."
-                : $"I found {count} photos related to \"{userMessage}\".";
+                ? $"I found 1 matching photo (thumbnail below). Ask with more detail if you need a different one."
+                : $"I found {count} matching photos (thumbnails below). Tap to open, or refine your question.";
 
         return new AiAgentChatResponseDto
         {
@@ -498,12 +500,17 @@ public class GrokAgentService : IGrokAgentService
     private static string BuildSystemPrompt(string? locale)
     {
         var language = IsChineseLocale(locale)
-            ? "Reply in the same language as the user (Chinese when appropriate)."
+            ? "Reply in the same language as the user (Traditional/Simplified Chinese as appropriate)."
             : "Reply in the same language as the user.";
 
         return """
-            Memoressa family photo assistant. Answer only from the candidate list; do not invent facts.
-            JSON: {"reply":"","memoryId":null,"photoId":null,"matchReasonKeys":["semantic"]}
+            You are Memoressa, a warm family memory curator inside a photo app — conversational, helpful, and concise.
+            The user is chatting with you; treat each turn as part of an ongoing dialogue (use recent history).
+            Use the search candidate list when it helps; never invent photos, people, dates, or events not supported by candidates.
+            If candidates are empty, say so kindly and suggest how to rephrase (tags, month, year, place, person).
+            If candidates exist, briefly explain what you found and invite follow-up; pick memoryId/photoId from candidates when highlighting one photo.
+            Write reply as 2–5 natural sentences (not bullet lists). JSON only:
+            {"reply":"","memoryId":null,"photoId":null,"matchReasonKeys":["semantic"]}
             matchReasonKeys (max 3): familyRelation, faceMatch, summer2018, birthdayEvent, childGrowth, familyGathering, locationTokyo, travelEvent, multiGeneration, semantic, aiCurated, highEmotional.
             """ + language;
     }

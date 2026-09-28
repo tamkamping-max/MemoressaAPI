@@ -12,8 +12,8 @@ public class AiOptions
     public string VisionModel { get; set; } = "grok-4.7";
     public bool EnableVisionBatch { get; set; }
     public int MaxBatchSize { get; set; } = 20;
-    public int AgentMaxHistoryMessages { get; set; } = 4;
-    public int AgentMaxContextMemories { get; set; } = 3;
+    public int AgentMaxHistoryMessages { get; set; } = 8;
+    public int AgentMaxContextMemories { get; set; } = 5;
 
     /// <summary>Use Grok to expand Agent search keywords across locales before DB substring search (adds one Grok call per chat).</summary>
     public bool AgentGrokSearchExpansion { get; set; } = false;
@@ -27,7 +27,7 @@ public class AiOptions
     public bool AgentSkipGrokForSimpleSearch { get; set; } = true;
 
     /// <summary>Cap Grok completion tokens for Agent chat JSON.</summary>
-    public int AgentMaxCompletionTokens { get; set; } = 256;
+    public int AgentMaxCompletionTokens { get; set; } = 512;
 
     /// <summary>Max photo hits returned to the App as relatedMemories.</summary>
     public int AgentMaxRelatedPhotosInChat { get; set; } = 20;
