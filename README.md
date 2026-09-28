@@ -702,7 +702,8 @@ dotnet test
 | `004_frame_package_external_id.sql` | `004_frame_package_external_id.sql` | Frame package `external_id` |
 | `005_upload_variants_and_storage_quota.sql` | `005_upload_variants_and_storage_quota.sql` | Upload variant keys + user storage quota |
 | `019_ai_chat_related_photos.sql` | `019_ai_chat_related_photos.sql` | AI agent assistant `RelatedPhotoIdsJson` (multi-photo hits) |
-| `020_user_self_family_member.sql` | `020_user_self_family_member.sql` | `users.self_family_member_id` for face sync / 「這是我」 |
+| `020_user_self_family_member.sql` | `020_user_self_family_member.sql` | `user_accounts.SelfFamilyMemberId` (PascalCase; matches EF) for face sync |
+| | `021_user_self_family_member_snake_fix.sql` | Optional: fixes mistaken snake_case `self_family_member_id` from an early 020 draft |
 
 After changing schema, update **both** SQL trees, then `Memoressa.Domain` entities and `Infrastructure/Configurations`, then deploy SQL before/with the API.
 

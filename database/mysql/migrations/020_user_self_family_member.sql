@@ -1,9 +1,9 @@
 -- Links the logged-in user to a family_members row ("this is me" for face sync).
-ALTER TABLE user_accounts
-    ADD COLUMN self_family_member_id CHAR(36) NULL;
+-- MySQL local schema uses PascalCase column names (same as EF Core default).
 
-ALTER TABLE user_accounts
-    ADD CONSTRAINT fk_user_accounts_self_family_member
-        FOREIGN KEY (self_family_member_id) REFERENCES family_members(id) ON DELETE SET NULL;
+ALTER TABLE user_accounts ADD `SelfFamilyMemberId` char(36) NULL;
 
-CREATE INDEX ix_user_accounts_self_family_member_id ON user_accounts(self_family_member_id);
+ALTER TABLE user_accounts ADD CONSTRAINT `FK_user_accounts_family_members_SelfFamilyMemberId`
+    FOREIGN KEY (`SelfFamilyMemberId`) REFERENCES family_members (`Id`) ON DELETE SET NULL;
+
+CREATE INDEX `IX_user_accounts_SelfFamilyMemberId` ON user_accounts (`SelfFamilyMemberId`);

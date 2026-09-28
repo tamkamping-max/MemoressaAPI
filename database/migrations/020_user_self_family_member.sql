@@ -1,13 +1,14 @@
 -- Links the logged-in user to a family_members row ("this is me" for face sync).
-ALTER TABLE user_accounts
-    ADD COLUMN IF NOT EXISTS self_family_member_id UUID NULL;
 
 ALTER TABLE user_accounts
-    DROP CONSTRAINT IF EXISTS fk_user_accounts_self_family_member;
+    ADD COLUMN IF NOT EXISTS "SelfFamilyMemberId" uuid NULL;
 
 ALTER TABLE user_accounts
-    ADD CONSTRAINT fk_user_accounts_self_family_member
-        FOREIGN KEY (self_family_member_id) REFERENCES family_members(id) ON DELETE SET NULL;
+    DROP CONSTRAINT IF EXISTS "FK_user_accounts_family_members_SelfFamilyMemberId";
 
-CREATE INDEX IF NOT EXISTS ix_user_accounts_self_family_member_id
-    ON user_accounts(self_family_member_id);
+ALTER TABLE user_accounts
+    ADD CONSTRAINT "FK_user_accounts_family_members_SelfFamilyMemberId"
+        FOREIGN KEY ("SelfFamilyMemberId") REFERENCES family_members("Id") ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS "IX_user_accounts_SelfFamilyMemberId"
+    ON user_accounts("SelfFamilyMemberId");

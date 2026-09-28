@@ -885,4 +885,13 @@ CREATE INDEX `IX_photo_album_comments_PhotoAlbumId` ON photo_album_comments (`Ph
 CREATE INDEX `IX_photo_album_comments_UserId` ON photo_album_comments (`UserId`);
 CREATE INDEX `IX_photo_album_comments_CreatedAt` ON photo_album_comments (`CreatedAt`);
 
+-- Memoressa MySQL schema migration: 020_user_self_family_member.sql
+
+ALTER TABLE user_accounts ADD `SelfFamilyMemberId` char(36) NULL;
+
+ALTER TABLE user_accounts ADD CONSTRAINT `FK_user_accounts_family_members_SelfFamilyMemberId`
+    FOREIGN KEY (`SelfFamilyMemberId`) REFERENCES family_members (`Id`) ON DELETE SET NULL;
+
+CREATE INDEX `IX_user_accounts_SelfFamilyMemberId` ON user_accounts (`SelfFamilyMemberId`);
+
 SET FOREIGN_KEY_CHECKS = 1;
