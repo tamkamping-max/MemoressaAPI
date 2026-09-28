@@ -37,6 +37,13 @@ public class PhotoAlbumsController : ControllerBase
         return result.ToActionResult();
     }
 
+    /// <summary>Alias for <see cref="CreateOrFind"/> (find-or-create by photo set).</summary>
+    [HttpPost("ensure")]
+    public Task<IActionResult> Ensure(
+        [FromBody] CreatePhotoAlbumRequestDto request,
+        CancellationToken cancellationToken)
+        => CreateOrFind(request, cancellationToken);
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
