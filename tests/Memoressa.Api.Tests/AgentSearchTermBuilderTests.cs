@@ -20,4 +20,18 @@ public class AgentSearchTermBuilderTests
         Assert.Equal(2, limited.Count);
         Assert.Equal("開心", limited[0]);
     }
+
+    [Fact]
+    public void ForDatabaseSearch_PairsCrossLocaleSynonym()
+    {
+        var terms = AgentSearchTermBuilder.ForDatabaseSearch("happy", null, 2);
+        Assert.Equal(2, terms.Count);
+        Assert.Equal("happy", terms[0]);
+        Assert.Contains(terms, t => t.Equals("開心", StringComparison.Ordinal));
+
+        var zhTerms = AgentSearchTermBuilder.ForDatabaseSearch("開心", null, 2);
+        Assert.Equal(2, zhTerms.Count);
+        Assert.Equal("開心", zhTerms[0]);
+        Assert.Contains(zhTerms, t => t.Equals("happy", StringComparison.OrdinalIgnoreCase));
+    }
 }

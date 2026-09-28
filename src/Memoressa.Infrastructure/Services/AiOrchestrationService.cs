@@ -117,8 +117,9 @@ public class AiOrchestrationService : IAiOrchestrationService
 
         var usePostgreSql = EfTextSearch.IsPostgreSqlProvider(_db);
         var years = AgentSearchQuery.ExtractYears(query);
-        var searchTerms = AgentSearchTermBuilder.Limit(
-            AgentSearchTermBuilder.Build(query, additionalSearchTerms),
+        var searchTerms = AgentSearchTermBuilder.ForDatabaseSearch(
+            query,
+            additionalSearchTerms,
             _options.AgentMaxSearchTermsForDb);
 
         var photoScope = _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId && !p.IsHidden);

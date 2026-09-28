@@ -290,12 +290,13 @@ LLM calls use xAI **`POST /v1/chat/completions`** (Chat Completions API) by defa
 | `Ai:GrokBaseUrl` | Default **`https://api.x.ai/v1`**. Legacy **`Ai:OpenAiBaseUrl`** is used when `GrokBaseUrl` is empty. |
 | `Ai:ChatModel` | AI Agent chat (default **`grok-4.7`**) |
 | `Ai:VisionModel` | Batch photo vision (default **`grok-4.7`**) |
-| `Ai:AgentMaxHistoryMessages` | Multi-turn history sent to the LLM (default **6**) |
-| `Ai:AgentMaxContextMemories` | Max photo candidates in RAG context (default **4**) |
+| `Ai:AgentMaxHistoryMessages` | Multi-turn history sent to the LLM (default **4**) |
+| `Ai:AgentMaxContextMemories` | Max photo candidates in RAG context (default **3**) |
 | `Ai:AgentGrokSearchExpansion` | Extra Grok call to expand multilingual search keywords (default **false** — one Grok call per Agent chat) |
 | `Ai:AgentMaxSearchKeywords` | Max Grok-expanded keywords merged into substring search (default **16**) |
-| `Ai:AgentMaxSearchTermsForDb` | Max synonym strings per DB search; first term is always the user query (default **4**) |
-| `Ai:AgentMaxCompletionTokens` | Cap on Grok completion tokens for Agent JSON (default **320**) |
+| `Ai:AgentMaxSearchTermsForDb` | Max synonym strings per DB search; uses user term + one cross-locale synonym (default **2**) |
+| `Ai:AgentSkipGrokForSimpleSearch` | Short tag-like queries use search-only replies (**0** xAI tokens; default **true**) |
+| `Ai:AgentMaxCompletionTokens` | Cap on Grok completion tokens for Agent JSON (default **256**) |
 | `Ai:EnableVisionBatch` | Enable batch vision processing |
 | `Ai:MaxBatchSize` | Max photos per batch |
 
@@ -479,7 +480,7 @@ Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat 
 
 **MemoressaApp:** On opening the AI screen, call **`GET /session`** to restore the latest transcript and pass **`sessionId`** on subsequent **`POST /chat`** calls. When **`sessionId`** is omitted on chat, the API reuses the latest session for that user/family (no new empty session per visit). Do not show preset example chips; history replaces an empty-state welcome when messages exist.
 
-**Agent memory search (before each Grok call):** substring SQL on memories, photos, and photo albums (one query per synonym term, capped by **`AgentMaxSearchTermsForDb`** — MySQL/Pomelo cannot OR a primitive keyword list in one LINQ expression). **Default:** one **`chat/completions`** call per Agent message (reply only). Set **`Ai:AgentGrokSearchExpansion`** to **true** for an extra Grok keyword-expansion call.
+**Agent memory search (before each Grok call):** substring SQL on memories, photos, and photo albums (typically **2** DB term passes: user word + one cross-locale synonym). **Short tag queries** (e.g. `happy`, `開心`) with **`AgentSkipGrokForSimpleSearch: true`** (default) return templated replies with **no** xAI call. Longer or question-style messages use **one** **`chat/completions`** call. Set **`Ai:AgentGrokSearchExpansion`** to **true** for an extra Grok keyword-expansion call.
 
 | Method | Path | Description |
 |--------|------|-------------|

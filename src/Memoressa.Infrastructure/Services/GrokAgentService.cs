@@ -63,11 +63,20 @@ public class GrokAgentService : IGrokAgentService
             message,
             cancellationToken,
             expandedKeywords);
-        var memoryContext = await BuildMemoryContextAsync(familyId, searchResults, cancellationToken);
 
-        var llmResult = string.IsNullOrWhiteSpace(_options.GrokApiKey)
-            ? BuildFallbackResponse(message, request.Locale, searchResults)
-            : await CallGrokAsync(message, request.Locale, history, memoryContext, cancellationToken);
+        var useGrok = !string.IsNullOrWhiteSpace(_options.GrokApiKey)
+            && !(_options.AgentSkipGrokForSimpleSearch && AgentSearchQuery.IsSimpleSearchPhrase(message));
+
+        AiAgentChatResponseDto llmResult;
+        if (useGrok)
+        {
+            var memoryContext = await BuildMemoryContextAsync(familyId, searchResults, cancellationToken);
+            llmResult = await CallGrokAsync(message, request.Locale, history, memoryContext, cancellationToken);
+        }
+        else
+        {
+            llmResult = BuildFallbackResponse(message, request.Locale, searchResults);
+        }
 
         llmResult = await ValidateAndEnrichAsync(familyId, llmResult, searchResults, cancellationToken);
 
