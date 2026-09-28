@@ -80,6 +80,10 @@ public class GrokAgentService : IGrokAgentService
 
         llmResult = await ValidateAndEnrichAsync(familyId, llmResult, searchResults, cancellationToken);
 
+        var relatedForChat = searchResults
+            .Take(_options.AgentMaxRelatedPhotosInChat)
+            .ToList();
+
         _db.AiChatMessages.Add(new AiChatMessage
         {
             SessionId = session.Id,
@@ -94,13 +98,14 @@ public class GrokAgentService : IGrokAgentService
             Content = llmResult.Reply,
             MemoryId = llmResult.MemoryId,
             PhotoId = llmResult.PhotoId,
-            MatchReasonKeysJson = JsonSerializer.Serialize(llmResult.MatchReasonKeys)
+            MatchReasonKeysJson = JsonSerializer.Serialize(llmResult.MatchReasonKeys),
+            RelatedPhotoIdsJson = JsonSerializer.Serialize(relatedForChat.Select(r => r.PhotoId).ToList())
         });
 
         session.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        return llmResult with { SessionId = session.Id, RelatedMemories = searchResults.Take(5).ToList() };
+        return llmResult with { SessionId = session.Id, RelatedMemories = relatedForChat };
     }
 
     private async Task<AiChatSession> ResolveSessionAsync(
@@ -317,9 +322,14 @@ public class GrokAgentService : IGrokAgentService
         }
 
         var top = searchResults[0];
+        var count = searchResults.Count;
         var reply = IsChineseLocale(locale)
-            ? $"我找到了与「{userMessage}」相关的记忆：{top.Title}。"
-            : $"I found a memory related to \"{userMessage}\": {top.Title}.";
+            ? count == 1
+                ? $"我找到了 1 張與「{userMessage}」相關的照片。"
+                : $"我找到了 {count} 張與「{userMessage}」相關的照片。"
+            : count == 1
+                ? $"I found 1 photo related to \"{userMessage}\"."
+                : $"I found {count} photos related to \"{userMessage}\".";
 
         return new AiAgentChatResponseDto
         {

@@ -76,7 +76,7 @@ public class AiAgentService : IAiAgentService
             .OrderBy(m => m.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        var dtos = await MapMessagesAsync(messages, cancellationToken);
+        var dtos = await MapMessagesAsync(ctx.Value.FamilyId, messages, cancellationToken);
         return ServiceResult<AiAgentSessionDto>.Ok(new AiAgentSessionDto
         {
             SessionId = session.Id,
@@ -109,11 +109,12 @@ public class AiAgentService : IAiAgentService
             .OrderBy(m => m.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        var dtos = await MapMessagesAsync(messages, cancellationToken);
+        var dtos = await MapMessagesAsync(ctx.Value.FamilyId, messages, cancellationToken);
         return ServiceResult<IReadOnlyList<AiAgentMessageDto>>.Ok(dtos);
     }
 
     private async Task<List<AiAgentMessageDto>> MapMessagesAsync(
+        Guid familyId,
         IReadOnlyList<AiChatMessage> messages,
         CancellationToken cancellationToken)
     {
@@ -138,6 +139,12 @@ public class AiAgentService : IAiAgentService
                 ? []
                 : JsonSerializer.Deserialize<List<string>>(message.MatchReasonKeysJson) ?? [];
 
+            var relatedMemories = await BuildRelatedMemoriesAsync(
+                familyId,
+                message.RelatedPhotoIdsJson,
+                message.PhotoId,
+                cancellationToken);
+
             dtos.Add(new AiAgentMessageDto
             {
                 Id = message.Id,
@@ -147,10 +154,74 @@ public class AiAgentService : IAiAgentService
                 PhotoId = message.PhotoId,
                 ThumbnailUrl = thumbnailUrl,
                 MatchReasonKeys = keys,
-                CreatedAt = message.CreatedAt
+                CreatedAt = message.CreatedAt,
+                RelatedMemories = relatedMemories
             });
         }
 
         return dtos;
+    }
+
+    private async Task<IReadOnlyList<SearchResultDto>> BuildRelatedMemoriesAsync(
+        Guid familyId,
+        string? relatedPhotoIdsJson,
+        Guid? fallbackPhotoId,
+        CancellationToken cancellationToken)
+    {
+        var photoIds = ParsePhotoIds(relatedPhotoIdsJson);
+        if (photoIds.Count == 0 && fallbackPhotoId.HasValue)
+        {
+            photoIds = [fallbackPhotoId.Value];
+        }
+
+        if (photoIds.Count == 0)
+        {
+            return [];
+        }
+
+        var results = new List<SearchResultDto>();
+        foreach (var id in photoIds.Distinct())
+        {
+            var photo = await _db.Photos.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == familyId, cancellationToken);
+
+            if (photo is null)
+            {
+                continue;
+            }
+
+            var thumb = await _photoUrls.GetPresignedUrlAsync(
+                photo,
+                thumbnail: true,
+                cancellationToken: cancellationToken) ?? photo.LocalAssetPath;
+
+            results.Add(new SearchResultDto
+            {
+                PhotoId = photo.Id,
+                Title = photo.Description ?? photo.TakenAt?.ToString("yyyy-MM-dd") ?? string.Empty,
+                ThumbnailPath = thumb,
+                MatchReasons = ["semantic"],
+                RelevanceScore = 1
+            });
+        }
+
+        return results;
+    }
+
+    private static List<Guid> ParsePhotoIds(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<Guid>>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 }

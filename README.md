@@ -686,6 +686,7 @@ dotnet test
 | `003_journal_tags.sql` | `003_journal_tags.sql` | Journal tags |
 | `004_frame_package_external_id.sql` | `004_frame_package_external_id.sql` | Frame package `external_id` |
 | `005_upload_variants_and_storage_quota.sql` | `005_upload_variants_and_storage_quota.sql` | Upload variant keys + user storage quota |
+| `019_ai_chat_related_photos.sql` | `019_ai_chat_related_photos.sql` | AI agent assistant `RelatedPhotoIdsJson` (multi-photo hits) |
 
 After changing schema, update **both** SQL trees, then `Memoressa.Domain` entities and `Infrastructure/Configurations`, then deploy SQL before/with the API.
 

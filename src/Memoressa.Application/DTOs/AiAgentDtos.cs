@@ -30,6 +30,7 @@ public record AiAgentMessageDto
     [JsonPropertyName("thumbnailUrl")] public string? ThumbnailUrl { get; init; }
     [JsonPropertyName("matchReasonKeys")] public IReadOnlyList<string> MatchReasonKeys { get; init; } = [];
     [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
+    [JsonPropertyName("relatedMemories")] public IReadOnlyList<SearchResultDto> RelatedMemories { get; init; } = [];
 }
 
 public record AiAgentSessionDto

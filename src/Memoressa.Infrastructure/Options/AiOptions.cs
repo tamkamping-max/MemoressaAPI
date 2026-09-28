@@ -28,4 +28,7 @@ public class AiOptions
 
     /// <summary>Cap Grok completion tokens for Agent chat JSON.</summary>
     public int AgentMaxCompletionTokens { get; set; } = 256;
+
+    /// <summary>Max photo hits returned to the App as relatedMemories.</summary>
+    public int AgentMaxRelatedPhotosInChat { get; set; } = 20;
 }

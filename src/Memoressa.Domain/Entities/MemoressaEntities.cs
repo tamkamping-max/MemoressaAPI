@@ -590,6 +590,8 @@ public class AiChatMessage : Entity
     public Guid? MemoryId { get; set; }
     public Guid? PhotoId { get; set; }
     public string? MatchReasonKeysJson { get; set; }
+    /// <summary>JSON array of photo UUIDs shown for multi-photo agent replies.</summary>
+    public string? RelatedPhotoIdsJson { get; set; }
     public AiChatSession Session { get; set; } = null!;
 }
 
