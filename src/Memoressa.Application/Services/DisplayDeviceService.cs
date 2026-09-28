@@ -1,0 +1,240 @@
+using System.Text.Json;
+using Memoressa.Application.Abstractions;
+using Memoressa.Application.Common;
+using Memoressa.Application.DTOs;
+using Memoressa.Application.Interfaces;
+using Memoressa.Domain.Entities;
+using Memoressa.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+
+namespace Memoressa.Application.Services;
+
+public class DisplayDeviceService : IDisplayDeviceService
+{
+    private readonly IMemoressaDbContext _db;
+    private readonly ICurrentUserService _currentUser;
+    private readonly IAiOrchestrationService _aiOrchestrationService;
+
+    public DisplayDeviceService(
+        IMemoressaDbContext db,
+        ICurrentUserService currentUser,
+        IAiOrchestrationService aiOrchestrationService)
+    {
+        _db = db;
+        _currentUser = currentUser;
+        _aiOrchestrationService = aiOrchestrationService;
+    }
+
+    public async Task<ServiceResult<IReadOnlyList<DisplayDeviceDto>>> GetDevicesAsync(CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<IReadOnlyList<DisplayDeviceDto>>.Fail("Unauthorized", 401);
+        }
+
+        var devices = await _db.DisplayDevices.AsNoTracking()
+            .Where(d => d.FamilyId == ctx.Value.FamilyId)
+            .OrderBy(d => d.Name)
+            .ToListAsync(cancellationToken);
+
+        return ServiceResult<IReadOnlyList<DisplayDeviceDto>>.Ok(devices.Select(d => d.ToDto()).ToList());
+    }
+
+    public async Task<ServiceResult<DisplayDeviceDto>> CreateDeviceAsync(
+        CreateDisplayDeviceRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<DisplayDeviceDto>.Fail("Unauthorized", 401);
+        }
+
+        var count = await _db.DisplayDevices.CountAsync(d => d.FamilyId == ctx.Value.FamilyId, cancellationToken);
+        if (count >= AppConstants.MaxDisplayDevices)
+        {
+            return ServiceResult<DisplayDeviceDto>.Fail($"Maximum {AppConstants.MaxDisplayDevices} devices allowed");
+        }
+
+        var device = new DisplayDevice
+        {
+            FamilyId = ctx.Value.FamilyId,
+            BoundByUserId = ctx.Value.UserId,
+            Name = string.IsNullOrWhiteSpace(request.Name) ? $"Frame {count + 1}" : request.Name,
+            QrCode = Guid.NewGuid().ToString(),
+            Status = DisplayDeviceStatus.Offline
+        };
+
+        _db.DisplayDevices.Add(device);
+        await _db.SaveChangesAsync(cancellationToken);
+        return ServiceResult<DisplayDeviceDto>.Ok(device.ToDto());
+    }
+
+    public async Task<ServiceResult<DisplayDeviceDto>> BindDeviceAsync(
+        BindDisplayDeviceRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<DisplayDeviceDto>.Fail("Unauthorized", 401);
+        }
+
+        var count = await _db.DisplayDevices.CountAsync(d => d.FamilyId == ctx.Value.FamilyId, cancellationToken);
+        if (count >= AppConstants.MaxDisplayDevices)
+        {
+            return ServiceResult<DisplayDeviceDto>.Fail($"Maximum {AppConstants.MaxDisplayDevices} devices allowed");
+        }
+
+        var existing = await _db.DisplayDevices
+            .FirstOrDefaultAsync(d => d.QrCode == request.QrCode, cancellationToken);
+
+        if (existing is not null)
+        {
+            if (existing.FamilyId != ctx.Value.FamilyId)
+            {
+                return ServiceResult<DisplayDeviceDto>.Fail("Device already bound to another family", 409);
+            }
+
+            existing.Status = DisplayDeviceStatus.Online;
+            existing.LastSeenAt = DateTime.UtcNow;
+            existing.BoundByUserId = ctx.Value.UserId;
+            if (!string.IsNullOrWhiteSpace(request.Name))
+            {
+                existing.Name = request.Name;
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            return ServiceResult<DisplayDeviceDto>.Ok(existing.ToDto());
+        }
+
+        var device = new DisplayDevice
+        {
+            FamilyId = ctx.Value.FamilyId,
+            BoundByUserId = ctx.Value.UserId,
+            Name = request.Name ?? $"Frame {count + 1}",
+            QrCode = request.QrCode,
+            Status = DisplayDeviceStatus.Online,
+            LastSeenAt = DateTime.UtcNow
+        };
+
+        _db.DisplayDevices.Add(device);
+        await _db.SaveChangesAsync(cancellationToken);
+        return ServiceResult<DisplayDeviceDto>.Ok(device.ToDto());
+    }
+
+    public async Task<ServiceResult<DisplayDeviceDto>> RenameDeviceAsync(
+        Guid id,
+        RenameDisplayDeviceRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<DisplayDeviceDto>.Fail("Unauthorized", 401);
+        }
+
+        var device = await _db.DisplayDevices
+            .FirstOrDefaultAsync(d => d.Id == id && d.FamilyId == ctx.Value.FamilyId, cancellationToken);
+
+        if (device is null)
+        {
+            return ServiceResult<DisplayDeviceDto>.NotFound("Device not found");
+        }
+
+        device.Name = request.Name;
+        await _db.SaveChangesAsync(cancellationToken);
+        return ServiceResult<DisplayDeviceDto>.Ok(device.ToDto());
+    }
+
+    public async Task<ServiceResult> UnbindDeviceAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult.Fail("Unauthorized", 401);
+        }
+
+        var device = await _db.DisplayDevices
+            .FirstOrDefaultAsync(d => d.Id == id && d.FamilyId == ctx.Value.FamilyId, cancellationToken);
+
+        if (device is null)
+        {
+            return ServiceResult.NotFound("Device not found");
+        }
+
+        _db.DisplayDevices.Remove(device);
+        await _db.SaveChangesAsync(cancellationToken);
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> SendMemoryToDeviceAsync(
+        Guid deviceId,
+        SendMemoryToDeviceRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult.Fail("Unauthorized", 401);
+        }
+
+        var device = await _db.DisplayDevices
+            .FirstOrDefaultAsync(d => d.Id == deviceId && d.FamilyId == ctx.Value.FamilyId, cancellationToken);
+
+        if (device is null)
+        {
+            return ServiceResult.NotFound("Device not found");
+        }
+
+        var memory = await _db.Memories.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == request.MemoryId && m.FamilyId == ctx.Value.FamilyId, cancellationToken);
+
+        if (memory is null)
+        {
+            return ServiceResult.NotFound("Memory not found");
+        }
+
+        var memoryPhotos = await _db.MemoryPhotos.AsNoTracking()
+            .Where(mp => mp.MemoryId == request.MemoryId)
+            .OrderBy(mp => mp.SortOrder)
+            .Select(mp => mp.PhotoId)
+            .ToListAsync(cancellationToken);
+
+        var items = await _aiOrchestrationService.GeneratePlaybackAsync(
+            ctx.Value.FamilyId,
+            new PlaybackRequestDto { PhotoIds = memoryPhotos, AiCurated = false },
+            cancellationToken);
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            memoryId = request.MemoryId,
+            playNow = request.PlayNow,
+            packageTitle = request.PackageTitle ?? memory.Title,
+            items
+        });
+
+        _db.FrameCommands.Add(new FrameCommand
+        {
+            DisplayDeviceId = device.Id,
+            IssuedByUserId = ctx.Value.UserId,
+            CommandType = FrameCommandType.PlayMemory,
+            Status = FrameCommandStatus.Pending,
+            PayloadJson = payload
+        });
+
+        if (request.PlayNow)
+        {
+            device.CurrentMemoryId = request.MemoryId;
+        }
+
+        device.Status = DisplayDeviceStatus.Online;
+        device.LastSeenAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+        return ServiceResult.Ok();
+    }
+
+    public Task<ServiceResult<string>> GenerateQrCodeAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(ServiceResult<string>.Ok(Guid.NewGuid().ToString()));
+}

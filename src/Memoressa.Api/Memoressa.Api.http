@@ -1,0 +1,6 @@
+@Memoressa.Api_HostAddress = http://localhost:5047
+
+GET {{Memoressa.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
