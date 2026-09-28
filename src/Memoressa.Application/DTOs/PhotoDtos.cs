@@ -45,11 +45,6 @@ public record PhotoDto
     [JsonPropertyName("albumId")] public Guid? AlbumId { get; init; }
     [JsonPropertyName("albumUserTags")] public IReadOnlyList<string>? AlbumUserTags { get; init; }
     [JsonPropertyName("albumDescription")] public string? AlbumDescription { get; init; }
-    [JsonPropertyName("aiVisionPromptTokens")] public int? AiVisionPromptTokens { get; init; }
-    [JsonPropertyName("aiVisionCompletionTokens")] public int? AiVisionCompletionTokens { get; init; }
-    [JsonPropertyName("aiVisionCostUsd")] public decimal? AiVisionCostUsd { get; init; }
-    [JsonPropertyName("aiVisionModel")] public string? AiVisionModel { get; init; }
-    [JsonPropertyName("aiVisionCostAt")] public DateTime? AiVisionCostAt { get; init; }
 }
 
 public record UpdatePhotoRequestDto

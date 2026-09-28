@@ -14,10 +14,4 @@ public class AiOptions
     public int MaxBatchSize { get; set; } = 20;
     public int AgentMaxHistoryMessages { get; set; } = 12;
     public int AgentMaxContextMemories { get; set; } = 8;
-
-    /// <summary>Vision input USD per 1M tokens (default grok-4.7 under 200k prompt tier).</summary>
-    public decimal VisionInputUsdPerMillionTokens { get; set; } = 2.0m;
-
-    /// <summary>Vision output USD per 1M tokens (default grok-4.7 under 200k prompt tier).</summary>
-    public decimal VisionOutputUsdPerMillionTokens { get; set; } = 6.0m;
 }

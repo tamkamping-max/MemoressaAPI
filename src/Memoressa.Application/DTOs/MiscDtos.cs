@@ -3,15 +3,6 @@ using Memoressa.Domain.Enums;
 
 namespace Memoressa.Application.DTOs;
 
-public record AiVisionPhotoCostDto
-{
-    [JsonPropertyName("photoId")] public Guid PhotoId { get; init; }
-    [JsonPropertyName("model")] public string Model { get; init; } = string.Empty;
-    [JsonPropertyName("promptTokens")] public int PromptTokens { get; init; }
-    [JsonPropertyName("completionTokens")] public int CompletionTokens { get; init; }
-    [JsonPropertyName("costUsd")] public decimal CostUsd { get; init; }
-}
-
 public record AiAnalysisResultDto
 {
     [JsonPropertyName("photoCount")] public int PhotoCount { get; init; }
@@ -21,8 +12,6 @@ public record AiAnalysisResultDto
     [JsonPropertyName("earliestDate")] public DateTime? EarliestDate { get; init; }
     [JsonPropertyName("latestDate")] public DateTime? LatestDate { get; init; }
     [JsonPropertyName("suggestedMemberNames")] public IReadOnlyList<string> SuggestedMemberNames { get; init; } = [];
-    [JsonPropertyName("visionTotalCostUsd")] public decimal? VisionTotalCostUsd { get; init; }
-    [JsonPropertyName("visionPhotoCosts")] public IReadOnlyList<AiVisionPhotoCostDto> VisionPhotoCosts { get; init; } = [];
 }
 
 public record AnalyzePhotosRequestDto

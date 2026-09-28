@@ -46,12 +46,7 @@ public static class EntityMapping
         IsAiInferred = photo.IsAiInferred,
         Visibility = photo.Visibility,
         OriginalFileName = photo.OriginalFileName,
-        IsLivePhoto = photo.IsLivePhoto,
-        AiVisionPromptTokens = photo.AiVisionPromptTokens,
-        AiVisionCompletionTokens = photo.AiVisionCompletionTokens,
-        AiVisionCostUsd = photo.AiVisionCostUsd,
-        AiVisionModel = photo.AiVisionModel,
-        AiVisionCostAt = photo.AiVisionCostAt
+        IsLivePhoto = photo.IsLivePhoto
     };
     }
 
