@@ -76,6 +76,17 @@ public class PhotoDtoMappingTests
 
 public class PhotoViewerAccessTests
 {
+    [Fact]
+    public void IsUploader_MatchesUploadedByUserId()
+    {
+        var uploaderId = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
+        var photo = new Photo { UploadedByUserId = uploaderId };
+
+        Assert.True(PhotoViewerAccess.IsUploader(photo, uploaderId));
+        Assert.False(PhotoViewerAccess.IsUploader(photo, otherId));
+    }
+
     [Theory]
     [InlineData(UploadPrivacyScope.Family, false)]
     [InlineData(UploadPrivacyScope.OnlySelf, true)]

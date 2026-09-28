@@ -51,6 +51,7 @@ public record UpdatePhotoRequestDto
 {
     [JsonPropertyName("description")] public string? Description { get; init; }
     [JsonPropertyName("location")] public string? Location { get; init; }
+    [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
     [JsonPropertyName("memberIds")] public IReadOnlyList<Guid>? MemberIds { get; init; }
     [JsonPropertyName("visibility")] public MemoryVisibility? Visibility { get; init; }
     [JsonPropertyName("isHidden")] public bool? IsHidden { get; init; }

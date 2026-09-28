@@ -16,4 +16,7 @@ public static class PhotoViewerAccess
     public static bool CanView(Photo photo, Guid viewerUserId) =>
         photo.PrivacyScope != UploadPrivacyScope.OnlySelf
         || photo.UploadedByUserId == viewerUserId;
+
+    public static bool IsUploader(Photo photo, Guid userId) =>
+        photo.UploadedByUserId == userId;
 }

@@ -236,7 +236,7 @@ Quota is checked at `start` (includes pending sessions). `complete` returns **40
 
 **`POST /api/v1/photos/today-memories`** resolves the caller’s family from the JWT (`sub` + `family_id` claim validated against `family_memberships`) and only returns photos that family (and the viewer may see, e.g. not another member’s `onlySelf` uploads).
 
-**Photo user tags vs AI tags:** `PhotoDto.userTags` = user-selected tags (photo experience chips). `PhotoDto.aiTags` = AI-generated tags in `photo_ai_tags` only. **`PUT /api/v1/photos/{id}`** accepts **`userTags`** and/or legacy **`aiTags`** in the body as a **full replace** of user tags on **that photo only**; **`photo_ai_tags` is never modified** by this endpoint. **`memberIds`** in the same body is a **full replace** of people on the photo (same as manual tagging); every id must belong to the photo's family or the API returns **403**. Face sync on the App appends the matched member id client-side, then sends the full array. JWT access tokens include a **`family_id`** claim (same as login `familyId`). **MemoressaApp** should bind the tag UI to **`userTags`** only (do not treat `aiTags` as user tags when `userTags` is present, even if empty).
+**Photo user tags vs AI tags:** Every list/detail **`PhotoDto`** includes **`uploadedBy`** = uploader **`user_accounts.Id`** (same as nested **`uploader.id`** when present). **`PUT /api/v1/photos/{id}`** and **`DELETE /photos/{id}`** (and batch delete) require **`uploadedBy ==` current JWT user**; otherwise **403**. Only the uploader may change **`takenAt`**, **`location`**, **`visibility`**, **`memberIds`**, **`userTags`** (and other PUT fields such as `description` / `isHidden`). Per-photo tags are only via PUT (not the tag library). `PhotoDto.userTags` = user-selected tags (photo experience chips). `PhotoDto.aiTags` = AI-generated tags in `photo_ai_tags` only. **`PUT`** accepts **`userTags`** and/or legacy **`aiTags`** in the body as a **full replace** of user tags on **that photo only**; **`photo_ai_tags` is never modified** by this endpoint. **`memberIds`** is a **full replace**; every id must belong to the photo's family or **403**. Face sync on the uploader's device appends a member id client-side, then PUTs the full array.
 
 **Photo user tag library (tags sheet — per user, reusable across photos):**
 
@@ -405,11 +405,11 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | GET | `/` | List photos |
 | GET | `/{id}` | Get photo by ID |
 | GET | `/{id}/download` | Presigned GET for **true original** still (`downloadUrl`, `fileName`, `contentType`). When Live Photo was uploaded: `isLivePhoto`, `livePhotoVideoAvailable`, optional `livePhotoVideoDownloadUrl` + companion name/type (default 60 min expiry). Client must save **both** to restore Live Photo on iOS. |
-| DELETE | `/{id}` | Delete photo: S3 + DB row; quota; **`memory_photos` cascade** for manual memory albums; **prune** deleted `photoId` from all family **`today_memories_cache`** (updates App 今日回憶 + 回憶頁 snapshot) |
+| DELETE | `/{id}` | Delete photo (**403** if `uploadedBy` ≠ current user). S3 + DB row; quota; **`memory_photos` cascade**; prune **`today_memories_cache`** |
 | GET | `/by-date/{date}` | Photos by date |
 | GET | `/by-member/{memberId}` | Photos by family member |
-| PUT | `/{id}` | Update photo metadata |
-| POST | `/{id}/hide` | Hide photo |
+| PUT | `/{id}` | Update metadata (**403** if not uploader). Body may include `takenAt`, `location`, `visibility`, `memberIds`, `userTags`, `description`, `isHidden` — per-photo **`userTags`** replace only affects `photo_user_tags` |
+| POST | `/{id}/hide` | Hide photo (**403** if not uploader; same rule as PUT `isHidden`) |
 | GET | `/timeline` | Timeline photos (cursor pagination; default `limit=20`, max 50). Query: `?limit=20&cursor=...`. Response: `{ items, nextCursor, hasMore }` |
 | POST | `/today-memories` | **MemoressaApp：首頁「今日回憶」+「回憶」頁**（同一 API、同一 per-family/per-day cache）。Lazy compose on first successful call each calendar day; later calls return `fromCache: true` unless empty-cache refresh (≥ 4 eligible photos). Body: optional `date`, `currentLocation`, travel, `occasions` — **only affects the first compose that day** (whichever screen calls first). Response: `{ items, strategy, referenceDate, fromCache }`. Does **not** create `memories` table rows. |
 

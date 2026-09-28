@@ -134,6 +134,11 @@ public class PhotoService : IPhotoService
             return ServiceResult<PhotoDto>.NotFound("Photo not found");
         }
 
+        if (!PhotoViewerAccess.IsUploader(photo, ctx.Value.UserId))
+        {
+            return ServiceResult<PhotoDto>.Fail("Only the uploader can edit this photo", 403);
+        }
+
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
         if (request.Description is not null)
@@ -144,6 +149,11 @@ public class PhotoService : IPhotoService
         if (request.Location is not null)
         {
             photo.Location = request.Location;
+        }
+
+        if (request.TakenAt.HasValue)
+        {
+            photo.TakenAt = request.TakenAt;
         }
 
         if (request.Visibility.HasValue)
@@ -671,6 +681,11 @@ public class PhotoService : IPhotoService
         if (photo is null || !PhotoViewerAccess.CanView(photo, viewerUserId))
         {
             return (false, "Photo not found", 404);
+        }
+
+        if (!PhotoViewerAccess.IsUploader(photo, viewerUserId))
+        {
+            return (false, "Only the uploader can delete this photo", 403);
         }
 
         var keys = PhotoObjectKeys.CollectDeleteKeys(photo);
