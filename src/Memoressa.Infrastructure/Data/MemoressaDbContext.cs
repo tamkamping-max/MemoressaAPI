@@ -21,7 +21,6 @@ public class MemoressaDbContext : DbContext, IMemoressaDbContext
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
     public DbSet<Photo> Photos => Set<Photo>();
     public DbSet<PhotoMember> PhotoMembers => Set<PhotoMember>();
-    public DbSet<PhotoFriend> PhotoFriends => Set<PhotoFriend>();
     public DbSet<PhotoAiTag> PhotoAiTags => Set<PhotoAiTag>();
     public DbSet<PhotoUserTag> PhotoUserTags => Set<PhotoUserTag>();
     public DbSet<UserPhotoTagLibraryEntry> UserPhotoTagLibraryEntries => Set<UserPhotoTagLibraryEntry>();

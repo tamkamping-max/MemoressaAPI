@@ -80,23 +80,6 @@ public class PhotoDtoMappingTests
         var dto = photo.ToDto();
         Assert.Equal(UploadPrivacyScope.Custom, dto.PrivacyScope);
     }
-
-    [Fact]
-    public void ToDto_MapsFriendIdsFromPhotoFriends()
-    {
-        var friendId = Guid.NewGuid();
-        var photo = new Photo
-        {
-            PhotoFriends =
-            [
-                new PhotoFriend { FriendReference = friendId.ToString(), FriendId = friendId }
-            ]
-        };
-
-        var dto = photo.ToDto();
-
-        Assert.Equal([friendId.ToString()], dto.FriendIds);
-    }
 }
 
 public class PhotoViewerAccessTests

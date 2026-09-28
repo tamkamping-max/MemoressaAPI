@@ -18,7 +18,6 @@ public interface IMemoressaDbContext
     DbSet<FamilyMember> FamilyMembers { get; }
     DbSet<Photo> Photos { get; }
     DbSet<PhotoMember> PhotoMembers { get; }
-    DbSet<PhotoFriend> PhotoFriends { get; }
     DbSet<PhotoAiTag> PhotoAiTags { get; }
     DbSet<PhotoUserTag> PhotoUserTags { get; }
     DbSet<UserPhotoTagLibraryEntry> UserPhotoTagLibraryEntries { get; }

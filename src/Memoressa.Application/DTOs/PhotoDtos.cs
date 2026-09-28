@@ -23,7 +23,6 @@ public record PhotoDto
     [JsonPropertyName("location")] public string? Location { get; init; }
     [JsonPropertyName("description")] public string? Description { get; init; }
     [JsonPropertyName("memberIds")] public IReadOnlyList<Guid> MemberIds { get; init; } = [];
-    [JsonPropertyName("friendIds")] public IReadOnlyList<string> FriendIds { get; init; } = [];
     /// <summary>User-selected tags (App photo experience). Full replace on PUT.</summary>
     [JsonPropertyName("userTags")] public IReadOnlyList<string> UserTags { get; init; } = [];
     /// <summary>AI-generated tags only; never modified by user tag PUT.</summary>
@@ -56,7 +55,6 @@ public record UpdatePhotoRequestDto
     [JsonPropertyName("location")] public string? Location { get; init; }
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
     [JsonPropertyName("memberIds")] public IReadOnlyList<Guid>? MemberIds { get; init; }
-    [JsonPropertyName("friendIds")] public IReadOnlyList<string>? FriendIds { get; init; }
     [JsonPropertyName("visibility")] public MemoryVisibility? Visibility { get; init; }
     [JsonConverter(typeof(UploadPrivacyScopeJsonConverter))]
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope? PrivacyScope { get; init; }
