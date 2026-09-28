@@ -139,67 +139,95 @@ public class PhotoService : IPhotoService
             return ServiceResult<PhotoDto>.Fail("Only the uploader can edit this photo", 403);
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-
-        if (request.Description is not null)
+        async Task<ServiceResult<PhotoDto>?> ApplyChangesAsync()
         {
-            photo.Description = request.Description;
-        }
-
-        if (request.Location is not null)
-        {
-            photo.Location = request.Location;
-        }
-
-        if (request.TakenAt.HasValue)
-        {
-            photo.TakenAt = request.TakenAt;
-        }
-
-        if (request.Visibility.HasValue)
-        {
-            photo.Visibility = request.Visibility.Value;
-        }
-
-        if (request.PrivacyScope.HasValue)
-        {
-            photo.PrivacyScope = request.PrivacyScope.Value;
-        }
-
-        if (request.IsHidden.HasValue)
-        {
-            photo.IsHidden = request.IsHidden.Value;
-        }
-
-        if (request.MemberIds is not null)
-        {
-            var distinctMemberIds = request.MemberIds.Distinct().ToList();
-            if (distinctMemberIds.Count > 0)
+            if (request.Description is not null)
             {
-                var validCount = await _db.FamilyMembers.AsNoTracking()
-                    .CountAsync(
-                        m => m.FamilyId == photo.FamilyId && distinctMemberIds.Contains(m.Id),
-                        cancellationToken);
-
-                if (validCount != distinctMemberIds.Count)
-                {
-                    return ServiceResult<PhotoDto>.Fail(
-                        "One or more family members are invalid for this photo",
-                        403);
-                }
+                photo.Description = request.Description;
             }
 
-            await ReplacePhotoMembersAsync(photo, distinctMemberIds, cancellationToken);
+            if (request.Location is not null)
+            {
+                photo.Location = request.Location;
+            }
+
+            if (request.TakenAt.HasValue)
+            {
+                photo.TakenAt = request.TakenAt;
+            }
+
+            if (request.Visibility.HasValue)
+            {
+                photo.Visibility = request.Visibility.Value;
+            }
+
+            if (request.PrivacyScope.HasValue)
+            {
+                photo.PrivacyScope = request.PrivacyScope.Value;
+            }
+
+            if (request.IsHidden.HasValue)
+            {
+                photo.IsHidden = request.IsHidden.Value;
+            }
+
+            if (request.MemberIds is not null)
+            {
+                var distinctMemberIds = request.MemberIds.Distinct().ToList();
+                if (distinctMemberIds.Count > 0)
+                {
+                    var validCount = await _db.FamilyMembers.AsNoTracking()
+                        .CountAsync(
+                            m => m.FamilyId == photo.FamilyId && distinctMemberIds.Contains(m.Id),
+                            cancellationToken);
+
+                    if (validCount != distinctMemberIds.Count)
+                    {
+                        return ServiceResult<PhotoDto>.Fail(
+                            "One or more family members are invalid for this photo",
+                            403);
+                    }
+
+                    if (!request.PrivacyScope.HasValue)
+                    {
+                        photo.PrivacyScope = UploadPrivacyScope.Custom;
+                    }
+                }
+
+                await ReplacePhotoMembersAsync(photo, distinctMemberIds, cancellationToken);
+            }
+
+            var userTagReplace = PhotoUserTagRules.ResolveReplacePayload(request.UserTags, request.AiTags);
+            if (userTagReplace is not null)
+            {
+                await ReplaceUserTagsAsync(photo, userTagReplace, cancellationToken);
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            return null;
         }
 
-        var userTagReplace = PhotoUserTagRules.ResolveReplacePayload(request.UserTags, request.AiTags);
-        if (userTagReplace is not null)
+        if (_db.Database.IsRelational())
         {
-            await ReplaceUserTagsAsync(photo, userTagReplace, cancellationToken);
+            await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+            var failure = await ApplyChangesAsync();
+            if (failure is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return failure;
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        else
+        {
+            var failure = await ApplyChangesAsync();
+            if (failure is not null)
+            {
+                return failure;
+            }
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         var updated = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId).FirstAsync(p => p.Id == id, cancellationToken);
         return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(updated, cancellationToken: cancellationToken));
     }
@@ -908,26 +936,50 @@ public class PhotoService : IPhotoService
         IReadOnlyList<Guid> memberIds,
         CancellationToken cancellationToken)
     {
-        var existing = await _db.PhotoMembers
-            .Where(pm => pm.PhotoId == photo.Id)
-            .ToListAsync(cancellationToken);
+        DetachPhotoMemberEntries(photo.Id);
 
-        if (existing.Count > 0)
+        if (_db.Database.IsRelational())
         {
-            _db.PhotoMembers.RemoveRange(existing);
+            await _db.PhotoMembers
+                .Where(pm => pm.PhotoId == photo.Id)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+        else
+        {
+            var existing = await _db.PhotoMembers
+                .Where(pm => pm.PhotoId == photo.Id)
+                .ToListAsync(cancellationToken);
+
+            if (existing.Count > 0)
+            {
+                _db.PhotoMembers.RemoveRange(existing);
+            }
         }
 
         photo.PhotoMembers.Clear();
 
         foreach (var memberId in memberIds.Distinct())
         {
-            var member = new PhotoMember
+            _db.PhotoMembers.Add(new PhotoMember
             {
                 PhotoId = photo.Id,
                 FamilyMemberId = memberId
-            };
-            _db.PhotoMembers.Add(member);
-            photo.PhotoMembers.Add(member);
+            });
+        }
+    }
+
+    private void DetachPhotoMemberEntries(Guid photoId)
+    {
+        if (_db is not DbContext context)
+        {
+            return;
+        }
+
+        foreach (var entry in context.ChangeTracker.Entries<PhotoMember>()
+                     .Where(e => e.Entity.PhotoId == photoId)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
         }
     }
 
