@@ -147,46 +147,45 @@ public class GrokAgentService : IGrokAgentService
             return "No matching family memories were found in the database for this query.";
         }
 
-        var memoryIds = searchResults
-            .Take(_options.AgentMaxContextMemories)
-            .Select(r => r.MemoryId)
-            .ToList();
+        var topResults = searchResults.Take(_options.AgentMaxContextMemories).ToList();
+        var photoIds = topResults.Select(r => r.PhotoId).ToList();
+        var memoryIds = topResults.Where(r => r.MemoryId.HasValue).Select(r => r.MemoryId!.Value).Distinct().ToList();
 
-        var memories = await _db.Memories.AsNoTracking()
-            .Where(m => m.FamilyId == familyId && memoryIds.Contains(m.Id))
-            .Include(m => m.MemoryPhotos)
-            .Include(m => m.MemoryMembers)
-            .ThenInclude(mm => mm.FamilyMember)
-            .ToListAsync(cancellationToken);
+        var photos = await _db.Photos.AsNoTracking()
+            .Where(p => p.FamilyId == familyId && photoIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, cancellationToken);
+
+        var memories = memoryIds.Count == 0
+            ? new Dictionary<Guid, Memory>()
+            : await _db.Memories.AsNoTracking()
+                .Where(m => m.FamilyId == familyId && memoryIds.Contains(m.Id))
+                .Include(m => m.MemoryMembers)
+                .ThenInclude(mm => mm.FamilyMember)
+                .ToDictionaryAsync(m => m.Id, cancellationToken);
 
         var lines = new List<string>();
-        foreach (var result in searchResults.Take(_options.AgentMaxContextMemories))
+        foreach (var result in topResults)
         {
-            var memory = memories.FirstOrDefault(m => m.Id == result.MemoryId);
-            if (memory is null)
+            if (!photos.TryGetValue(result.PhotoId, out var photo))
             {
                 continue;
             }
 
-            var photoId = memory.MemoryPhotos.OrderBy(mp => mp.SortOrder).Select(mp => mp.PhotoId).FirstOrDefault();
-            var members = string.Join(", ", memory.MemoryMembers.Select(mm => mm.FamilyMember.Name));
-            string? photoTakenAt = null;
-            string? photoLocation = null;
-            if (photoId != Guid.Empty)
+            Memory? memory = null;
+            if (result.MemoryId.HasValue)
             {
-                var photo = await _db.Photos.AsNoTracking()
-                    .FirstOrDefaultAsync(p => p.Id == photoId && p.FamilyId == familyId, cancellationToken);
-                if (photo is not null)
-                {
-                    photoTakenAt = photo.TakenAt?.ToString("yyyy-MM-dd");
-                    photoLocation = photo.Location;
-                }
+                memories.TryGetValue(result.MemoryId.Value, out memory);
             }
 
+            var members = memory is null
+                ? string.Empty
+                : string.Join(", ", memory.MemoryMembers.Select(mm => mm.FamilyMember.Name));
+
             lines.Add(
-                $"- memoryId={memory.Id}; photoId={(photoId == Guid.Empty ? "null" : photoId)}; title={memory.Title}; " +
-                $"description={memory.Description}; location={memory.Location}; photoTakenAt={photoTakenAt}; photoLocation={photoLocation}; " +
-                $"startDate={memory.StartDate:yyyy-MM-dd}; eventType={memory.EventType}; members={members}; " +
+                $"- photoId={photo.Id}; memoryId={(result.MemoryId.HasValue ? result.MemoryId.Value : "null")}; " +
+                $"photoDescription={photo.Description}; photoLocation={photo.Location}; photoTakenAt={photo.TakenAt:yyyy-MM-dd}; " +
+                $"memoryTitle={memory?.Title}; memoryDescription={memory?.Description}; memoryLocation={memory?.Location}; " +
+                $"startDate={memory?.StartDate:yyyy-MM-dd}; eventType={memory?.EventType}; members={members}; " +
                 $"matchReasons={string.Join('|', result.MatchReasons)}; score={result.RelevanceScore:F2}");
         }
 
@@ -283,6 +282,7 @@ public class GrokAgentService : IGrokAgentService
         {
             Reply = reply,
             MemoryId = top.MemoryId,
+            PhotoId = top.PhotoId,
             MatchReasonKeys = NormalizeMatchReasons(top.MatchReasons)
         };
     }
@@ -310,6 +310,11 @@ public class GrokAgentService : IGrokAgentService
         if (memoryId is null && searchResults.Count > 0)
         {
             memoryId = searchResults[0].MemoryId;
+        }
+
+        if (!photoId.HasValue && searchResults.Count > 0)
+        {
+            photoId = searchResults[0].PhotoId;
         }
 
         if (memoryId.HasValue && !photoId.HasValue)

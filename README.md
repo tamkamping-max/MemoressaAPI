@@ -473,7 +473,7 @@ Migration **`009_activity_albums.sql`**.
 
 Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat Completions with family memory search as RAG context.
 
-**Agent memory search (before each Grok call):** SQL substring match on memories (title, description, location) plus photos linked to those memories: **`Photo.Description`**, **`Photo.Location`**, **`Photo.TakenAt` year** (when the user message contains a 4-digit year such as `2018`), **`photo_user_tags`**, **`photo_ai_tags`**, and **`photo_album_user_tags`** (album tags for photos in an album). Results are still grouped by **memory** (photos not attached to a memory do not appear as standalone hits).
+**Agent memory search (before each Grok call):** SQL substring match on memories (title, description, location) and on photos: **`Photo.Description`**, **`Photo.Location`**, **`Photo.TakenAt` year** (4-digit year in the user message), **`photo_user_tags`**, **`photo_ai_tags`**, and **`photo_album_user_tags`**. Each hit is one **`photoId`** row in search/`relatedMemories` (optional **`memoryId`** when the photo is linked to a memory). Memory text matches expand to **one result per photo** in that memory, not a single row per memory.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -500,7 +500,7 @@ Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat 
   "photoId": "uuid",
   "thumbnailUrl": "presigned-get-url",
   "matchReasonKeys": ["familyRelation", "semantic"],
-  "relatedMemories": [ { "memoryId": "...", "title": "...", "thumbnailPath": "...", "matchReasons": [], "relevanceScore": 0.9 } ]
+  "relatedMemories": [ { "photoId": "...", "memoryId": "...", "title": "...", "thumbnailPath": "...", "matchReasons": [], "relevanceScore": 0.9 } ]
 }
 ```
 

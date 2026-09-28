@@ -21,7 +21,8 @@ public record AnalyzePhotosRequestDto
 
 public record SearchResultDto
 {
-    [JsonPropertyName("memoryId")] public Guid MemoryId { get; init; }
+    [JsonPropertyName("photoId")] public Guid PhotoId { get; init; }
+    [JsonPropertyName("memoryId")] public Guid? MemoryId { get; init; }
     [JsonPropertyName("title")] public string Title { get; init; } = string.Empty;
     [JsonPropertyName("thumbnailPath")] public string? ThumbnailPath { get; init; }
     [JsonPropertyName("matchReasons")] public IReadOnlyList<string> MatchReasons { get; init; } = [];
