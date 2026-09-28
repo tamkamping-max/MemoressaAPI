@@ -96,6 +96,24 @@ public class PhotosController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpPost("download-batch")]
+    public async Task<IActionResult> DownloadBatch(
+        [FromBody] PhotoDownloadBatchRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _photoService.GetDownloadBatchAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("delete-batch")]
+    public async Task<IActionResult> DeleteBatch(
+        [FromBody] PhotoDeleteBatchRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _photoService.DeletePhotosBatchAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("{photoId:guid}/comments")]
     public async Task<IActionResult> GetPhotoComments(Guid photoId, CancellationToken cancellationToken)
     {

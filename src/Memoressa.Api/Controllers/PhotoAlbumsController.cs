@@ -78,6 +78,17 @@ public class PhotoAlbumsController : ControllerBase
         return result.ToActionResult();
     }
 
+    /// <summary>Remove photos from the album only (does not delete S3 objects or photo rows).</summary>
+    [HttpDelete("{id:guid}/photos")]
+    public async Task<IActionResult> UnlinkPhotos(
+        Guid id,
+        [FromBody] UnlinkPhotoAlbumPhotosRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _photoAlbums.UnlinkPhotosAsync(id, request, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("{albumId:guid}/comments")]
     public async Task<IActionResult> GetComments(Guid albumId, CancellationToken cancellationToken)
     {

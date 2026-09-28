@@ -261,7 +261,8 @@ Migration **`016_user_photo_tag_library.sql`** (MySQL: `database/mysql/migration
 | PUT | `/api/v1/photo-albums/{id}` | Update tags, description, visibility, members, cover |
 | DELETE | `/api/v1/photo-albums/{id}` | Delete album metadata only |
 | PATCH | `/api/v1/photo-albums/{id}/photos` | `{ addPhotoIds?, removePhotoIds? }` |
-| GET/POST/DELETE | `/api/v1/photo-albums/{albumId}/comments` | Same rules as photo comments (author delete) |
+| DELETE | `/api/v1/photo-albums/{id}/photos` | Body `{ removePhotoIds[] }` — unlink from album only (photos/S3 unchanged) |
+| GET/POST/DELETE | `/api/v1/photo-albums/{albumId}/comments` | Same rules as photo comments (`isMine` on list); author delete |
 
 **Photo comments (MemoressaApp photo experience):**
 
@@ -274,6 +275,8 @@ Migration **`016_user_photo_tag_library.sql`** (MySQL: `database/mysql/migration
 Migration **`015_photo_user_tags_and_comments.sql`** (MySQL: `database/mysql/migrations/015_photo_user_tags_and_comments.sql`).
 
 See **Photo user tag library** above for tags sheet persistence (`016`).
+
+**Photo download / delete (batch):** **`GET /photos/{id}/download`** and **`POST /photos/download-batch`** return presigned URLs plus optional **`contentLength`** / **`livePhotoVideoContentLength`** (from DB or S3 HeadObject) for App byte progress. Live Photo still uses still + video URLs (App may split progress 50/50). **`POST /photos/delete-batch`** `{ photoIds[] }` → `{ deletedIds, failures[] }` per-id partial success (max **50** ids). **`DELETE /photos/{id}`** still deletes the photo entity and S3 objects — not the same as unlinking from a photo album.
 
 For production at scale, you can swap presigned GET for **CloudFront signed URLs** inside `IPhotoUrlResolver` without changing the REST contract.
 

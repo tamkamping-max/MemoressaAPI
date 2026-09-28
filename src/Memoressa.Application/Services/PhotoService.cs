@@ -258,41 +258,69 @@ public class PhotoService : IPhotoService
             return ServiceResult<PhotoDownloadDto>.NotFound("Photo not found");
         }
 
-        var fullKey = PhotoObjectKeys.ResolveFullObjectKey(photo);
-        if (string.IsNullOrWhiteSpace(fullKey))
+        return await BuildOriginalDownloadDtoAsync(photo, cancellationToken);
+    }
+
+    public async Task<ServiceResult<PhotoDownloadBatchResponseDto>> GetDownloadBatchAsync(
+        PhotoDownloadBatchRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
         {
-            return ServiceResult<PhotoDownloadDto>.Fail("Photo has no stored original", 404);
+            return ServiceResult<PhotoDownloadBatchResponseDto>.Fail("Unauthorized", 401);
         }
 
-        var expiry = TimeSpan.FromMinutes(_storageSettings.DownloadPresignedUrlExpiryMinutes);
-        var expiresAt = DateTime.UtcNow.Add(expiry);
-        var downloadUrl = await _s3.GetPresignedGetUrlAsync(fullKey, expiry, cancellationToken);
-        var fileName = PhotoObjectKeys.GetOriginalDownloadFileName(photo) ?? "photo";
-        var contentType = string.IsNullOrWhiteSpace(photo.OriginalContentType)
-            ? photo.ContentType ?? "image/jpeg"
-            : photo.OriginalContentType;
-
-        string? liveVideoUrl = null;
-        DateTime? liveVideoExpiresAt = null;
-        if (photo.IsLivePhoto && !string.IsNullOrWhiteSpace(photo.LivePhotoVideoS3Key))
+        var photoIds = request.PhotoIds?.Distinct().ToList() ?? [];
+        if (photoIds.Count == 0)
         {
-            liveVideoUrl = await _s3.GetPresignedGetUrlAsync(photo.LivePhotoVideoS3Key, expiry, cancellationToken);
-            liveVideoExpiresAt = expiresAt;
+            return ServiceResult<PhotoDownloadBatchResponseDto>.Fail("photoIds must contain at least one id");
         }
 
-        return ServiceResult<PhotoDownloadDto>.Ok(new PhotoDownloadDto
+        if (photoIds.Count > PhotoBatchLimits.MaxPhotoIdsPerBatch)
         {
-            DownloadUrl = downloadUrl,
-            FileName = fileName,
-            ContentType = contentType,
-            ExpiresAt = expiresAt,
-            IsLivePhoto = photo.IsLivePhoto,
-            LivePhotoVideoAvailable = photo.IsLivePhoto && !string.IsNullOrWhiteSpace(liveVideoUrl),
-            LivePhotoVideoDownloadUrl = liveVideoUrl,
-            LivePhotoVideoFileName = photo.LivePhotoVideoFileName,
-            LivePhotoVideoContentType = photo.LivePhotoVideoContentType,
-            LivePhotoVideoExpiresAt = liveVideoExpiresAt
-        });
+            return ServiceResult<PhotoDownloadBatchResponseDto>.Fail(
+                $"At most {PhotoBatchLimits.MaxPhotoIdsPerBatch} photoIds per request");
+        }
+
+        var photos = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId)
+            .Where(p => photoIds.Contains(p.Id))
+            .ToListAsync(cancellationToken);
+
+        var photoById = photos.ToDictionary(p => p.Id);
+        var items = new List<PhotoDownloadBatchItemDto>();
+
+        foreach (var photoId in photoIds)
+        {
+            if (!photoById.TryGetValue(photoId, out var photo))
+            {
+                items.Add(new PhotoDownloadBatchItemDto
+                {
+                    PhotoId = photoId,
+                    Error = "Photo not found"
+                });
+                continue;
+            }
+
+            var downloadResult = await BuildOriginalDownloadDtoAsync(photo, cancellationToken);
+            if (!downloadResult.Success || downloadResult.Data is null)
+            {
+                items.Add(new PhotoDownloadBatchItemDto
+                {
+                    PhotoId = photoId,
+                    Error = downloadResult.Error ?? "Download unavailable"
+                });
+                continue;
+            }
+
+            items.Add(new PhotoDownloadBatchItemDto
+            {
+                PhotoId = photoId,
+                Download = downloadResult.Data
+            });
+        }
+
+        return ServiceResult<PhotoDownloadBatchResponseDto>.Ok(new PhotoDownloadBatchResponseDto { Items = items });
     }
 
     public async Task<ServiceResult> DeletePhotoAsync(Guid id, CancellationToken cancellationToken = default)
@@ -303,41 +331,60 @@ public class PhotoService : IPhotoService
             return ServiceResult.Fail("Unauthorized", 401);
         }
 
-        var photo = await _db.Photos
-            .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == ctx.Value.FamilyId, cancellationToken);
+        var outcome = await TryDeletePhotoAsync(id, ctx.Value.FamilyId, ctx.Value.UserId, cancellationToken);
+        return outcome.Success
+            ? ServiceResult.Ok()
+            : ServiceResult.Fail(outcome.Error ?? "Delete failed", outcome.StatusCode);
+    }
 
-        if (photo is null || !PhotoViewerAccess.CanView(photo, ctx.Value.UserId))
+    public async Task<ServiceResult<PhotoDeleteBatchResponseDto>> DeletePhotosBatchAsync(
+        PhotoDeleteBatchRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
         {
-            return ServiceResult.NotFound("Photo not found");
+            return ServiceResult<PhotoDeleteBatchResponseDto>.Fail("Unauthorized", 401);
         }
 
-        var keys = PhotoObjectKeys.CollectDeleteKeys(photo);
-        foreach (var key in keys)
+        var photoIds = request.PhotoIds?.Distinct().ToList() ?? [];
+        if (photoIds.Count == 0)
         {
-            await _s3.DeleteObjectAsync(key, cancellationToken);
+            return ServiceResult<PhotoDeleteBatchResponseDto>.Fail("photoIds must contain at least one id");
         }
 
-        var todayMemoriesCaches = await _db.TodayMemoriesCaches
-            .Where(c => c.FamilyId == ctx.Value.FamilyId)
-            .ToListAsync(cancellationToken);
-
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-
-        var storageBytes = photo.FileSizeBytes ?? 0;
-        if (storageBytes > 0)
+        if (photoIds.Count > PhotoBatchLimits.MaxPhotoIdsPerBatch)
         {
-            var uploader = await _db.UserAccounts.FirstAsync(u => u.Id == photo.UploadedByUserId, cancellationToken);
-            uploader.CloudStorageUsedBytes = Math.Max(0, uploader.CloudStorageUsedBytes - storageBytes);
+            return ServiceResult<PhotoDeleteBatchResponseDto>.Fail(
+                $"At most {PhotoBatchLimits.MaxPhotoIdsPerBatch} photoIds per request");
         }
 
-        _db.Photos.Remove(photo);
+        var deletedIds = new List<Guid>();
+        var failures = new List<PhotoDeleteBatchFailureDto>();
 
-        PhotoDeletionCleanup.PruneTodayMemoriesCaches(todayMemoriesCaches, id);
+        foreach (var photoId in photoIds)
+        {
+            var outcome = await TryDeletePhotoAsync(photoId, ctx.Value.FamilyId, ctx.Value.UserId, cancellationToken);
+            if (outcome.Success)
+            {
+                deletedIds.Add(photoId);
+            }
+            else
+            {
+                failures.Add(new PhotoDeleteBatchFailureDto
+                {
+                    PhotoId = photoId,
+                    Error = outcome.Error ?? "Delete failed",
+                    StatusCode = outcome.StatusCode
+                });
+            }
+        }
 
-        await _db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        return ServiceResult.Ok();
+        return ServiceResult<PhotoDeleteBatchResponseDto>.Ok(new PhotoDeleteBatchResponseDto
+        {
+            DeletedIds = deletedIds,
+            Failures = failures
+        });
     }
 
     public async Task<ServiceResult<TodayMemoriesResponseDto>> GetTodayMemoriesAsync(
@@ -594,6 +641,102 @@ public class PhotoService : IPhotoService
             Items = items,
             FromCache = fromCache
         };
+    }
+
+    private async Task<(bool Success, string? Error, int StatusCode)> TryDeletePhotoAsync(
+        Guid id,
+        Guid familyId,
+        Guid viewerUserId,
+        CancellationToken cancellationToken)
+    {
+        var photo = await _db.Photos
+            .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == familyId, cancellationToken);
+
+        if (photo is null || !PhotoViewerAccess.CanView(photo, viewerUserId))
+        {
+            return (false, "Photo not found", 404);
+        }
+
+        var keys = PhotoObjectKeys.CollectDeleteKeys(photo);
+        foreach (var key in keys)
+        {
+            await _s3.DeleteObjectAsync(key, cancellationToken);
+        }
+
+        var todayMemoriesCaches = await _db.TodayMemoriesCaches
+            .Where(c => c.FamilyId == familyId)
+            .ToListAsync(cancellationToken);
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        var storageBytes = photo.FileSizeBytes ?? 0;
+        if (storageBytes > 0)
+        {
+            var uploader = await _db.UserAccounts.FirstAsync(u => u.Id == photo.UploadedByUserId, cancellationToken);
+            uploader.CloudStorageUsedBytes = Math.Max(0, uploader.CloudStorageUsedBytes - storageBytes);
+        }
+
+        _db.Photos.Remove(photo);
+
+        PhotoDeletionCleanup.PruneTodayMemoriesCaches(todayMemoriesCaches, id);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return (true, null, 200);
+    }
+
+    private async Task<ServiceResult<PhotoDownloadDto>> BuildOriginalDownloadDtoAsync(
+        Photo photo,
+        CancellationToken cancellationToken)
+    {
+        var fullKey = PhotoObjectKeys.ResolveFullObjectKey(photo);
+        if (string.IsNullOrWhiteSpace(fullKey))
+        {
+            return ServiceResult<PhotoDownloadDto>.Fail("Photo has no stored original", 404);
+        }
+
+        var expiry = TimeSpan.FromMinutes(_storageSettings.DownloadPresignedUrlExpiryMinutes);
+        var expiresAt = DateTime.UtcNow.Add(expiry);
+        var downloadUrl = await _s3.GetPresignedGetUrlAsync(fullKey, expiry, cancellationToken);
+        var fileName = PhotoObjectKeys.GetOriginalDownloadFileName(photo) ?? "photo";
+        var contentType = string.IsNullOrWhiteSpace(photo.OriginalContentType)
+            ? photo.ContentType ?? "image/jpeg"
+            : photo.OriginalContentType;
+
+        long? contentLength = photo.OriginalStillFileSizeBytes ?? photo.FileSizeBytes;
+        if (!contentLength.HasValue || contentLength.Value <= 0)
+        {
+            contentLength = await _s3.GetObjectSizeBytesAsync(fullKey, cancellationToken);
+        }
+
+        string? liveVideoUrl = null;
+        DateTime? liveVideoExpiresAt = null;
+        long? liveVideoContentLength = null;
+        if (photo.IsLivePhoto && !string.IsNullOrWhiteSpace(photo.LivePhotoVideoS3Key))
+        {
+            liveVideoUrl = await _s3.GetPresignedGetUrlAsync(photo.LivePhotoVideoS3Key, expiry, cancellationToken);
+            liveVideoExpiresAt = expiresAt;
+            liveVideoContentLength = photo.LivePhotoVideoFileSizeBytes > 0
+                ? photo.LivePhotoVideoFileSizeBytes
+                : await _s3.GetObjectSizeBytesAsync(photo.LivePhotoVideoS3Key, cancellationToken);
+        }
+
+        return ServiceResult<PhotoDownloadDto>.Ok(new PhotoDownloadDto
+        {
+            DownloadUrl = downloadUrl,
+            FileName = fileName,
+            ContentType = contentType,
+            ExpiresAt = expiresAt,
+            IsLivePhoto = photo.IsLivePhoto,
+            LivePhotoVideoAvailable = photo.IsLivePhoto && !string.IsNullOrWhiteSpace(liveVideoUrl),
+            LivePhotoVideoDownloadUrl = liveVideoUrl,
+            LivePhotoVideoFileName = photo.LivePhotoVideoFileName,
+            LivePhotoVideoContentType = photo.LivePhotoVideoContentType,
+            LivePhotoVideoExpiresAt = liveVideoExpiresAt,
+            ContentLength = contentLength,
+            LivePhotoVideoContentLength = liveVideoContentLength
+        });
     }
 
     private async Task<int> CountEligiblePhotosAsync(

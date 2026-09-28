@@ -351,6 +351,22 @@ public class PhotoAlbumService : IPhotoAlbumService
         return ServiceResult<PhotoAlbumDto>.Ok(dto);
     }
 
+    public Task<ServiceResult<PhotoAlbumDto>> UnlinkPhotosAsync(
+        Guid id,
+        UnlinkPhotoAlbumPhotosRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.RemovePhotoIds is null || request.RemovePhotoIds.Count == 0)
+        {
+            return Task.FromResult(ServiceResult<PhotoAlbumDto>.Fail("removePhotoIds must contain at least one id"));
+        }
+
+        return PatchPhotosAsync(
+            id,
+            new PatchPhotoAlbumPhotosRequestDto { RemovePhotoIds = request.RemovePhotoIds },
+            cancellationToken);
+    }
+
     public async Task<ServiceResult<IReadOnlyList<PhotoAlbumCommentDto>>> GetCommentsAsync(
         Guid albumId,
         CancellationToken cancellationToken = default)

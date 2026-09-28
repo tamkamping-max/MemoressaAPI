@@ -67,6 +67,11 @@ public record PatchPhotoAlbumPhotosRequestDto
     [JsonPropertyName("removePhotoIds")] public IReadOnlyList<Guid>? RemovePhotoIds { get; init; }
 }
 
+public record UnlinkPhotoAlbumPhotosRequestDto
+{
+    [JsonPropertyName("removePhotoIds")] public IReadOnlyList<Guid> RemovePhotoIds { get; init; } = [];
+}
+
 public record PhotoAlbumCommentDto
 {
     [JsonPropertyName("id")] public Guid Id { get; init; }

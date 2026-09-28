@@ -50,7 +50,13 @@ public interface IPhotoService
         string? cursor = null,
         CancellationToken cancellationToken = default);
     Task<ServiceResult<PhotoDownloadDto>> GetOriginalDownloadAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoDownloadBatchResponseDto>> GetDownloadBatchAsync(
+        PhotoDownloadBatchRequestDto request,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult> DeletePhotoAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoDeleteBatchResponseDto>> DeletePhotosBatchAsync(
+        PhotoDeleteBatchRequestDto request,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult<TodayMemoriesResponseDto>> GetTodayMemoriesAsync(
         TodayMemoriesRequestDto request,
         CancellationToken cancellationToken = default);
@@ -159,6 +165,10 @@ public interface IPhotoAlbumService
     Task<ServiceResult<PhotoAlbumDto>> PatchPhotosAsync(
         Guid id,
         PatchPhotoAlbumPhotosRequestDto request,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoAlbumDto>> UnlinkPhotosAsync(
+        Guid id,
+        UnlinkPhotoAlbumPhotosRequestDto request,
         CancellationToken cancellationToken = default);
     Task<ServiceResult<IReadOnlyList<PhotoAlbumCommentDto>>> GetCommentsAsync(
         Guid albumId,
