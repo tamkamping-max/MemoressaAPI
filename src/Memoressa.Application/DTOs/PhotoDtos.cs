@@ -40,6 +40,8 @@ public record PhotoDto
     [JsonPropertyName("isScreenshot")] public bool IsScreenshot { get; init; }
     [JsonPropertyName("isAiInferred")] public bool IsAiInferred { get; init; }
     [JsonPropertyName("visibility")] public MemoryVisibility Visibility { get; init; }
+    [JsonConverter(typeof(UploadPrivacyScopeJsonConverter))]
+    [JsonPropertyName("privacyScope")] public UploadPrivacyScope PrivacyScope { get; init; } = UploadPrivacyScope.Family;
     [JsonPropertyName("originalFileName")] public string? OriginalFileName { get; init; }
     [JsonPropertyName("isLivePhoto")] public bool IsLivePhoto { get; init; }
     [JsonPropertyName("albumId")] public Guid? AlbumId { get; init; }
@@ -54,6 +56,8 @@ public record UpdatePhotoRequestDto
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
     [JsonPropertyName("memberIds")] public IReadOnlyList<Guid>? MemberIds { get; init; }
     [JsonPropertyName("visibility")] public MemoryVisibility? Visibility { get; init; }
+    [JsonConverter(typeof(UploadPrivacyScopeJsonConverter))]
+    [JsonPropertyName("privacyScope")] public UploadPrivacyScope? PrivacyScope { get; init; }
     [JsonPropertyName("isHidden")] public bool? IsHidden { get; init; }
     /// <summary>Full replace of user tags. Does not affect AI tags in <c>photo_ai_tags</c>.</summary>
     [JsonPropertyName("userTags")] public IReadOnlyList<string>? UserTags { get; init; }

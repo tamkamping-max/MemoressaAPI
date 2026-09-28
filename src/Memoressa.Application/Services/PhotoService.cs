@@ -161,6 +161,11 @@ public class PhotoService : IPhotoService
             photo.Visibility = request.Visibility.Value;
         }
 
+        if (request.PrivacyScope.HasValue)
+        {
+            photo.PrivacyScope = request.PrivacyScope.Value;
+        }
+
         if (request.IsHidden.HasValue)
         {
             photo.IsHidden = request.IsHidden.Value;

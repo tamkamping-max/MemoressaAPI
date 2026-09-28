@@ -46,6 +46,7 @@ public static class EntityMapping
         IsScreenshot = photo.IsScreenshot,
         IsAiInferred = photo.IsAiInferred,
         Visibility = photo.Visibility,
+        PrivacyScope = photo.PrivacyScope,
         OriginalFileName = photo.OriginalFileName,
         IsLivePhoto = photo.IsLivePhoto
     };

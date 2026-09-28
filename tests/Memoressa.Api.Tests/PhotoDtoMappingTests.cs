@@ -72,6 +72,14 @@ public class PhotoDtoMappingTests
         Assert.Equal(["family", "pet"], dto.UserTags);
         Assert.Equal(["outdoor"], dto.AiTags);
     }
+
+    [Fact]
+    public void ToDto_MapsPrivacyScope()
+    {
+        var photo = new Photo { PrivacyScope = UploadPrivacyScope.Custom };
+        var dto = photo.ToDto();
+        Assert.Equal(UploadPrivacyScope.Custom, dto.PrivacyScope);
+    }
 }
 
 public class PhotoViewerAccessTests
