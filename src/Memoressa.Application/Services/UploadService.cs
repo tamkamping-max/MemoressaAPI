@@ -390,6 +390,8 @@ public class UploadService : IUploadService
         session.LivePhotoVideoFileSizeBytes = liveVideoSize;
         session.FileSizeBytes = totalQuotaBytes;
 
+        await _db.SaveChangesAsync(cancellationToken);
+
         if (session.ActivityAlbumId.HasValue)
         {
             await _activities.StageActivityPhotoLinkAsync(
@@ -397,9 +399,9 @@ public class UploadService : IUploadService
                 photo.Id,
                 session.FamilyId,
                 cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         photo = await _db.Photos
