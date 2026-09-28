@@ -57,7 +57,7 @@ export Database__Target=Rds
 export ConnectionStrings__PostgreSql="Host=your-instance.xxxxx.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
 ```
 
-See `src/Memoressa.Api/appsettings.Production.json.example`.
+Use environment variables for RDS connection strings in production (see root `README.md`).
 
 When `Database:Target` is **`Rds`**, Npgsql uses `ConnectionStrings:PostgreSql`. The API **does not** auto-apply schema on startup; run SQL deploy separately.
 

@@ -53,13 +53,11 @@ export ASPNETCORE_ENVIRONMENT=Production
 dotnet run --project src/Memoressa.Api
 ```
 
-Template: `src/Memoressa.Api/appsettings.Production.json.example`
-
-Schema is **not** applied at API startup — deploy SQL to RDS explicitly (CI/CD or `./database/apply.sh`).
+Configure production via environment variables (see below). Schema is **not** applied at API startup — deploy SQL to RDS explicitly (CI/CD or `./database/apply.sh`).
 
 ## Quick Start (local dev only)
 
-Local development uses **MySQL 8** (`Database:Target` = **`Local`** in `appsettings.Development.json`). Release uses **RDS PostgreSQL** (`Database:Target` = **`Rds`**).
+Local development uses **MySQL 8** (`Database:Target` = **`Local`**, typically via `Database__Target=Local` when `ASPNETCORE_ENVIRONMENT=Development`). Release uses **RDS PostgreSQL** (`Database:Target` = **`Rds`**).
 
 1. Start local MySQL:
 
@@ -93,7 +91,7 @@ Configuration is loaded from `src/Memoressa.Api/appsettings.json` and environmen
 
 ### Kestrel (local LAN dev)
 
-Development binds Kestrel in `appsettings.Development.json` (this wins over `launchSettings.json` `applicationUrl` when both are set):
+Development URLs come from `Properties/launchSettings.json` (`applicationUrl` on the **`https`** profile):
 
 | Endpoint | URL |
 |----------|-----|
@@ -124,8 +122,8 @@ That message almost always means **the API cannot reach the database** (not wron
 1. Check the API console on startup:
    - `Database:Target=Local (MySQL)` → local dev; need MySQL running.
    - `Database:Target=Rds (PostgreSQL)` → release mode; needs a reachable RDS (or local Postgres on port 5432).
-2. **Local dev:** `docker compose up -d`, then `./database/mysql/apply.sh`, and run with **`ASPNETCORE_ENVIRONMENT=Development`** (or the **`https`** launch profile) so `Database:Target` stays **`Local`**.
-3. If you run without the Development profile, `appsettings.json` defaults to **`Rds`** and the API tries PostgreSQL on `localhost:5432`, which often produces the transient failure on login/register.
+2. **Local dev:** `docker compose up -d`, then `./database/mysql/apply.sh`, and run with **`ASPNETCORE_ENVIRONMENT=Development`** (or the **`https`** launch profile). Set **`Database__Target=Local`** so the API uses MySQL (the repo `appsettings.json` defaults to **`Rds`**).
+3. If you run without `Database__Target=Local`, the API tries PostgreSQL on `ConnectionStrings:PostgreSql`, which often produces the transient failure on login/register.
 
 ### Database
 
@@ -140,7 +138,7 @@ That message almost always means **the API cannot reach the database** (not wron
 | `ConnectionStrings:MySql` | `Database:Target=Local` | MySQL 8 (Pomelo). Default: `Server=localhost;Port=3306;Database=memoressa;User=memoressa;Password=memoressa` |
 | `ConnectionStrings:PostgreSql` | `Database:Target=Rds` | RDS PostgreSQL (Npgsql). Include `SSL Mode=Require;Trust Server Certificate=true` |
 
-`appsettings.json` sets `Target: Rds` (production default). `appsettings.Development.json` overrides to `Target: Local` for MySQL.
+`appsettings.json` sets `Target: Rds` (production default). Override to **`Local`** for MySQL via `Database__Target=Local` (environment or local user secrets — not committed).
 
 RDS must be reachable from the API host (security group: EC2 → RDS on port 5432). Store credentials in environment variables or AWS Secrets Manager, not in git.
 

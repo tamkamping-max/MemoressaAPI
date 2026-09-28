@@ -55,7 +55,7 @@ Then run the API:
 dotnet run --project src/Memoressa.Api
 ```
 
-Default connection (`appsettings.Development.json`):
+Default connection (override via environment or user secrets):
 
 ```
 Server=localhost;Port=3306;Database=memoressa;User=memoressa;Password=memoressa
@@ -63,7 +63,7 @@ Server=localhost;Port=3306;Database=memoressa;User=memoressa;Password=memoressa
 
 ## Point local API at RDS instead
 
-Set in `appsettings.Development.json` or environment:
+Set in environment or user secrets (not committed):
 
 ```json
 "Database": { "Target": "Rds" }
