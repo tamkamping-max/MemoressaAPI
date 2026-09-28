@@ -436,20 +436,41 @@ public class AiOrchestrationService : IAiOrchestrationService
             return [];
         }
 
-        var rows = await _db.PhotoAlbumPhotos.AsNoTracking()
+        var links = await _db.PhotoAlbumPhotos.AsNoTracking()
             .Where(ap => ap.Photo.FamilyId == familyId && idList.Contains(ap.PhotoId))
-            .SelectMany(ap => ap.PhotoAlbum.UserTags.Select(t => new { ap.PhotoId, t.Tag }))
+            .Select(ap => new { ap.PhotoId, ap.PhotoAlbumId })
             .ToListAsync(cancellationToken);
-        var map = new Dictionary<Guid, List<string>>();
-        foreach (var row in rows)
+
+        if (links.Count == 0)
         {
-            if (!map.TryGetValue(row.PhotoId, out var tags))
+            return [];
+        }
+
+        var albumIds = links.Select(l => l.PhotoAlbumId).Distinct().ToList();
+        var tagRows = await _db.PhotoAlbumUserTags.AsNoTracking()
+            .Where(t => albumIds.Contains(t.PhotoAlbumId))
+            .Select(t => new { t.PhotoAlbumId, t.Tag })
+            .ToListAsync(cancellationToken);
+
+        var tagsByAlbumId = tagRows
+            .GroupBy(t => t.PhotoAlbumId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Tag).ToList());
+
+        var map = new Dictionary<Guid, List<string>>();
+        foreach (var link in links)
+        {
+            if (!tagsByAlbumId.TryGetValue(link.PhotoAlbumId, out var albumTags))
             {
-                tags = [];
-                map[row.PhotoId] = tags;
+                continue;
             }
 
-            tags.Add(row.Tag);
+            if (!map.TryGetValue(link.PhotoId, out var tags))
+            {
+                tags = [];
+                map[link.PhotoId] = tags;
+            }
+
+            tags.AddRange(albumTags);
         }
 
         return map;
