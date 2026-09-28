@@ -415,6 +415,17 @@ CREATE TABLE photo_members (
     CONSTRAINT "FK_photo_members_photos_PhotoId" FOREIGN KEY ("PhotoId") REFERENCES photos ("Id") ON DELETE CASCADE
 );
 
+CREATE TABLE photo_friends (
+    "Id" uuid NOT NULL,
+    "PhotoId" uuid NOT NULL,
+    "FriendId" uuid NOT NULL,
+    "CreatedAt" timestamp with time zone NOT NULL,
+    "UpdatedAt" timestamp with time zone NOT NULL,
+    CONSTRAINT "PK_photo_friends" PRIMARY KEY ("Id"),
+    CONSTRAINT "FK_photo_friends_friends_FriendId" FOREIGN KEY ("FriendId") REFERENCES friends ("Id") ON DELETE CASCADE,
+    CONSTRAINT "FK_photo_friends_photos_PhotoId" FOREIGN KEY ("PhotoId") REFERENCES photos ("Id") ON DELETE CASCADE
+);
+
 CREATE TABLE frame_comments (
     "Id" uuid NOT NULL,
     "PackageId" uuid NOT NULL,
@@ -502,6 +513,10 @@ CREATE INDEX "IX_photo_ai_tags_Tag" ON photo_ai_tags ("Tag");
 CREATE INDEX "IX_photo_members_FamilyMemberId" ON photo_members ("FamilyMemberId");
 
 CREATE UNIQUE INDEX "IX_photo_members_PhotoId_FamilyMemberId" ON photo_members ("PhotoId", "FamilyMemberId");
+
+CREATE INDEX "IX_photo_friends_FriendId" ON photo_friends ("FriendId");
+
+CREATE UNIQUE INDEX "IX_photo_friends_PhotoId_FriendId" ON photo_friends ("PhotoId", "FriendId");
 
 CREATE INDEX "IX_photos_FamilyId" ON photos ("FamilyId");
 

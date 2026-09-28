@@ -288,6 +288,7 @@ public class UploadService : IUploadService
         {
             var existing = await _db.Photos
                 .Include(p => p.PhotoMembers)
+                .Include(p => p.PhotoFriends)
                 .Include(p => p.AiTags)
                 .Include(p => p.UserTags)
                 .Include(p => p.UploadedBy)
@@ -406,6 +407,7 @@ public class UploadService : IUploadService
 
         photo = await _db.Photos
             .Include(p => p.PhotoMembers)
+            .Include(p => p.PhotoFriends)
             .Include(p => p.AiTags)
             .Include(p => p.UserTags)
             .Include(p => p.UploadedBy)

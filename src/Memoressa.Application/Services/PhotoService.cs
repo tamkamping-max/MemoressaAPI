@@ -126,6 +126,7 @@ public class PhotoService : IPhotoService
 
         var photo = await _db.Photos
             .Include(p => p.PhotoMembers)
+            .Include(p => p.PhotoFriends)
             .Include(p => p.AiTags)
             .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == ctx.Value.FamilyId, cancellationToken);
 
@@ -195,6 +196,27 @@ public class PhotoService : IPhotoService
                 }
 
                 await ReplacePhotoMembersAsync(photo, distinctMemberIds, cancellationToken);
+            }
+
+            if (request.FriendIds is not null)
+            {
+                var distinctFriendIds = request.FriendIds.Distinct().ToList();
+                if (distinctFriendIds.Count > 0)
+                {
+                    var validCount = await _db.Friends.AsNoTracking()
+                        .CountAsync(
+                            f => f.OwnerUserId == ctx.Value.UserId && distinctFriendIds.Contains(f.Id),
+                            cancellationToken);
+
+                    if (validCount != distinctFriendIds.Count)
+                    {
+                        return ServiceResult<PhotoDto>.Fail(
+                            "One or more friends are invalid for this photo",
+                            403);
+                    }
+                }
+
+                await ReplacePhotoFriendsAsync(photo, distinctFriendIds, cancellationToken);
             }
 
             var userTagReplace = PhotoUserTagRules.ResolveReplacePayload(request.UserTags, request.AiTags);
@@ -820,6 +842,7 @@ public class PhotoService : IPhotoService
                 _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId),
                 viewerUserId)
             .Include(p => p.PhotoMembers)
+            .Include(p => p.PhotoFriends)
             .Include(p => p.AiTags)
             .Include(p => p.UploadedBy)
             .Include(p => p.UserTags);
@@ -976,6 +999,58 @@ public class PhotoService : IPhotoService
         }
 
         foreach (var entry in context.ChangeTracker.Entries<PhotoMember>()
+                     .Where(e => e.Entity.PhotoId == photoId)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    private async Task ReplacePhotoFriendsAsync(
+        Photo photo,
+        IReadOnlyList<Guid> friendIds,
+        CancellationToken cancellationToken)
+    {
+        DetachPhotoFriendEntries(photo.Id);
+
+        if (_db.Database.IsRelational())
+        {
+            await _db.PhotoFriends
+                .Where(pf => pf.PhotoId == photo.Id)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+        else
+        {
+            var existing = await _db.PhotoFriends
+                .Where(pf => pf.PhotoId == photo.Id)
+                .ToListAsync(cancellationToken);
+
+            if (existing.Count > 0)
+            {
+                _db.PhotoFriends.RemoveRange(existing);
+            }
+        }
+
+        photo.PhotoFriends.Clear();
+
+        foreach (var friendId in friendIds.Distinct())
+        {
+            _db.PhotoFriends.Add(new PhotoFriend
+            {
+                PhotoId = photo.Id,
+                FriendId = friendId
+            });
+        }
+    }
+
+    private void DetachPhotoFriendEntries(Guid photoId)
+    {
+        if (_db is not DbContext context)
+        {
+            return;
+        }
+
+        foreach (var entry in context.ChangeTracker.Entries<PhotoFriend>()
                      .Where(e => e.Entity.PhotoId == photoId)
                      .ToList())
         {
