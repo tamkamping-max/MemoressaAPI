@@ -15,8 +15,8 @@ public class AiOptions
     public int AgentMaxHistoryMessages { get; set; } = 12;
     public int AgentMaxContextMemories { get; set; } = 8;
 
-    /// <summary>Use Grok to expand Agent search keywords across locales before DB substring search.</summary>
-    public bool AgentGrokSearchExpansion { get; set; } = true;
+    /// <summary>Use Grok to expand Agent search keywords across locales before DB substring search (adds one Grok call per chat).</summary>
+    public bool AgentGrokSearchExpansion { get; set; } = false;
 
     public int AgentMaxSearchKeywords { get; set; } = 16;
 }
