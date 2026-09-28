@@ -294,6 +294,10 @@ LLM calls use xAI **`POST /v1/chat/completions`** (Chat Completions API) by defa
 | `Ai:AgentMaxContextMemories` | Max memory candidates in RAG context |
 | `Ai:EnableVisionBatch` | Enable batch vision processing |
 | `Ai:MaxBatchSize` | Max photos per batch |
+| `Ai:VisionInputUsdPerMillionTokens` | USD per 1M **input** tokens for **`costUsd`** estimates (default **2.0**, grok-4.7 &lt;200k tier) |
+| `Ai:VisionOutputUsdPerMillionTokens` | USD per 1M **output** tokens for **`costUsd`** estimates (default **6.0**) |
+
+When **`Ai:EnableVisionBatch`** is true and a Grok key is configured, **`POST /api/v1/ai/analyze-photos`** runs vision **before** responding. Each processed photo returns **`visionPhotoCosts[]`** with **`photoId`**, **`promptTokens`**, **`completionTokens`**, and **`costUsd`** (from xAI `usage` × the rates above). **`visionTotalCostUsd`** sums the batch. The same values are stored on the photo as **`aiVisionCostUsd`**, **`aiVisionPromptTokens`**, **`aiVisionCompletionTokens`**, **`aiVisionModel`**, **`aiVisionCostAt`** (visible on **`GET /api/v1/photos`**). Server logs: `Grok vision photo {PhotoId}: ${CostUsd} USD (...)`.
 
 ### InternalApi
 

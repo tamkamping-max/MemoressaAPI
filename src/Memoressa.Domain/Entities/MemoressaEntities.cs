@@ -149,6 +149,11 @@ public class Photo : Entity, IFamilyScoped
     public long LivePhotoVideoFileSizeBytes { get; set; }
     public string? ContentType { get; set; }
     public string? AiAnalysisJson { get; set; }
+    public int? AiVisionPromptTokens { get; set; }
+    public int? AiVisionCompletionTokens { get; set; }
+    public decimal? AiVisionCostUsd { get; set; }
+    public string? AiVisionModel { get; set; }
+    public DateTime? AiVisionCostAt { get; set; }
 
     public Family Family { get; set; } = null!;
     public UserAccount UploadedBy { get; set; } = null!;

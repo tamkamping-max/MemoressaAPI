@@ -20,6 +20,8 @@ public class PhotoConfiguration : IEntityTypeConfiguration<Photo>
         builder.HasMany(x => x.UserTags).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(x => x.Comments).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(x => x.AiInferences).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
+        builder.Property(x => x.AiVisionCostUsd).HasPrecision(18, 6);
+        builder.Property(x => x.AiVisionModel).HasMaxLength(64);
     }
 }
 

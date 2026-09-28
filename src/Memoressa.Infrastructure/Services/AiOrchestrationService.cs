@@ -75,9 +75,10 @@ public class AiOrchestrationService : IAiOrchestrationService
         _db.AiAnalysisJobs.Add(job);
         await _db.SaveChangesAsync(cancellationToken);
 
+        IReadOnlyList<AiVisionPhotoCostDto> visionPhotoCosts = [];
         if (_options.EnableVisionBatch && !string.IsNullOrWhiteSpace(_options.GrokApiKey))
         {
-            _ = Task.Run(() => ProcessVisionBatchAsync(job.Id, CancellationToken.None), cancellationToken);
+            visionPhotoCosts = await ProcessVisionBatchAsync(job.Id, cancellationToken);
         }
         else
         {
@@ -85,6 +86,9 @@ public class AiOrchestrationService : IAiOrchestrationService
         }
 
         var dates = photos.Where(p => p.TakenAt.HasValue).Select(p => p.TakenAt!.Value).ToList();
+        var visionTotal = visionPhotoCosts.Count > 0
+            ? visionPhotoCosts.Sum(c => c.CostUsd)
+            : (decimal?)null;
         var result = new AiAnalysisResultDto
         {
             PhotoCount = photos.Count,
@@ -93,7 +97,9 @@ public class AiOrchestrationService : IAiOrchestrationService
             PotentialEvents = Math.Max(1, photos.Count / 10),
             EarliestDate = dates.Count > 0 ? dates.Min() : null,
             LatestDate = dates.Count > 0 ? dates.Max() : null,
-            SuggestedMemberNames = members.Select(m => m.Name).Take(5).ToList()
+            SuggestedMemberNames = members.Select(m => m.Name).Take(5).ToList(),
+            VisionPhotoCosts = visionPhotoCosts,
+            VisionTotalCostUsd = visionTotal
         };
 
         job.Status = AiAnalysisJobStatus.Completed;
@@ -334,13 +340,17 @@ public class AiOrchestrationService : IAiOrchestrationService
         return memory.ToDto();
     }
 
-    public async Task ProcessVisionBatchAsync(Guid jobId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<AiVisionPhotoCostDto>> ProcessVisionBatchAsync(
+        Guid jobId,
+        CancellationToken cancellationToken = default)
     {
         var job = await _db.AiAnalysisJobs.FirstOrDefaultAsync(j => j.Id == jobId, cancellationToken);
         if (job is null)
         {
-            return;
+            return [];
         }
+
+        var costs = new List<AiVisionPhotoCostDto>();
 
         try
         {
@@ -353,12 +363,15 @@ public class AiOrchestrationService : IAiOrchestrationService
             if (string.IsNullOrWhiteSpace(_options.GrokApiKey))
             {
                 await ApplyHeuristicAnalysisAsync(photos, [], cancellationToken);
-                return;
+                return costs;
             }
 
             var client = _httpClientFactory.CreateClient("Grok");
             client.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.GrokApiKey);
+
+            var model = _options.VisionModel;
+            var costAt = DateTime.UtcNow;
 
             foreach (var photo in photos)
             {
@@ -375,7 +388,7 @@ public class AiOrchestrationService : IAiOrchestrationService
 
                 var payload = new
                 {
-                    model = _options.VisionModel,
+                    model,
                     messages = new object[]
                     {
                         new
@@ -407,15 +420,56 @@ public class AiOrchestrationService : IAiOrchestrationService
                 {
                     _db.PhotoAiTags.Add(new PhotoAiTag { PhotoId = photo.Id, Tag = tag });
                 }
+
+                var usage = GrokUsageCost.TryParseUsage(json);
+                if (usage is { } u)
+                {
+                    var costUsd = GrokUsageCost.ComputeUsd(
+                        u,
+                        _options.VisionInputUsdPerMillionTokens,
+                        _options.VisionOutputUsdPerMillionTokens);
+
+                    photo.AiVisionPromptTokens = u.PromptTokens;
+                    photo.AiVisionCompletionTokens = u.CompletionTokens;
+                    photo.AiVisionCostUsd = costUsd;
+                    photo.AiVisionModel = model;
+                    photo.AiVisionCostAt = costAt;
+
+                    var costDto = new AiVisionPhotoCostDto
+                    {
+                        PhotoId = photo.Id,
+                        Model = model,
+                        PromptTokens = u.PromptTokens,
+                        CompletionTokens = u.CompletionTokens,
+                        CostUsd = costUsd
+                    };
+                    costs.Add(costDto);
+
+                    _logger.LogInformation(
+                        "Grok vision photo {PhotoId}: ${CostUsd} USD (prompt={PromptTokens}, completion={CompletionTokens}, model={Model})",
+                        photo.Id,
+                        costUsd,
+                        u.PromptTokens,
+                        u.CompletionTokens,
+                        model);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Grok vision photo {PhotoId}: response missing usage; cost not recorded",
+                        photo.Id);
+                }
             }
 
             await _db.SaveChangesAsync(cancellationToken);
+            return costs;
         }
         catch (Exception ex)
         {
             job.Status = AiAnalysisJobStatus.Failed;
             job.ErrorMessage = ex.Message;
             await _db.SaveChangesAsync(cancellationToken);
+            throw;
         }
     }
 
