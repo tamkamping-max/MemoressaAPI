@@ -36,6 +36,13 @@ public static class ActivityAlbumAccess
             return true;
         }
 
+        var isFamilyUser = await db.FamilyMemberships.AsNoTracking()
+            .AnyAsync(m => m.FamilyId == activity.FamilyId && m.UserId == userId, cancellationToken);
+        if (isFamilyUser && activity.PrivacyScope == UploadPrivacyScope.Family)
+        {
+            return true;
+        }
+
         var linkedMemberIds = await db.FamilyMembers.AsNoTracking()
             .Where(m => m.FamilyId == activity.FamilyId && m.LinkedUserId == userId)
             .Select(m => m.Id)

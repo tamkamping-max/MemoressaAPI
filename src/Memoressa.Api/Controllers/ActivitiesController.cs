@@ -29,9 +29,20 @@ public class ActivitiesController : ControllerBase
     public async Task<IActionResult> GetActiveToday(
         [FromQuery] DateOnly? date,
         [FromQuery] int? limit,
+        [FromQuery] int? photoLimit,
         CancellationToken cancellationToken)
     {
-        var result = await _activities.GetActiveTodayAsync(date, limit, cancellationToken);
+        var result = await _activities.GetActiveTodayAsync(date, limit, photoLimit, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpGet("{activityId}/photos")]
+    public async Task<IActionResult> GetPhotos(
+        string activityId,
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken)
+    {
+        var result = await _activities.GetActivityPhotosAsync(activityId, limit, cancellationToken);
         return result.ToActionResult();
     }
 

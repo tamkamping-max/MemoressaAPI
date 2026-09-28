@@ -35,6 +35,7 @@ public record ActivityAlbumDto
     [JsonPropertyName("familyMemberIds")] public IReadOnlyList<Guid> FamilyMemberIds { get; init; } = [];
     [JsonPropertyName("friendIds")] public IReadOnlyList<string> FriendIds { get; init; } = [];
     [JsonPropertyName("coverPhotoId")] public Guid? CoverPhotoId { get; init; }
+    [JsonPropertyName("privacyScope")] public UploadPrivacyScope PrivacyScope { get; init; } = UploadPrivacyScope.Family;
     [JsonPropertyName("agenda")] public IReadOnlyList<ActivityAgendaItemDto> Agenda { get; init; } = [];
 }
 
@@ -51,6 +52,7 @@ public record UpsertActivityAlbumRequestDto
     [JsonPropertyName("familyMemberIds")] public IReadOnlyList<Guid> FamilyMemberIds { get; init; } = [];
     [JsonPropertyName("friendIds")] public IReadOnlyList<string> FriendIds { get; init; } = [];
     [JsonPropertyName("coverPhotoId")] public Guid? CoverPhotoId { get; init; }
+    [JsonPropertyName("privacyScope")] public UploadPrivacyScope? PrivacyScope { get; init; }
     [JsonPropertyName("agenda")] public IReadOnlyList<ActivityAgendaItemRequestDto> Agenda { get; init; } = [];
 }
 
@@ -65,6 +67,12 @@ public record ActivityPhotoPreviewDto
     [JsonPropertyName("remoteUrl")] public string? RemoteUrl { get; init; }
     [JsonPropertyName("thumbnailUrl")] public string? ThumbnailUrl { get; init; }
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
+    [JsonPropertyName("uploadedBy")] public Guid UploadedBy { get; init; }
+}
+
+public record ActivityPhotosListDataDto
+{
+    [JsonPropertyName("items")] public IReadOnlyList<PhotoDto> Items { get; init; } = [];
 }
 
 public record ActiveActivityTodayCardDto

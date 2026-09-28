@@ -420,18 +420,19 @@ MemoressaApp: upload settings picker, home carousel, create on upload confirm, e
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/in-progress` | Link existing activity modal. **200** `{ data: { items: [ActivityAlbum...] } }` (empty `items: []`, never 404). Only `status=inProgress`, caller has access, creator account active. |
-| GET | `/active-today?date=yyyy-MM-dd&limit=8` | Home carousel. **200** `{ data: { strategy, items: [{ sortRank, subtitle, activity, photos }] } }`. `date` defaults UTC today. Active on `date`: `inProgress` and `startDate ≤ date` and (`endDate` null or `date ≤ endDate`). Sort: creator tier first, then start-date proximity. `photos` up to 12 previews from uploads linked via `activityAlbumId`. |
-| POST | `/` | Create activity. Body: `title` (required), `type` or `activityType` (travel \| wedding \| conference \| concert \| gathering \| **other**), `status`, `startDate`, optional `endDate`, `location`, `familyMemberIds`, `friendIds`, `agenda[]` (`title` required per item). **`creatorUserId`** defaults to JWT user if omitted. Unknown enum strings → **400**. |
-| PUT | `/{activityId}` | Full update (same body as POST). `activityId` = external id (`act_...`). Returns updated DTO including `creatorUserId` and agenda ids. |
+| GET | `/active-today?date=yyyy-MM-dd&limit=8&photoLimit=12` | Home carousel. **200** `{ data: { strategy, items: [{ sortRank, subtitle, activity, photos }] } }`. `date` defaults UTC today. Active on `date`: `inProgress` and `startDate ≤ date` and (`endDate` null or `date ≤ endDate`). Sort: creator tier first, then start-date proximity. `photos`: newest linked uploads first (`activity_album_photos.sortOrder` desc), default **12**, max **100**; each preview includes `uploadedBy`. |
+| GET | `/{activityId}/photos?limit=200` | Full activity gallery for the activity page refresh. **200** `{ data: { items: [Photo...] } }` (same shape as photo APIs). Default **200**, max **500**. Ordered like `active-today` previews. **403** if no access. |
+| POST | `/` | Create activity. Body: `title` (required), `type` or `activityType` (travel \| wedding \| conference \| concert \| gathering \| **other**), `status`, `startDate`, optional `endDate`, `location`, optional **`privacyScope`** (same enum as upload), `familyMemberIds`, `friendIds`, `agenda[]` (`title` required per item). **`creatorUserId`** defaults to JWT user if omitted. Unknown enum strings → **400**. |
+| PUT | `/{activityId}` | Full update (same body as POST). `activityId` = external id (`act_...`). Returns updated DTO including `creatorUserId`, `privacyScope`, and agenda ids. |
 | POST | `/{activityId}/photos` | Attach `{ photoIds: [...] }` |
 
-`POST /uploads/start` optional **`activityAlbumId`** (`act_...`): activity must exist, **`inProgress`**, caller **`CanUploadTo`**; links photo on **complete** (feeds `active-today` photos).
+`POST /uploads/start` accepts optional **`activityAlbumId`** (`act_...`) and **`privacyScope`** (photo visibility). Activity must exist, **`inProgress`**, caller **`CanUploadTo`**; **`POST /uploads/complete`** links the new photo to the activity in the same DB transaction (feeds **`GET /active-today`** `photos` and **`GET /{activityId}/photos`**).
 
-Response activity fields (camelCase): `id`, `title`, `type`, `activityType` (mirror of `type`), `status`, `startDate`, `endDate`, `location`, **`creatorUserId`**, `familyMemberIds`, `friendIds`, `agenda`, optional `coverPhotoId`.
+Response activity fields (camelCase): `id`, `title`, `type`, `activityType` (mirror of `type`), `status`, `startDate`, `endDate`, `location`, **`creatorUserId`**, **`privacyScope`**, `familyMemberIds`, `friendIds`, `agenda`, optional `coverPhotoId`.
 
 Enums (JSON camelCase): `type` = travel \| wedding \| conference \| concert \| gathering \| **other**; `status` = inProgress \| completed \| cancelled.
 
-Migration **`009_activity_albums.sql`**.
+Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sql`** (`activity_albums.privacyScope`).
 
 ### Family Members — `api/v1/family-members`
 

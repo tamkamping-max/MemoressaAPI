@@ -196,9 +196,19 @@ public interface IActivityService
     Task<ServiceResult<ApiDataResponseDto<ActiveActivityTodayListDataDto>>> GetActiveTodayAsync(
         DateOnly? date,
         int? limit = null,
+        int? photoLimit = null,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>> GetActivityPhotosAsync(
+        string activityId,
+        int? limit = null,
         CancellationToken cancellationToken = default);
     Task<ServiceResult> AttachPhotosAsync(string activityId, ActivityAlbumPhotosRequestDto request, CancellationToken cancellationToken = default);
     Task LinkPhotoAfterUploadAsync(Guid activityAlbumId, Guid photoId, Guid familyId, CancellationToken cancellationToken = default);
+    Task StageActivityPhotoLinkAsync(
+        Guid activityAlbumId,
+        Guid photoId,
+        Guid familyId,
+        CancellationToken cancellationToken = default);
 }
 
 public interface ISharedAlbumService

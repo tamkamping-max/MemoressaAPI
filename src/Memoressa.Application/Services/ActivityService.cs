@@ -10,7 +10,10 @@ namespace Memoressa.Application.Services;
 
 public class ActivityService : IActivityService
 {
-    private const int PreviewMaxPhotos = 12;
+    private const int PreviewDefaultPhotos = 12;
+    private const int PreviewMaxPhotos = 100;
+    private const int ActivityPhotosDefaultLimit = 200;
+    private const int ActivityPhotosMaxLimit = 500;
     private const int ActiveTodayDefaultLimit = 8;
     private const int ActiveTodayMaxLimit = 20;
 
@@ -107,7 +110,8 @@ public class ActivityService : IActivityService
             EndDate = request.EndDate,
             Location = request.Location?.Trim(),
             CreatorUserId = creatorUserId,
-            CoverPhotoId = request.CoverPhotoId
+            CoverPhotoId = request.CoverPhotoId,
+            PrivacyScope = request.PrivacyScope ?? UploadPrivacyScope.Family
         };
 
         _db.ActivityAlbums.Add(activity);
@@ -171,6 +175,11 @@ public class ActivityService : IActivityService
         activity.EndDate = request.EndDate;
         activity.Location = request.Location?.Trim();
         activity.CoverPhotoId = request.CoverPhotoId;
+        if (request.PrivacyScope.HasValue)
+        {
+            activity.PrivacyScope = request.PrivacyScope.Value;
+        }
+
         activity.UpdatedAt = DateTime.UtcNow;
 
         _db.ActivityAgendaItems.RemoveRange(activity.AgendaItems);
@@ -194,6 +203,7 @@ public class ActivityService : IActivityService
     public async Task<ServiceResult<ApiDataResponseDto<ActiveActivityTodayListDataDto>>> GetActiveTodayAsync(
         DateOnly? date,
         int? limit = null,
+        int? photoLimit = null,
         CancellationToken cancellationToken = default)
     {
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
@@ -212,6 +222,17 @@ public class ActivityService : IActivityService
         if (take > ActiveTodayMaxLimit)
         {
             take = ActiveTodayMaxLimit;
+        }
+
+        var previewTake = photoLimit ?? PreviewDefaultPhotos;
+        if (previewTake < 1)
+        {
+            previewTake = PreviewDefaultPhotos;
+        }
+
+        if (previewTake > PreviewMaxPhotos)
+        {
+            previewTake = PreviewMaxPhotos;
         }
 
         var activities = await QueryActivities(ctx.Value.FamilyId)
@@ -259,7 +280,11 @@ public class ActivityService : IActivityService
         var rank = 1;
         foreach (var entry in ordered)
         {
-            var previews = await BuildPhotoPreviewsAsync(entry.Activity.Id, cancellationToken);
+            var previews = await BuildPhotoPreviewsAsync(
+                entry.Activity.Id,
+                ctx.Value.UserId,
+                previewTake,
+                cancellationToken);
             cards.Add(new ActiveActivityTodayCardDto
             {
                 SortRank = rank++,
@@ -284,6 +309,49 @@ public class ActivityService : IActivityService
                     Strategy = strategy,
                     Items = cards
                 }
+            });
+    }
+
+    public async Task<ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>> GetActivityPhotosAsync(
+        string activityId,
+        int? limit = null,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Fail("Unauthorized", 401);
+        }
+
+        var activity = await ActivityAlbumAccess.ResolveAsync(_db, ctx.Value.FamilyId, activityId, cancellationToken);
+        if (activity is null)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.NotFound("Activity not found");
+        }
+
+        if (!await ActivityAlbumAccess.CanAccessAsync(_db, activity, ctx.Value.UserId, cancellationToken))
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Fail("Forbidden", 403);
+        }
+
+        var take = limit ?? ActivityPhotosDefaultLimit;
+        if (take < 1)
+        {
+            take = ActivityPhotosDefaultLimit;
+        }
+
+        if (take > ActivityPhotosMaxLimit)
+        {
+            take = ActivityPhotosMaxLimit;
+        }
+
+        var photos = await LoadLinkedPhotosAsync(activity.Id, ctx.Value.UserId, take, cancellationToken);
+        var dtos = await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken);
+
+        return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Ok(
+            new ApiDataResponseDto<ActivityPhotosListDataDto>
+            {
+                Data = new ActivityPhotosListDataDto { Items = dtos }
             });
     }
 
@@ -320,6 +388,16 @@ public class ActivityService : IActivityService
         Guid familyId,
         CancellationToken cancellationToken = default)
     {
+        await StageActivityPhotoLinkAsync(activityAlbumId, photoId, familyId, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task StageActivityPhotoLinkAsync(
+        Guid activityAlbumId,
+        Guid photoId,
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
         var activity = await _db.ActivityAlbums
             .FirstOrDefaultAsync(a => a.Id == activityAlbumId && a.FamilyId == familyId, cancellationToken);
         if (activity is null || activity.Status != ActivityAlbumStatus.InProgress)
@@ -328,7 +406,7 @@ public class ActivityService : IActivityService
         }
 
         await LinkPhotosInternalAsync(activity, [photoId], familyId, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
+        activity.UpdatedAt = DateTime.UtcNow;
     }
 
     private async Task LinkPhotosInternalAsync(
@@ -371,26 +449,16 @@ public class ActivityService : IActivityService
 
     private async Task<IReadOnlyList<ActivityPhotoPreviewDto>> BuildPhotoPreviewsAsync(
         Guid activityId,
+        Guid viewerUserId,
+        int take,
         CancellationToken cancellationToken)
     {
-        var photoIds = await _db.ActivityAlbumPhotos.AsNoTracking()
-            .Where(ap => ap.ActivityAlbumId == activityId)
-            .Join(
-                _db.Photos.AsNoTracking().Where(p => !p.IsHidden),
-                ap => ap.PhotoId,
-                p => p.Id,
-                (ap, p) => new { ap.SortOrder, Photo = p })
-            .OrderByDescending(x => x.Photo.TakenAt ?? x.Photo.CreatedAt)
-            .Take(PreviewMaxPhotos)
-            .Select(x => x.Photo)
-            .ToListAsync(cancellationToken);
-
-        if (photoIds.Count == 0)
+        var photos = await LoadLinkedPhotosAsync(activityId, viewerUserId, take, cancellationToken);
+        if (photos.Count == 0)
         {
             return [];
         }
 
-        var photos = photoIds;
         var dtos = await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken);
         var previews = new List<ActivityPhotoPreviewDto>(dtos.Count);
         for (var i = 0; i < dtos.Count; i++)
@@ -400,11 +468,52 @@ public class ActivityService : IActivityService
                 PhotoId = photos[i].Id,
                 RemoteUrl = dtos[i].RemoteUrl,
                 ThumbnailUrl = dtos[i].ThumbnailUrl,
-                TakenAt = photos[i].TakenAt ?? photos[i].CreatedAt
+                TakenAt = photos[i].TakenAt ?? photos[i].CreatedAt,
+                UploadedBy = dtos[i].UploadedBy
             });
         }
 
         return previews;
+    }
+
+    private async Task<List<Photo>> LoadLinkedPhotosAsync(
+        Guid activityId,
+        Guid viewerUserId,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var links = await _db.ActivityAlbumPhotos.AsNoTracking()
+            .Where(ap => ap.ActivityAlbumId == activityId)
+            .OrderByDescending(ap => ap.SortOrder)
+            .ThenByDescending(ap => ap.CreatedAt)
+            .Take(take * 2)
+            .Select(ap => new { ap.PhotoId, ap.SortOrder, ap.CreatedAt })
+            .ToListAsync(cancellationToken);
+
+        if (links.Count == 0)
+        {
+            return [];
+        }
+
+        var photoIds = links.Select(l => l.PhotoId).ToList();
+        var photos = await PhotoViewerAccess.ApplyViewerFilter(
+                _db.Photos.AsNoTracking()
+                    .Where(p => photoIds.Contains(p.Id) && !p.IsHidden)
+                    .Include(p => p.UploadedBy)
+                    .Include(p => p.PhotoMembers)
+                    .Include(p => p.UserTags)
+                    .Include(p => p.AiTags),
+                viewerUserId)
+            .ToListAsync(cancellationToken);
+
+        var order = links
+            .Select((l, index) => (l.PhotoId, Index: index))
+            .ToDictionary(x => x.PhotoId, x => x.Index);
+
+        return photos
+            .OrderBy(p => order.GetValueOrDefault(p.Id, int.MaxValue))
+            .Take(take)
+            .ToList();
     }
 
     private static void SanitizeParticipants(ActivityAlbum activity, Guid familyId)

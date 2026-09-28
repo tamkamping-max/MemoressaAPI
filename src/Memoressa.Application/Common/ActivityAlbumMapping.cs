@@ -17,6 +17,7 @@ public static class ActivityAlbumMapping
         Location = activity.Location,
         CreatorUserId = activity.CreatorUserId,
         CoverPhotoId = activity.CoverPhotoId,
+        PrivacyScope = activity.PrivacyScope,
         FamilyMemberIds = activity.FamilyMembers.Select(m => m.FamilyMemberId).ToList(),
         FriendIds = activity.Friends.Select(f => f.FriendReference).ToList(),
         Agenda = activity.AgendaItems

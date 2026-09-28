@@ -660,6 +660,7 @@ CREATE TABLE activity_albums (
     `Location` varchar(500),
     `CreatorUserId` char(36) NOT NULL,
     `CoverPhotoId` char(36),
+    `PrivacyScope` int NOT NULL DEFAULT 0,
     `CreatedAt` datetime(6) NOT NULL,
     `UpdatedAt` datetime(6) NOT NULL,
     CONSTRAINT `PK_activity_albums` PRIMARY KEY (`Id`),

@@ -479,6 +479,8 @@ public class ActivityAlbum : Entity, IFamilyScoped
     public string? Location { get; set; }
     public Guid CreatorUserId { get; set; }
     public Guid? CoverPhotoId { get; set; }
+    /// <summary>Default audience for uploads started with this activity (mirrors upload privacyScope).</summary>
+    public UploadPrivacyScope PrivacyScope { get; set; } = UploadPrivacyScope.Family;
 
     public Family Family { get; set; } = null!;
     public UserAccount Creator { get; set; } = null!;
