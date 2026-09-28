@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{8022CDC5-71D8-4EC1-B054-473542FA55BE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Memoressa.Domain", "src\Memoressa.Domain\Memoressa.Domain.csproj", "{B7D586C9-0572-4296-93A0-6D299385B3D4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Memoressa.Application", "src\Memoressa.Application\Memoressa.Application.csproj", "{3AC110EF-EAB3-4EF0-975E-F2FCBDD0D83F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Memoressa.Infrastructure", "src\Memoressa.Infrastructure\Memoressa.Infrastructure.csproj", "{276A08DE-8695-440A-B4AD-CED96D4650FE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Memoressa.Api", "src\Memoressa.Api\Memoressa.Api.csproj", "{46362ABD-C0BD-4BDF-8B06-F73A0DC6235D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8B14033F-9308-497A-ACB0-62D308B3D4C7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Memoressa.Api.Tests", "tests\Memoressa.Api.Tests\Memoressa.Api.Tests.csproj", "{8C1EB7DB-C330-4F31-9E49-956214312617}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B7D586C9-0572-4296-93A0-6D299385B3D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7D586C9-0572-4296-93A0-6D299385B3D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7D586C9-0572-4296-93A0-6D299385B3D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7D586C9-0572-4296-93A0-6D299385B3D4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3AC110EF-EAB3-4EF0-975E-F2FCBDD0D83F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3AC110EF-EAB3-4EF0-975E-F2FCBDD0D83F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3AC110EF-EAB3-4EF0-975E-F2FCBDD0D83F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3AC110EF-EAB3-4EF0-975E-F2FCBDD0D83F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{276A08DE-8695-440A-B4AD-CED96D4650FE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{276A08DE-8695-440A-B4AD-CED96D4650FE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{276A08DE-8695-440A-B4AD-CED96D4650FE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{276A08DE-8695-440A-B4AD-CED96D4650FE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{46362ABD-C0BD-4BDF-8B06-F73A0DC6235D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{46362ABD-C0BD-4BDF-8B06-F73A0DC6235D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{46362ABD-C0BD-4BDF-8B06-F73A0DC6235D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{46362ABD-C0BD-4BDF-8B06-F73A0DC6235D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8C1EB7DB-C330-4F31-9E49-956214312617}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C1EB7DB-C330-4F31-9E49-956214312617}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C1EB7DB-C330-4F31-9E49-956214312617}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C1EB7DB-C330-4F31-9E49-956214312617}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B7D586C9-0572-4296-93A0-6D299385B3D4} = {8022CDC5-71D8-4EC1-B054-473542FA55BE}
+		{3AC110EF-EAB3-4EF0-975E-F2FCBDD0D83F} = {8022CDC5-71D8-4EC1-B054-473542FA55BE}
+		{276A08DE-8695-440A-B4AD-CED96D4650FE} = {8022CDC5-71D8-4EC1-B054-473542FA55BE}
+		{46362ABD-C0BD-4BDF-8B06-F73A0DC6235D} = {8022CDC5-71D8-4EC1-B054-473542FA55BE}
+		{8C1EB7DB-C330-4F31-9E49-956214312617} = {8B14033F-9308-497A-ACB0-62D308B3D4C7}
+	EndGlobalSection
+EndGlobal

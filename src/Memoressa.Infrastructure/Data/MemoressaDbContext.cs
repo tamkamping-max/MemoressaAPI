@@ -1,0 +1,82 @@
+using Memoressa.Application.Abstractions;
+using Memoressa.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace Memoressa.Infrastructure.Data;
+
+public class MemoressaDbContext : DbContext, IMemoressaDbContext
+{
+    public MemoressaDbContext(DbContextOptions<MemoressaDbContext> options)
+        : base(options)
+    {
+    }
+
+    public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
+    public DbSet<UserOAuthLink> UserOAuthLinks => Set<UserOAuthLink>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<PasswordResetCode> PasswordResetCodes => Set<PasswordResetCode>();
+    public DbSet<Family> Families => Set<Family>();
+    public DbSet<FamilyMembership> FamilyMemberships => Set<FamilyMembership>();
+    public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
+    public DbSet<Photo> Photos => Set<Photo>();
+    public DbSet<PhotoMember> PhotoMembers => Set<PhotoMember>();
+    public DbSet<PhotoAiTag> PhotoAiTags => Set<PhotoAiTag>();
+    public DbSet<PhotoUserTag> PhotoUserTags => Set<PhotoUserTag>();
+    public DbSet<UserPhotoTagLibraryEntry> UserPhotoTagLibraryEntries => Set<UserPhotoTagLibraryEntry>();
+    public DbSet<PhotoAlbum> PhotoAlbums => Set<PhotoAlbum>();
+    public DbSet<PhotoAlbumPhoto> PhotoAlbumPhotos => Set<PhotoAlbumPhoto>();
+    public DbSet<PhotoAlbumUserTag> PhotoAlbumUserTags => Set<PhotoAlbumUserTag>();
+    public DbSet<PhotoAlbumMember> PhotoAlbumMembers => Set<PhotoAlbumMember>();
+    public DbSet<PhotoAlbumComment> PhotoAlbumComments => Set<PhotoAlbumComment>();
+    public DbSet<PhotoComment> PhotoComments => Set<PhotoComment>();
+    public DbSet<PhotoAiInference> PhotoAiInferences => Set<PhotoAiInference>();
+    public DbSet<Memory> Memories => Set<Memory>();
+    public DbSet<MemoryPhoto> MemoryPhotos => Set<MemoryPhoto>();
+    public DbSet<MemoryVideo> MemoryVideos => Set<MemoryVideo>();
+    public DbSet<MemoryMember> MemoryMembers => Set<MemoryMember>();
+    public DbSet<FamilyMoment> FamilyMoments => Set<FamilyMoment>();
+    public DbSet<FamilyMomentPhoto> FamilyMomentPhotos => Set<FamilyMomentPhoto>();
+    public DbSet<FamilyMomentMember> FamilyMomentMembers => Set<FamilyMomentMember>();
+    public DbSet<DisplayDevice> DisplayDevices => Set<DisplayDevice>();
+    public DbSet<FrameCommand> FrameCommands => Set<FrameCommand>();
+    public DbSet<FramePlaybackPackage> FramePlaybackPackages => Set<FramePlaybackPackage>();
+    public DbSet<FrameComment> FrameComments => Set<FrameComment>();
+    public DbSet<Friend> Friends => Set<Friend>();
+    public DbSet<SharedAlbum> SharedAlbums => Set<SharedAlbum>();
+    public DbSet<SharedAlbumAccess> SharedAlbumAccesses => Set<SharedAlbumAccess>();
+    public DbSet<UploadSession> UploadSessions => Set<UploadSession>();
+    public DbSet<AiAnalysisJob> AiAnalysisJobs => Set<AiAnalysisJob>();
+    public DbSet<UserAiSetting> UserAiSettings => Set<UserAiSetting>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<TodayHighlightCache> TodayHighlightCaches => Set<TodayHighlightCache>();
+    public DbSet<TodayMemoriesCache> TodayMemoriesCaches => Set<TodayMemoriesCache>();
+    public DbSet<ActivityAlbum> ActivityAlbums => Set<ActivityAlbum>();
+    public DbSet<ActivityAgendaItem> ActivityAgendaItems => Set<ActivityAgendaItem>();
+    public DbSet<ActivityAlbumFamilyMember> ActivityAlbumFamilyMembers => Set<ActivityAlbumFamilyMember>();
+    public DbSet<ActivityAlbumFriend> ActivityAlbumFriends => Set<ActivityAlbumFriend>();
+    public DbSet<ActivityAlbumPhoto> ActivityAlbumPhotos => Set<ActivityAlbumPhoto>();
+    public DbSet<AiChatSession> AiChatSessions => Set<AiChatSession>();
+    public DbSet<AiChatMessage> AiChatMessages => Set<AiChatMessage>();
+    public DbSet<JournalTag> JournalTags => Set<JournalTag>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(MemoressaDbContext).Assembly);
+        base.OnModelCreating(modelBuilder);
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var entry in ChangeTracker.Entries<Domain.Common.Entity>())
+        {
+            if (entry.State == EntityState.Modified)
+            {
+                entry.Entity.UpdatedAt = now;
+            }
+        }
+
+        return base.SaveChangesAsync(cancellationToken);
+    }
+}

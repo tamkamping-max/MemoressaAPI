@@ -1,0 +1,23 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: memoressa-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: memoressa
+      MYSQL_DATABASE: memoressa
+      MYSQL_USER: memoressa
+      MYSQL_PASSWORD: memoressa
+    volumes:
+      - memoressa_mysqldata:/var/lib/mysql
+      - ./database/mysql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-umemoressa", "-pmemoressa"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  memoressa_mysqldata:
