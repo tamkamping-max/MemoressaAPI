@@ -116,6 +116,7 @@ public class AiOrchestrationService : IAiOrchestrationService
         }
 
         var usePostgreSql = EfTextSearch.IsPostgreSqlProvider(_db);
+        var calendar = AgentSearchQuery.ExtractCalendarFilter(query, DateTime.UtcNow);
         var years = AgentSearchQuery.ExtractYears(query);
         var searchTerms = AgentSearchTermBuilder.ForDatabaseSearch(
             query,
@@ -180,6 +181,10 @@ public class AiOrchestrationService : IAiOrchestrationService
             }
         }
 
+        var calendarMatchedPhotos = calendar.HasAny
+            ? await LoadPhotosMatchingCalendarAsync(photoScope, calendar, cancellationToken)
+            : [];
+
         var albumTextMatches = new Dictionary<Guid, PhotoAlbum>();
         foreach (var term in searchTerms)
         {
@@ -204,7 +209,9 @@ public class AiOrchestrationService : IAiOrchestrationService
         var candidatePhotos = new Dictionary<Guid, Photo>();
         void AddPhoto(Photo p) => candidatePhotos[p.Id] = p;
 
-        foreach (var p in fieldMatchedPhotos.Values.Concat(dateMatchedPhotos))
+        foreach (var p in fieldMatchedPhotos.Values
+                     .Concat(dateMatchedPhotos)
+                     .Concat(calendarMatchedPhotos))
         {
             AddPhoto(p);
         }
@@ -274,6 +281,7 @@ public class AiOrchestrationService : IAiOrchestrationService
                 albumsByPhotoId,
                 searchTerms,
                 years,
+                calendar,
                 albumTagsByPhotoId);
 
             var primaryMemoryId = ResolvePrimaryMemoryId(photo, memoryTextMatchIds);
@@ -340,6 +348,42 @@ public class AiOrchestrationService : IAiOrchestrationService
         return map;
     }
 
+    private static async Task<List<Photo>> LoadPhotosMatchingCalendarAsync(
+        IQueryable<Photo> photoScope,
+        AgentCalendarFilter calendar,
+        CancellationToken cancellationToken)
+    {
+        if (!calendar.HasAny)
+        {
+            return [];
+        }
+
+        var query = photoScope.Where(p => p.TakenAt.HasValue);
+        if (calendar.Year.HasValue)
+        {
+            var y = calendar.Year.Value;
+            query = query.Where(p => p.TakenAt!.Value.Year == y);
+        }
+
+        if (calendar.Month.HasValue)
+        {
+            var m = calendar.Month.Value;
+            query = query.Where(p => p.TakenAt!.Value.Month == m);
+        }
+
+        if (calendar.Day.HasValue)
+        {
+            var d = calendar.Day.Value;
+            query = query.Where(p => p.TakenAt!.Value.Day == d);
+        }
+
+        return await query
+            .Include(p => p.MemoryPhotos)
+            .Include(p => p.AiTags)
+            .Include(p => p.UserTags)
+            .ToListAsync(cancellationToken);
+    }
+
     private static Guid? ResolvePrimaryPhotoAlbumId(
         Photo photo,
         HashSet<Guid> albumTextMatchIds,
@@ -396,6 +440,7 @@ public class AiOrchestrationService : IAiOrchestrationService
         IReadOnlyDictionary<Guid, List<PhotoAlbum>> albumsByPhotoId,
         IReadOnlyList<string> searchTerms,
         IReadOnlyList<int> years,
+        AgentCalendarFilter calendar,
         IReadOnlyDictionary<Guid, List<string>> albumTagsByPhotoId)
     {
         var reasons = new List<string>();
@@ -435,6 +480,11 @@ public class AiOrchestrationService : IAiOrchestrationService
         }
 
         if (years.Count > 0 && photo.TakenAt.HasValue && years.Contains(photo.TakenAt.Value.Year))
+        {
+            reasons.Add("Photo date match");
+        }
+
+        if (calendar.Matches(photo.TakenAt))
         {
             reasons.Add("Photo date match");
         }

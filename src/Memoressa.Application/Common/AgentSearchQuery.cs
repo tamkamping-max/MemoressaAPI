@@ -10,6 +10,131 @@ public static partial class AgentSearchQuery
     [GeneratedRegex(@"\d{1,2}\s*月", RegexOptions.CultureInvariant)]
     private static partial Regex MonthNumberRegex();
 
+    [GeneratedRegex(@"(?<![0-9])(?<month>1[0-2]|0?[1-9])\s*(月|月份)", RegexOptions.CultureInvariant)]
+    private static partial Regex MonthWithDigitsRegex();
+
+    /// <summary>Parse year/month/day intent (e.g. 9月, 今年, 今天).</summary>
+    public static AgentCalendarFilter ExtractCalendarFilter(string query, DateTime referenceDate)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return default;
+        }
+
+        var trimmed = query.Trim();
+        int? year = null;
+        int? month = null;
+        int? day = null;
+
+        var explicitYears = ExtractYears(trimmed);
+        if (explicitYears.Count > 0)
+        {
+            year = explicitYears[0];
+        }
+
+        foreach (Match match in MonthWithDigitsRegex().Matches(trimmed))
+        {
+            if (int.TryParse(match.Groups["month"].Value, out var mo) && mo is >= 1 and <= 12)
+            {
+                month = mo;
+            }
+        }
+
+        month ??= TryParseChineseMonthName(trimmed);
+
+        var lower = trimmed.ToLowerInvariant();
+        if (year is null && (trimmed.Contains("今年", StringComparison.Ordinal) || lower.Contains("this year")))
+        {
+            year = referenceDate.Year;
+        }
+
+        if (month.HasValue && year is null)
+        {
+            year = referenceDate.Year;
+        }
+
+        var mentionsToday = trimmed.Contains("今天", StringComparison.Ordinal)
+            || trimmed.Contains("今日", StringComparison.Ordinal)
+            || lower.Contains("today");
+        var mentionsMonthWord = trimmed.Contains('月') || lower.Contains("month");
+
+        if (mentionsToday)
+        {
+            if (!month.HasValue && mentionsMonthWord)
+            {
+                year ??= referenceDate.Year;
+                month = referenceDate.Month;
+            }
+            else if (!month.HasValue && !mentionsMonthWord)
+            {
+                year = referenceDate.Year;
+                month = referenceDate.Month;
+                day = referenceDate.Day;
+            }
+        }
+
+        if (month is null
+            && (trimmed.Contains("本月", StringComparison.Ordinal)
+                || trimmed.Contains("這個月", StringComparison.Ordinal)
+                || trimmed.Contains("这个月", StringComparison.Ordinal)
+                || lower.Contains("this month")))
+        {
+            month = referenceDate.Month;
+            year ??= referenceDate.Year;
+        }
+
+        month ??= TryParseEnglishMonthName(lower);
+
+        if (month.HasValue && year is null)
+        {
+            year = referenceDate.Year;
+        }
+
+        return new AgentCalendarFilter(year, month, day);
+    }
+
+    private static int? TryParseChineseMonthName(string query)
+    {
+        ReadOnlySpan<(string Token, int Month)> names =
+        [
+            ("十二月", 12), ("十一月", 11), ("十月", 10),
+            ("九月", 9), ("八月", 8), ("七月", 7), ("六月", 6),
+            ("五月", 5), ("四月", 4), ("三月", 3), ("二月", 2), ("一月", 1),
+            ("正月", 1),
+        ];
+
+        foreach (var (token, mo) in names)
+        {
+            if (query.Contains(token, StringComparison.Ordinal))
+            {
+                return mo;
+            }
+        }
+
+        return null;
+    }
+
+    private static int? TryParseEnglishMonthName(ReadOnlySpan<char> lower)
+    {
+        ReadOnlySpan<(string Name, int Month)> names =
+        [
+            ("january", 1), ("february", 2), ("march", 3), ("april", 4),
+            ("may", 5), ("june", 6), ("july", 7), ("august", 8),
+            ("september", 9), ("october", 10), ("november", 11), ("december", 12),
+            ("sep", 9), ("sept", 9), ("oct", 10), ("nov", 11), ("dec", 12),
+        ];
+
+        foreach (var (name, mo) in names)
+        {
+            if (lower.Contains(name, StringComparison.Ordinal))
+            {
+                return mo;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>Extracts 1900–2099 year tokens from the user query (e.g. "2018夏天" → 2018).</summary>
     public static IReadOnlyList<int> ExtractYears(string query)
     {
