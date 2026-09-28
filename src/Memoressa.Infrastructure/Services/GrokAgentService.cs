@@ -150,6 +150,7 @@ public class GrokAgentService : IGrokAgentService
         var topResults = searchResults.Take(_options.AgentMaxContextMemories).ToList();
         var photoIds = topResults.Select(r => r.PhotoId).ToList();
         var memoryIds = topResults.Where(r => r.MemoryId.HasValue).Select(r => r.MemoryId!.Value).Distinct().ToList();
+        var albumIds = topResults.Where(r => r.PhotoAlbumId.HasValue).Select(r => r.PhotoAlbumId!.Value).Distinct().ToList();
 
         var photos = await _db.Photos.AsNoTracking()
             .Where(p => p.FamilyId == familyId && photoIds.Contains(p.Id))
@@ -162,6 +163,13 @@ public class GrokAgentService : IGrokAgentService
                 .Include(m => m.MemoryMembers)
                 .ThenInclude(mm => mm.FamilyMember)
                 .ToDictionaryAsync(m => m.Id, cancellationToken);
+
+        var albums = albumIds.Count == 0
+            ? new Dictionary<Guid, PhotoAlbum>()
+            : await _db.PhotoAlbums.AsNoTracking()
+                .Where(a => a.FamilyId == familyId && albumIds.Contains(a.Id))
+                .Include(a => a.UserTags)
+                .ToDictionaryAsync(a => a.Id, cancellationToken);
 
         var lines = new List<string>();
         foreach (var result in topResults)
@@ -181,9 +189,21 @@ public class GrokAgentService : IGrokAgentService
                 ? string.Empty
                 : string.Join(", ", memory.MemoryMembers.Select(mm => mm.FamilyMember.Name));
 
+            PhotoAlbum? album = null;
+            if (result.PhotoAlbumId.HasValue)
+            {
+                albums.TryGetValue(result.PhotoAlbumId.Value, out album);
+            }
+
+            var albumTags = album is null
+                ? string.Empty
+                : string.Join(", ", album.UserTags.Select(t => t.Tag));
+
             lines.Add(
                 $"- photoId={photo.Id}; memoryId={(result.MemoryId.HasValue ? result.MemoryId.Value : "null")}; " +
+                $"photoAlbumId={(result.PhotoAlbumId.HasValue ? result.PhotoAlbumId.Value : "null")}; " +
                 $"photoDescription={photo.Description}; photoLocation={photo.Location}; photoTakenAt={photo.TakenAt:yyyy-MM-dd}; " +
+                $"albumDescription={album?.Description}; albumUserTags={albumTags}; " +
                 $"memoryTitle={memory?.Title}; memoryDescription={memory?.Description}; memoryLocation={memory?.Location}; " +
                 $"startDate={memory?.StartDate:yyyy-MM-dd}; eventType={memory?.EventType}; members={members}; " +
                 $"matchReasons={string.Join('|', result.MatchReasons)}; score={result.RelevanceScore:F2}");

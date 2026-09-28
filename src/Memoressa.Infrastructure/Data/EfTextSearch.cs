@@ -77,4 +77,24 @@ public static class EfTextSearch
 
         return query.Where(p => p.TakenAt.HasValue && years.Contains(p.TakenAt.Value.Year));
     }
+
+    /// <summary>Photo album fields for AI Agent search (description, user tags, comments).</summary>
+    public static IQueryable<PhotoAlbum> WherePhotoAlbumAgentFieldMatches(
+        IQueryable<PhotoAlbum> query,
+        string likePattern,
+        bool usePostgreSql)
+    {
+        if (usePostgreSql)
+        {
+            return query.Where(a =>
+                EF.Functions.ILike(a.Description ?? string.Empty, likePattern)
+                || a.UserTags.Any(t => EF.Functions.ILike(t.Tag, likePattern))
+                || a.Comments.Any(c => EF.Functions.ILike(c.Message, likePattern)));
+        }
+
+        return query.Where(a =>
+            (a.Description != null && EF.Functions.Like(a.Description, likePattern))
+            || a.UserTags.Any(t => EF.Functions.Like(t.Tag, likePattern))
+            || a.Comments.Any(c => EF.Functions.Like(c.Message, likePattern)));
+    }
 }

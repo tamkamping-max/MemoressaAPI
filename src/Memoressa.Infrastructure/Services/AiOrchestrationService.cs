@@ -143,18 +143,45 @@ public class AiOrchestrationService : IAiOrchestrationService
                 .Include(p => p.UserTags)
                 .ToListAsync(cancellationToken);
 
-        var albumTagMatchedPhotos = await QueryPhotosMatchingAlbumTagsAsync(
-            familyId,
-            pattern,
-            usePostgreSql,
-            cancellationToken);
+        var albumTextMatches = await EfTextSearch
+            .WherePhotoAlbumAgentFieldMatches(
+                _db.PhotoAlbums.AsNoTracking().Where(a => a.FamilyId == familyId),
+                pattern,
+                usePostgreSql)
+            .Include(a => a.AlbumPhotos)
+            .Include(a => a.UserTags)
+            .Include(a => a.Comments)
+            .ToListAsync(cancellationToken);
+
+        var albumTextMatchIds = albumTextMatches.Select(a => a.Id).ToHashSet();
+        var albumLookup = albumTextMatches.ToDictionary(a => a.Id);
 
         var candidatePhotos = new Dictionary<Guid, Photo>();
         void AddPhoto(Photo p) => candidatePhotos[p.Id] = p;
 
-        foreach (var p in fieldMatchedPhotos.Concat(dateMatchedPhotos).Concat(albumTagMatchedPhotos))
+        foreach (var p in fieldMatchedPhotos.Concat(dateMatchedPhotos))
         {
             AddPhoto(p);
+        }
+
+        var albumMatchedPhotoIds = albumTextMatches
+            .SelectMany(a => a.AlbumPhotos.Select(ap => ap.PhotoId))
+            .Distinct()
+            .ToList();
+
+        if (albumMatchedPhotoIds.Count > 0)
+        {
+            var albumPhotos = await photoScope
+                .Where(p => albumMatchedPhotoIds.Contains(p.Id))
+                .Include(p => p.MemoryPhotos)
+                .Include(p => p.AiTags)
+                .Include(p => p.UserTags)
+                .ToListAsync(cancellationToken);
+
+            foreach (var p in albumPhotos)
+            {
+                AddPhoto(p);
+            }
         }
 
         var memoryTextMatchPhotoIds = memoryTextMatches
@@ -189,6 +216,8 @@ public class AiOrchestrationService : IAiOrchestrationService
             candidatePhotos.Keys,
             cancellationToken);
 
+        var albumsByPhotoId = BuildAlbumsByPhotoId(albumTextMatches);
+
         var results = new List<SearchResultDto>();
         foreach (var photo in candidatePhotos.Values)
         {
@@ -196,6 +225,8 @@ public class AiOrchestrationService : IAiOrchestrationService
                 photo,
                 memoryTextMatchIds,
                 memoryLookup,
+                albumTextMatchIds,
+                albumsByPhotoId,
                 query,
                 years,
                 albumTagsByPhotoId);
@@ -207,7 +238,14 @@ public class AiOrchestrationService : IAiOrchestrationService
                 memoryLookup.TryGetValue(primaryMemoryId.Value, out primaryMemory);
             }
 
-            var title = ResolveSearchResultTitle(photo, primaryMemory);
+            var primaryPhotoAlbumId = ResolvePrimaryPhotoAlbumId(photo, albumTextMatchIds, albumsByPhotoId);
+            PhotoAlbum? primaryAlbum = null;
+            if (primaryPhotoAlbumId.HasValue)
+            {
+                albumLookup.TryGetValue(primaryPhotoAlbumId.Value, out primaryAlbum);
+            }
+
+            var title = ResolveSearchResultTitle(photo, primaryMemory, primaryAlbum);
 
             var thumb = await _photoUrls.GetPresignedUrlAsync(photo, thumbnail: true, cancellationToken: cancellationToken)
                 ?? photo.LocalAssetPath;
@@ -216,6 +254,7 @@ public class AiOrchestrationService : IAiOrchestrationService
             {
                 PhotoId = photo.Id,
                 MemoryId = primaryMemoryId,
+                PhotoAlbumId = primaryPhotoAlbumId,
                 Title = title,
                 ThumbnailPath = thumb,
                 MatchReasons = reasons,
@@ -236,11 +275,50 @@ public class AiOrchestrationService : IAiOrchestrationService
         return link is null || link.MemoryId == Guid.Empty ? null : link.MemoryId;
     }
 
-    private static string ResolveSearchResultTitle(Photo photo, Memory? memory)
+    private static Dictionary<Guid, List<PhotoAlbum>> BuildAlbumsByPhotoId(IEnumerable<PhotoAlbum> albums)
+    {
+        var map = new Dictionary<Guid, List<PhotoAlbum>>();
+        foreach (var album in albums)
+        {
+            foreach (var link in album.AlbumPhotos)
+            {
+                if (!map.TryGetValue(link.PhotoId, out var list))
+                {
+                    list = [];
+                    map[link.PhotoId] = list;
+                }
+
+                list.Add(album);
+            }
+        }
+
+        return map;
+    }
+
+    private static Guid? ResolvePrimaryPhotoAlbumId(
+        Photo photo,
+        HashSet<Guid> albumTextMatchIds,
+        IReadOnlyDictionary<Guid, List<PhotoAlbum>> albumsByPhotoId)
+    {
+        if (!albumsByPhotoId.TryGetValue(photo.Id, out var albums) || albums.Count == 0)
+        {
+            return null;
+        }
+
+        var preferred = albums.FirstOrDefault(a => albumTextMatchIds.Contains(a.Id));
+        return (preferred ?? albums[0]).Id;
+    }
+
+    private static string ResolveSearchResultTitle(Photo photo, Memory? memory, PhotoAlbum? album)
     {
         if (!string.IsNullOrWhiteSpace(photo.Description))
         {
             return photo.Description.Trim();
+        }
+
+        if (album is not null && !string.IsNullOrWhiteSpace(album.Description))
+        {
+            return album.Description.Trim();
         }
 
         if (memory is not null && !string.IsNullOrWhiteSpace(memory.Title))
@@ -255,6 +333,8 @@ public class AiOrchestrationService : IAiOrchestrationService
         Photo photo,
         HashSet<Guid> memoryTextMatchIds,
         IReadOnlyDictionary<Guid, Memory> memoryTextMatches,
+        HashSet<Guid> albumTextMatchIds,
+        IReadOnlyDictionary<Guid, List<PhotoAlbum>> albumsByPhotoId,
         string query,
         IReadOnlyList<int> years,
         IReadOnlyDictionary<Guid, List<string>> albumTagsByPhotoId)
@@ -311,8 +391,28 @@ public class AiOrchestrationService : IAiOrchestrationService
             reasons.Add("User tag match");
         }
 
-        if (albumTagsByPhotoId.TryGetValue(photo.Id, out var albumTags)
-            && albumTags.Any(t => t.Contains(query, comparison)))
+        if (albumsByPhotoId.TryGetValue(photo.Id, out var linkedAlbums))
+        {
+            foreach (var album in linkedAlbums.Where(a => albumTextMatchIds.Contains(a.Id)))
+            {
+                if (album.Description?.Contains(query, comparison) == true)
+                {
+                    reasons.Add("Album description match");
+                }
+
+                if (album.UserTags.Any(t => t.Tag.Contains(query, comparison)))
+                {
+                    reasons.Add("Album tag match");
+                }
+
+                if (album.Comments.Any(c => c.Message.Contains(query, comparison)))
+                {
+                    reasons.Add("Album comment match");
+                }
+            }
+        }
+        else if (albumTagsByPhotoId.TryGetValue(photo.Id, out var albumTags)
+                 && albumTags.Any(t => t.Contains(query, comparison)))
         {
             reasons.Add("Album tag match");
         }
@@ -323,33 +423,6 @@ public class AiOrchestrationService : IAiOrchestrationService
         }
 
         return reasons.Distinct(StringComparer.Ordinal).ToList();
-    }
-
-    private async Task<List<Photo>> QueryPhotosMatchingAlbumTagsAsync(
-        Guid familyId,
-        string likePattern,
-        bool usePostgreSql,
-        CancellationToken cancellationToken)
-    {
-        var query = _db.PhotoAlbumPhotos.AsNoTracking()
-            .Where(ap => ap.Photo.FamilyId == familyId && !ap.Photo.IsHidden);
-
-        query = usePostgreSql
-            ? query.Where(ap => ap.PhotoAlbum.UserTags.Any(t => EF.Functions.ILike(t.Tag, likePattern)))
-            : query.Where(ap => ap.PhotoAlbum.UserTags.Any(t => EF.Functions.Like(t.Tag, likePattern)));
-
-        var photoIds = await query.Select(ap => ap.PhotoId).Distinct().ToListAsync(cancellationToken);
-        if (photoIds.Count == 0)
-        {
-            return [];
-        }
-
-        return await _db.Photos.AsNoTracking()
-            .Where(p => photoIds.Contains(p.Id))
-            .Include(p => p.MemoryPhotos)
-            .Include(p => p.AiTags)
-            .Include(p => p.UserTags)
-            .ToListAsync(cancellationToken);
     }
 
     private async Task<Dictionary<Guid, List<string>>> LoadAlbumUserTagsByPhotoIdAsync(
