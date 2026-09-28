@@ -8,6 +8,22 @@ namespace Memoressa.Application.Common;
 
 public static class ActivityAlbumAccess
 {
+    public static async Task<ActivityAlbum?> ResolveForUpdateAsync(
+        IMemoressaDbContext db,
+        Guid familyId,
+        string activityId,
+        CancellationToken cancellationToken)
+    {
+        var trimmed = activityId.Trim();
+        return await db.ActivityAlbums
+            .Include(a => a.FamilyMembers)
+            .Include(a => a.Friends)
+            .FirstOrDefaultAsync(
+                a => a.FamilyId == familyId
+                     && (a.ExternalId == trimmed || a.Id.ToString() == trimmed),
+                cancellationToken);
+    }
+
     public static async Task<ActivityAlbum?> ResolveAsync(
         IMemoressaDbContext db,
         Guid familyId,
