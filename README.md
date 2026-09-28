@@ -280,16 +280,18 @@ See **Photo user tag library** above for tags sheet persistence (`016`).
 
 For production at scale, you can swap presigned GET for **CloudFront signed URLs** inside `IPhotoUrlResolver` without changing the REST contract.
 
-### Ai
+### Ai (xAI Grok)
+
+LLM calls use the **OpenAI-compatible** `POST /v1/chat/completions` client pointed at **xAI** by default.
 
 | Key | Description |
 |-----|-------------|
-| `Ai:OpenAiApiKey` | OpenAI API key |
-| `Ai:ChatModel` | OpenAI model for AI Agent chat (default `gpt-4o-mini`) |
-| `Ai:AgentMaxHistoryMessages` | Multi-turn history sent to OpenAI |
+| `Ai:OpenAiApiKey` | **xAI API key** ([console.x.ai](https://console.x.ai)). Also set env **`XAI_API_KEY`** if this is empty. |
+| `Ai:OpenAiBaseUrl` | Default **`https://api.x.ai/v1`**. Override only for another compatible provider. |
+| `Ai:ChatModel` | AI Agent chat (default **`grok-4-3`**) |
+| `Ai:VisionModel` | Batch photo vision (default **`grok-2-vision-1212`**) |
+| `Ai:AgentMaxHistoryMessages` | Multi-turn history sent to the LLM |
 | `Ai:AgentMaxContextMemories` | Max memory candidates in RAG context |
-| `Ai:OpenAiBaseUrl` | OpenAI-compatible base URL |
-| `Ai:VisionModel` | Vision model name |
 | `Ai:EnableVisionBatch` | Enable batch vision processing |
 | `Ai:MaxBatchSize` | Max photos per batch |
 
@@ -325,7 +327,11 @@ export Database__Target=Rds
 export ConnectionStrings__PostgreSql="Host=your-instance.xxxxx.region.rds.amazonaws.com;Port=5432;Database=memoressa;Username=memoressa;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
 export Jwt__SecretKey="your-production-secret-key"
 export InternalApi__ApiKey="your-internal-key"
-export Ai__OpenAiApiKey="sk-..."
+export XAI_API_KEY="xai-..."
+# or: export Ai__OpenAiApiKey="$XAI_API_KEY"
+export Ai__ChatModel="grok-4-3"
+export Ai__VisionModel="grok-2-vision-1212"
+export Ai__OpenAiBaseUrl="https://api.x.ai/v1"
 ```
 
 ## Authentication
@@ -496,7 +502,7 @@ Conversational assistant for the MemoressaApp top-left AI entry. Uses OpenAI Cha
 }
 ```
 
-Requires `Ai:OpenAiApiKey`. When the key is missing, the API falls back to search-only templated replies (no LLM).
+Requires **`Ai:OpenAiApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Completions (`response_format: json_object` for structured agent replies). When no key is configured, the API falls back to search-only templated replies (no LLM).
 
 ### Settings — `api/v1/settings`
 

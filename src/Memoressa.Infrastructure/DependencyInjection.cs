@@ -18,6 +18,17 @@ public static class DependencyInjection
         services.Configure<AwsS3Options>(configuration.GetSection(AwsS3Options.SectionName));
         services.Configure<AwsSesOptions>(configuration.GetSection(AwsSesOptions.SectionName));
         services.Configure<AiOptions>(configuration.GetSection(AiOptions.SectionName));
+        services.PostConfigure<AiOptions>(options =>
+        {
+            if (string.IsNullOrWhiteSpace(options.OpenAiApiKey))
+            {
+                var xaiKey = Environment.GetEnvironmentVariable("XAI_API_KEY");
+                if (!string.IsNullOrWhiteSpace(xaiKey))
+                {
+                    options.OpenAiApiKey = xaiKey;
+                }
+            }
+        });
         services.Configure<InternalApiOptions>(configuration.GetSection(InternalApiOptions.SectionName));
 
         var connectionString = DatabaseConnection.ResolveConnectionString(configuration);
