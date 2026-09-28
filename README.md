@@ -480,7 +480,7 @@ Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat 
 
 **MemoressaApp:** On opening the AI screen, call **`GET /session`** to restore the latest transcript and pass **`sessionId`** on subsequent **`POST /chat`** calls. When **`sessionId`** is omitted on chat, the API reuses the latest session for that user/family (no new empty session per visit). Do not show preset example chips; history replaces an empty-state welcome when messages exist.
 
-**Agent memory search (before each Grok call):** substring SQL on memories, photos, and photo albums (typically **2** DB term passes: user word + one cross-locale synonym). **Short tag queries** (e.g. `happy`, `開心`) with **`AgentSkipGrokForSimpleSearch: true`** (default) return templated replies with **no** xAI call. Longer or question-style messages use **one** **`chat/completions`** call. Set **`Ai:AgentGrokSearchExpansion`** to **true** for an extra Grok keyword-expansion call.
+**Agent memory search (before each Grok call):** substring SQL on memories, photos, and photo albums (typically **2** DB term passes: user word + one cross-locale synonym). **Short tag-only queries** (e.g. `happy`, `開心` — no date/「照片」 wording) with **`AgentSkipGrokForSimpleSearch: true`** (default) return templated replies with **no** xAI call. Queries like **「今天9月份照片」** or anything mentioning photos/dates/months use **Grok**. Longer or question-style messages also use **one** **`chat/completions`** call. Set **`Ai:AgentGrokSearchExpansion`** to **true** for an extra Grok keyword-expansion call.
 
 | Method | Path | Description |
 |--------|------|-------------|

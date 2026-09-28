@@ -7,6 +7,9 @@ public static partial class AgentSearchQuery
     [GeneratedRegex(@"(?<![0-9])(19|20)\d{2}(?![0-9])", RegexOptions.CultureInvariant)]
     private static partial Regex FourDigitYearRegex();
 
+    [GeneratedRegex(@"\d{1,2}\s*月", RegexOptions.CultureInvariant)]
+    private static partial Regex MonthNumberRegex();
+
     /// <summary>Extracts 1900–2099 year tokens from the user query (e.g. "2018夏天" → 2018).</summary>
     public static IReadOnlyList<int> ExtractYears(string query)
     {
@@ -61,7 +64,57 @@ public static partial class AgentSearchQuery
             }
         }
 
+        if (MonthNumberRegex().IsMatch(trimmed))
+        {
+            return false;
+        }
+
+        if (ContainsPhotoRequestIntent(lower) || ContainsTimeScopeIntent(lower))
+        {
+            return false;
+        }
+
         return true;
+    }
+
+    private static bool ContainsPhotoRequestIntent(ReadOnlySpan<char> lower)
+    {
+        ReadOnlySpan<string> hints =
+        [
+            "照片", "相片", "图片", "圖片", "圖照", "的图", "的圖",
+            "photo", "photos", "picture", "pictures", "pic", "pics"
+        ];
+
+        foreach (var hint in hints)
+        {
+            if (lower.Contains(hint, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsTimeScopeIntent(ReadOnlySpan<char> lower)
+    {
+        ReadOnlySpan<string> hints =
+        [
+            "今天", "今日", "昨日", "昨天", "前天", "明日", "明天", "後天", "后天",
+            "本周", "本週", "这周", "這週", "上周", "上週", "上月", "上個月", "上个月",
+            "月份", "几月", "幾月", "哪天", "哪年", "什么时候", "什麼時候",
+            "today", "yesterday", "tomorrow", "month", "week", "weekend", "recent", "latest"
+        ];
+
+        foreach (var hint in hints)
+        {
+            if (lower.Contains(hint, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal static bool ContainsCjk(string value)

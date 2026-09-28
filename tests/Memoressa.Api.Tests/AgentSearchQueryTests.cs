@@ -20,6 +20,8 @@ public class AgentSearchQueryTests
     [InlineData("找妈妈2018夏天的照片", false)]
     [InlineData("what photos do we have?", false)]
     [InlineData("帮我找开心的照片", false)]
+    [InlineData("今天9月份照片", false)]
+    [InlineData("9月旅行", false)]
     public void IsSimpleSearchPhrase_ClassifiesTagSearch(string query, bool expected)
     {
         Assert.Equal(expected, AgentSearchQuery.IsSimpleSearchPhrase(query));
