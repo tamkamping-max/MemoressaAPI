@@ -116,63 +116,82 @@ public class AiOrchestrationService : IAiOrchestrationService
 
         var pattern = EfTextSearch.ToLikePattern(query);
         var usePostgreSql = EfTextSearch.IsPostgreSqlProvider(_db);
+        var years = AgentSearchQuery.ExtractYears(query);
+
+        var photoScope = _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId && !p.IsHidden);
 
         var memories = await EfTextSearch
             .WhereMemoryTextMatches(_db.Memories.AsNoTracking().Where(m => m.FamilyId == familyId), pattern, usePostgreSql)
             .Include(m => m.MemoryPhotos)
             .ToListAsync(cancellationToken);
 
-        var tagMatches = await EfTextSearch
-            .WherePhotoTagMatches(_db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId), pattern, usePostgreSql)
+        var fieldMatchedPhotos = await EfTextSearch
+            .WherePhotoAgentFieldMatches(photoScope, pattern, usePostgreSql)
             .Include(p => p.MemoryPhotos)
             .Include(p => p.AiTags)
+            .Include(p => p.UserTags)
             .ToListAsync(cancellationToken);
 
-        var memoryIdsFromTags = tagMatches
+        var dateMatchedPhotos = years.Count == 0
+            ? []
+            : await EfTextSearch
+                .WherePhotoTakenAtYearIn(photoScope, years)
+                .Include(p => p.MemoryPhotos)
+                .Include(p => p.AiTags)
+                .Include(p => p.UserTags)
+                .ToListAsync(cancellationToken);
+
+        var albumTagMatchedPhotos = await QueryPhotosMatchingAlbumTagsAsync(
+            familyId,
+            pattern,
+            usePostgreSql,
+            cancellationToken);
+
+        var photosFromSearch = fieldMatchedPhotos
+            .Concat(dateMatchedPhotos)
+            .Concat(albumTagMatchedPhotos)
+            .GroupBy(p => p.Id)
+            .Select(g => g.First())
+            .ToList();
+
+        var memoryIdsFromPhotos = photosFromSearch
             .SelectMany(p => p.MemoryPhotos.Select(mp => mp.MemoryId))
             .Distinct()
             .ToHashSet();
 
-        var tagMemories = memoryIdsFromTags.Count == 0
+        var photoLinkedMemories = memoryIdsFromPhotos.Count == 0
             ? []
             : await _db.Memories.AsNoTracking()
-                .Where(m => memoryIdsFromTags.Contains(m.Id))
+                .Where(m => memoryIdsFromPhotos.Contains(m.Id))
                 .Include(m => m.MemoryPhotos)
                 .ToListAsync(cancellationToken);
 
         var combined = memories
-            .Concat(tagMemories)
+            .Concat(photoLinkedMemories)
             .GroupBy(m => m.Id)
             .Select(g => g.First())
             .ToList();
 
         var photoLookup = await _db.Photos.AsNoTracking()
             .Where(p => p.FamilyId == familyId)
+            .Include(p => p.AiTags)
+            .Include(p => p.UserTags)
             .ToDictionaryAsync(p => p.Id, cancellationToken);
+
+        var albumTagsByPhotoId = await LoadAlbumUserTagsByPhotoIdAsync(
+            familyId,
+            combined.SelectMany(m => m.MemoryPhotos.Select(mp => mp.PhotoId)).Distinct(),
+            cancellationToken);
 
         var results = new List<SearchResultDto>();
         foreach (var m in combined)
         {
-            var reasons = new List<string>();
-            if (m.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
-            {
-                reasons.Add("Title match");
-            }
-
-            if (m.Description?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
-            {
-                reasons.Add("Description match");
-            }
-
-            if (tagMemories.Any(tm => tm.Id == m.Id))
-            {
-                reasons.Add("AI tag match");
-            }
-
-            if (reasons.Count == 0)
-            {
-                reasons.Add("Semantic match");
-            }
+            var reasons = BuildMemoryMatchReasons(
+                m,
+                query,
+                years,
+                photoLookup,
+                albumTagsByPhotoId);
 
             string? thumb = null;
             var firstPhotoId = m.MemoryPhotos.OrderBy(mp => mp.SortOrder).Select(mp => mp.PhotoId).FirstOrDefault();
@@ -193,6 +212,135 @@ public class AiOrchestrationService : IAiOrchestrationService
         }
 
         return results.OrderByDescending(r => r.RelevanceScore).ToList();
+    }
+
+    private async Task<List<Photo>> QueryPhotosMatchingAlbumTagsAsync(
+        Guid familyId,
+        string likePattern,
+        bool usePostgreSql,
+        CancellationToken cancellationToken)
+    {
+        var query = _db.PhotoAlbumPhotos.AsNoTracking()
+            .Where(ap => ap.Photo.FamilyId == familyId && !ap.Photo.IsHidden);
+
+        query = usePostgreSql
+            ? query.Where(ap => ap.PhotoAlbum.UserTags.Any(t => EF.Functions.ILike(t.Tag, likePattern)))
+            : query.Where(ap => ap.PhotoAlbum.UserTags.Any(t => EF.Functions.Like(t.Tag, likePattern)));
+
+        var photoIds = await query.Select(ap => ap.PhotoId).Distinct().ToListAsync(cancellationToken);
+        if (photoIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _db.Photos.AsNoTracking()
+            .Where(p => photoIds.Contains(p.Id))
+            .Include(p => p.MemoryPhotos)
+            .Include(p => p.AiTags)
+            .Include(p => p.UserTags)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<Dictionary<Guid, List<string>>> LoadAlbumUserTagsByPhotoIdAsync(
+        Guid familyId,
+        IEnumerable<Guid> photoIds,
+        CancellationToken cancellationToken)
+    {
+        var idList = photoIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await _db.PhotoAlbumPhotos.AsNoTracking()
+            .Where(ap => ap.Photo.FamilyId == familyId && idList.Contains(ap.PhotoId))
+            .SelectMany(ap => ap.PhotoAlbum.UserTags.Select(t => new { ap.PhotoId, t.Tag }))
+            .ToListAsync(cancellationToken);
+        var map = new Dictionary<Guid, List<string>>();
+        foreach (var row in rows)
+        {
+            if (!map.TryGetValue(row.PhotoId, out var tags))
+            {
+                tags = [];
+                map[row.PhotoId] = tags;
+            }
+
+            tags.Add(row.Tag);
+        }
+
+        return map;
+    }
+
+    private static List<string> BuildMemoryMatchReasons(
+        Memory memory,
+        string query,
+        IReadOnlyList<int> years,
+        IReadOnlyDictionary<Guid, Photo> photoLookup,
+        IReadOnlyDictionary<Guid, List<string>> albumTagsByPhotoId)
+    {
+        var reasons = new List<string>();
+        var comparison = StringComparison.OrdinalIgnoreCase;
+
+        if (memory.Title.Contains(query, comparison))
+        {
+            reasons.Add("Title match");
+        }
+
+        if (memory.Description?.Contains(query, comparison) == true)
+        {
+            reasons.Add("Description match");
+        }
+
+        if (memory.Location?.Contains(query, comparison) == true)
+        {
+            reasons.Add("Memory location match");
+        }
+
+        foreach (var memoryPhoto in memory.MemoryPhotos)
+        {
+            if (!photoLookup.TryGetValue(memoryPhoto.PhotoId, out var photo))
+            {
+                continue;
+            }
+
+            if (photo.Description?.Contains(query, comparison) == true)
+            {
+                reasons.Add("Photo description match");
+            }
+
+            if (photo.Location?.Contains(query, comparison) == true)
+            {
+                reasons.Add("Photo location match");
+            }
+
+            if (years.Count > 0 && photo.TakenAt.HasValue && years.Contains(photo.TakenAt.Value.Year))
+            {
+                reasons.Add("Photo date match");
+            }
+
+            if (photo.AiTags.Any(t => t.Tag.Contains(query, comparison)))
+            {
+                reasons.Add("AI tag match");
+            }
+
+            if (photo.UserTags.Any(t => t.Tag.Contains(query, comparison)))
+            {
+                reasons.Add("User tag match");
+            }
+
+            if (albumTagsByPhotoId.TryGetValue(photo.Id, out var albumTags)
+                && albumTags.Any(t => t.Contains(query, comparison)))
+            {
+                reasons.Add("Album tag match");
+            }
+        }
+
+        if (reasons.Count == 0)
+        {
+            reasons.Add("Semantic match");
+        }
+
+        return reasons.Distinct(StringComparer.Ordinal).ToList();
     }
 
     public async Task<IReadOnlyList<PlaybackItemDto>> GeneratePlaybackAsync(

@@ -288,8 +288,8 @@ LLM calls use xAI **`POST /v1/chat/completions`** (Chat Completions API) by defa
 |-----|-------------|
 | `Ai:GrokApiKey` | **xAI API key** ([console.x.ai](https://console.x.ai)). Also set env **`XAI_API_KEY`** if this is empty. Legacy **`Ai:OpenAiApiKey`** is still read when `GrokApiKey` is empty. |
 | `Ai:GrokBaseUrl` | Default **`https://api.x.ai/v1`**. Legacy **`Ai:OpenAiBaseUrl`** is used when `GrokBaseUrl` is empty. |
-| `Ai:ChatModel` | AI Agent chat (default **`grok-4-7`**) |
-| `Ai:VisionModel` | Batch photo vision (default **`grok-4-7`**) |
+| `Ai:ChatModel` | AI Agent chat (default **`grok-4.7`**) |
+| `Ai:VisionModel` | Batch photo vision (default **`grok-4.7`**) |
 | `Ai:AgentMaxHistoryMessages` | Multi-turn history sent to the LLM |
 | `Ai:AgentMaxContextMemories` | Max memory candidates in RAG context |
 | `Ai:EnableVisionBatch` | Enable batch vision processing |
@@ -329,8 +329,8 @@ export Jwt__SecretKey="your-production-secret-key"
 export InternalApi__ApiKey="your-internal-key"
 export XAI_API_KEY="xai-..."
 # or: export Ai__GrokApiKey="$XAI_API_KEY"
-export Ai__ChatModel="grok-4-7"
-export Ai__VisionModel="grok-4-7"
+export Ai__ChatModel="grok-4.7"
+export Ai__VisionModel="grok-4.7"
 export Ai__GrokBaseUrl="https://api.x.ai/v1"
 ```
 
@@ -472,6 +472,8 @@ Migration **`009_activity_albums.sql`**.
 ### AI Agent (Grok chat) — `api/v1/ai/agent`
 
 Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat Completions with family memory search as RAG context.
+
+**Agent memory search (before each Grok call):** SQL substring match on memories (title, description, location) plus photos linked to those memories: **`Photo.Description`**, **`Photo.Location`**, **`Photo.TakenAt` year** (when the user message contains a 4-digit year such as `2018`), **`photo_user_tags`**, **`photo_ai_tags`**, and **`photo_album_user_tags`** (album tags for photos in an album). Results are still grouped by **memory** (photos not attached to a memory do not appear as standalone hits).
 
 | Method | Path | Description |
 |--------|------|-------------|

@@ -41,13 +41,40 @@ public static class EfTextSearch
     public static IQueryable<Photo> WherePhotoTagMatches(
         IQueryable<Photo> query,
         string likePattern,
+        bool usePostgreSql) =>
+        WherePhotoAgentFieldMatches(query, likePattern, usePostgreSql);
+
+    /// <summary>Photo fields used by AI Agent search (description, location, user/AI tags).</summary>
+    public static IQueryable<Photo> WherePhotoAgentFieldMatches(
+        IQueryable<Photo> query,
+        string likePattern,
         bool usePostgreSql)
     {
         if (usePostgreSql)
         {
-            return query.Where(p => p.AiTags.Any(t => EF.Functions.ILike(t.Tag, likePattern)));
+            return query.Where(p =>
+                EF.Functions.ILike(p.Description ?? string.Empty, likePattern)
+                || EF.Functions.ILike(p.Location ?? string.Empty, likePattern)
+                || p.AiTags.Any(t => EF.Functions.ILike(t.Tag, likePattern))
+                || p.UserTags.Any(t => EF.Functions.ILike(t.Tag, likePattern)));
         }
 
-        return query.Where(p => p.AiTags.Any(t => EF.Functions.Like(t.Tag, likePattern)));
+        return query.Where(p =>
+            (p.Description != null && EF.Functions.Like(p.Description, likePattern))
+            || (p.Location != null && EF.Functions.Like(p.Location, likePattern))
+            || p.AiTags.Any(t => EF.Functions.Like(t.Tag, likePattern))
+            || p.UserTags.Any(t => EF.Functions.Like(t.Tag, likePattern)));
+    }
+
+    public static IQueryable<Photo> WherePhotoTakenAtYearIn(
+        IQueryable<Photo> query,
+        IReadOnlyList<int> years)
+    {
+        if (years.Count == 0)
+        {
+            return query.Where(_ => false);
+        }
+
+        return query.Where(p => p.TakenAt.HasValue && years.Contains(p.TakenAt.Value.Year));
     }
 }

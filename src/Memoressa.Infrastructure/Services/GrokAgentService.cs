@@ -170,9 +170,22 @@ public class GrokAgentService : IGrokAgentService
 
             var photoId = memory.MemoryPhotos.OrderBy(mp => mp.SortOrder).Select(mp => mp.PhotoId).FirstOrDefault();
             var members = string.Join(", ", memory.MemoryMembers.Select(mm => mm.FamilyMember.Name));
+            string? photoTakenAt = null;
+            string? photoLocation = null;
+            if (photoId != Guid.Empty)
+            {
+                var photo = await _db.Photos.AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Id == photoId && p.FamilyId == familyId, cancellationToken);
+                if (photo is not null)
+                {
+                    photoTakenAt = photo.TakenAt?.ToString("yyyy-MM-dd");
+                    photoLocation = photo.Location;
+                }
+            }
+
             lines.Add(
                 $"- memoryId={memory.Id}; photoId={(photoId == Guid.Empty ? "null" : photoId)}; title={memory.Title}; " +
-                $"description={memory.Description}; location={memory.Location}; " +
+                $"description={memory.Description}; location={memory.Location}; photoTakenAt={photoTakenAt}; photoLocation={photoLocation}; " +
                 $"startDate={memory.StartDate:yyyy-MM-dd}; eventType={memory.EventType}; members={members}; " +
                 $"matchReasons={string.Join('|', result.MatchReasons)}; score={result.RelevanceScore:F2}");
         }
