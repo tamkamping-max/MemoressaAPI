@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoressa.Application.Abstractions;
+using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Memoressa.Domain.Entities;
@@ -56,7 +57,12 @@ public class GrokAgentService : IGrokAgentService
 
         var session = await ResolveSessionAsync(userId, familyId, request.SessionId, cancellationToken);
         var history = await LoadRecentMessagesAsync(session.Id, cancellationToken);
-        var searchResults = await _aiOrchestration.SearchMemoriesAsync(familyId, message, cancellationToken);
+        var expandedKeywords = await TryExpandSearchKeywordsWithGrokAsync(message, request.Locale, cancellationToken);
+        var searchResults = await _aiOrchestration.SearchMemoriesAsync(
+            familyId,
+            message,
+            cancellationToken,
+            expandedKeywords);
         var memoryContext = await BuildMemoryContextAsync(familyId, searchResults, cancellationToken);
 
         var llmResult = string.IsNullOrWhiteSpace(_options.GrokApiKey)
@@ -384,6 +390,84 @@ public class GrokAgentService : IGrokAgentService
         return response with { MemoryId = memoryId, PhotoId = photoId };
     }
 
+    private async Task<IReadOnlyList<string>> TryExpandSearchKeywordsWithGrokAsync(
+        string userMessage,
+        string? locale,
+        CancellationToken cancellationToken)
+    {
+        if (!_options.AgentGrokSearchExpansion || string.IsNullOrWhiteSpace(_options.GrokApiKey))
+        {
+            return [];
+        }
+
+        var payload = new
+        {
+            model = _options.ChatModel,
+            messages = new object[]
+            {
+                new
+                {
+                    role = "system",
+                    content =
+                        "You expand user questions into short keywords for substring search on family photo tags and captions. " +
+                        "The app supports multiple UI locales (e.g. zh-TW, zh-CN, en, ja, ko, es, fr, de). " +
+                        "Tags may be stored in any language. Include the user's words plus likely tag spellings and translations " +
+                        $"(max {_options.AgentMaxSearchKeywords} keywords, each ≤128 chars). Return JSON only."
+                },
+                new
+                {
+                    role = "user",
+                    content =
+                        $"User locale: {locale ?? "unknown"}\nUser message: {userMessage}\n" +
+                        "Return: {\"keywords\":[\"...\"]}"
+                }
+            },
+            temperature = 0,
+            max_tokens = 256,
+            response_format = new { type = "json_object" }
+        };
+
+        try
+        {
+            var client = _httpClientFactory.CreateClient("Grok");
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.GrokApiKey);
+
+            using var response = await client.PostAsJsonAsync("chat/completions", payload, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Grok search keyword expansion failed: {Status}", response.StatusCode);
+                return [];
+            }
+
+            var body = await response.Content.ReadFromJsonAsync<GrokChatCompletionResponse>(JsonOptions, cancellationToken);
+            var content = body?.Choices?.FirstOrDefault()?.Message?.Content;
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return [];
+            }
+
+            var parsed = JsonSerializer.Deserialize<SearchKeywordPayload>(content, JsonOptions);
+            if (parsed?.Keywords is null || parsed.Keywords.Count == 0)
+            {
+                return [];
+            }
+
+            return parsed.Keywords
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .Select(k => k.Trim())
+                .Where(k => k.Length <= AgentSearchTermBuilder.MaxKeywordLength)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(_options.AgentMaxSearchKeywords)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Grok search keyword expansion error");
+            return [];
+        }
+    }
+
     private static string BuildSystemPrompt(string? locale)
     {
         var language = IsChineseLocale(locale)
@@ -423,6 +507,11 @@ public class GrokAgentService : IGrokAgentService
             .ToList();
 
         return normalized.Count > 0 ? normalized : ["semantic"];
+    }
+
+    private sealed class SearchKeywordPayload
+    {
+        [JsonPropertyName("keywords")] public List<string>? Keywords { get; set; }
     }
 
     private sealed class LlmAgentPayload

@@ -41,7 +41,11 @@ public interface IS3StorageService
 public interface IAiOrchestrationService
 {
     Task<AiAnalysisResultDto> AnalyzePhotosAsync(Guid userId, Guid familyId, IReadOnlyList<Guid> photoIds, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<SearchResultDto>> SearchMemoriesAsync(Guid familyId, string query, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SearchResultDto>> SearchMemoriesAsync(
+        Guid familyId,
+        string query,
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? additionalSearchTerms = null);
     Task<IReadOnlyList<PlaybackItemDto>> GeneratePlaybackAsync(Guid familyId, PlaybackRequestDto request, CancellationToken cancellationToken = default);
     Task<MemoryDto> CreateAiMemoryAsync(Guid userId, Guid familyId, IReadOnlyList<Guid> photoIds, CancellationToken cancellationToken = default);
     Task ProcessVisionBatchAsync(Guid jobId, CancellationToken cancellationToken = default);

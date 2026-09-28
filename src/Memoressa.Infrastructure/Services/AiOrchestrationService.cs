@@ -107,7 +107,8 @@ public class AiOrchestrationService : IAiOrchestrationService
     public async Task<IReadOnlyList<SearchResultDto>> SearchMemoriesAsync(
         Guid familyId,
         string query,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? additionalSearchTerms = null)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -116,7 +117,7 @@ public class AiOrchestrationService : IAiOrchestrationService
 
         var usePostgreSql = EfTextSearch.IsPostgreSqlProvider(_db);
         var years = AgentSearchQuery.ExtractYears(query);
-        var searchTerms = AgentSearchSynonyms.BuildSearchTerms(query);
+        var searchTerms = AgentSearchTermBuilder.Build(query, additionalSearchTerms);
 
         var photoScope = _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId && !p.IsHidden);
 

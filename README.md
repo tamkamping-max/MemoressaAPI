@@ -292,6 +292,8 @@ LLM calls use xAI **`POST /v1/chat/completions`** (Chat Completions API) by defa
 | `Ai:VisionModel` | Batch photo vision (default **`grok-4.7`**) |
 | `Ai:AgentMaxHistoryMessages` | Multi-turn history sent to the LLM |
 | `Ai:AgentMaxContextMemories` | Max memory candidates in RAG context |
+| `Ai:AgentGrokSearchExpansion` | Expand user message to multilingual search keywords via Grok (default **true**) |
+| `Ai:AgentMaxSearchKeywords` | Max Grok-expanded keywords merged into substring search (default **16**) |
 | `Ai:EnableVisionBatch` | Enable batch vision processing |
 | `Ai:MaxBatchSize` | Max photos per batch |
 
@@ -473,7 +475,7 @@ Migration **`009_activity_albums.sql`**.
 
 Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat Completions with family memory search as RAG context.
 
-**Agent memory search (before each Grok call):** SQL substring match on memories (title, description, location), on photos (**description**, **location**, **TakenAt year**, user/AI tags), and on **`photo_albums`** (**description**, **user tags**, **comments**). When the user message contains a term from a built-in **zh/en synonym group** (e.g. **開心** ↔ **happy**), the API searches **all synonyms in that group** so English tags match Chinese queries. Album hits expand to **one result row per photo** in that album. Each row includes **`photoId`**, optional **`memoryId`**, optional **`photoAlbumId`**, and **`title`** (photo description → album description → memory title).
+**Agent memory search (before each Grok call):** SQL substring match on memories, photos, and photo albums (see prior docs). **Multilingual tags:** when **`Ai:GrokApiKey`** is set and **`Ai:AgentGrokSearchExpansion`** is true (default), the Agent first calls Grok to expand the user message into up to **`AgentMaxSearchKeywords`** keywords across UI locales (zh-TW, zh-CN, en, ja, ko, es, fr, de, etc.) so a query like **開心** can match an English tag **happy**. Without Grok, a small static **zh/en synonym list** applies (`AgentSearchSynonyms`). This is not vector semantic search — extend synonyms or rely on Grok expansion for other language pairs.
 
 | Method | Path | Description |
 |--------|------|-------------|
