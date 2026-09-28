@@ -47,8 +47,14 @@ public interface IAiOrchestrationService
         CancellationToken cancellationToken = default,
         IReadOnlyList<string>? additionalSearchTerms = null);
     Task<int> CountVisiblePhotosAsync(Guid familyId, CancellationToken cancellationToken = default);
+    Task<int> CountVisiblePhotosSinceAsync(Guid familyId, DateTime sinceUtc, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SearchResultDto>> ListVisiblePhotosForAgentAsync(
         Guid familyId,
+        int limit,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SearchResultDto>> ListVisiblePhotosSinceAsync(
+        Guid familyId,
+        DateTime sinceUtc,
         int limit,
         CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PlaybackItemDto>> GeneratePlaybackAsync(Guid familyId, PlaybackRequestDto request, CancellationToken cancellationToken = default);

@@ -26,6 +26,7 @@ public class GrokAgentService : IGrokAgentService
     private readonly ILogger<GrokAgentService> _logger;
     private readonly IAiOrchestrationService _aiOrchestration;
     private readonly IPhotoUrlResolver _photoUrls;
+    private readonly IUploadService _uploads;
 
     public GrokAgentService(
         IMemoressaDbContext db,
@@ -33,7 +34,8 @@ public class GrokAgentService : IGrokAgentService
         IHttpClientFactory httpClientFactory,
         ILogger<GrokAgentService> logger,
         IAiOrchestrationService aiOrchestration,
-        IPhotoUrlResolver photoUrls)
+        IPhotoUrlResolver photoUrls,
+        IUploadService uploads)
     {
         _db = db;
         _options = options.Value;
@@ -41,6 +43,7 @@ public class GrokAgentService : IGrokAgentService
         _logger = logger;
         _aiOrchestration = aiOrchestration;
         _photoUrls = photoUrls;
+        _uploads = uploads;
     }
 
     public async Task<AiAgentChatResponseDto> ChatAsync(
@@ -57,60 +60,41 @@ public class GrokAgentService : IGrokAgentService
 
         var session = await ResolveSessionAsync(userId, familyId, request.SessionId, cancellationToken);
         var history = await LoadRecentMessagesAsync(session.Id, cancellationToken);
-        var libraryIntent = AgentLibraryQuery.DetectIntent(message);
-        var expandedKeywords = await TryExpandSearchKeywordsWithGrokAsync(message, request.Locale, cancellationToken);
+        var intent = AgentIntentDetector.Detect(message);
+        var isStructuredIntent = intent.Kind != AgentIntentKind.None;
+        var expandedKeywords = isStructuredIntent
+            ? Array.Empty<string>()
+            : await TryExpandSearchKeywordsWithGrokAsync(message, request.Locale, cancellationToken);
 
         IReadOnlyList<SearchResultDto> searchResults;
         string memoryContext;
+
+        (searchResults, memoryContext) = await BuildIntentContextAsync(
+            familyId,
+            intent,
+            message,
+            expandedKeywords,
+            cancellationToken);
+
         var hasGrokKey = !string.IsNullOrWhiteSpace(_options.GrokApiKey);
-
-        if (libraryIntent == AgentLibraryIntent.CountPhotos)
-        {
-            var count = await _aiOrchestration.CountVisiblePhotosAsync(familyId, cancellationToken);
-            searchResults = [];
-            memoryContext =
-                $"Library stats: visible_photo_count={count}. The user asked how many photos they have — answer with this exact count.";
-        }
-        else if (libraryIntent == AgentLibraryIntent.ListPhotos)
-        {
-            var total = await _aiOrchestration.CountVisiblePhotosAsync(familyId, cancellationToken);
-            searchResults = await _aiOrchestration.ListVisiblePhotosForAgentAsync(
-                familyId,
-                _options.AgentMaxRelatedPhotosInChat,
-                cancellationToken);
-            var browseContext = await BuildMemoryContextAsync(familyId, searchResults, cancellationToken);
-            memoryContext =
-                $"Library stats: visible_photo_count={total}; showing_most_recent={searchResults.Count}. " +
-                "The user asked to see (all) photos — explain that chat shows the most recent thumbnails and they can open Timeline for the full library.\n" +
-                browseContext;
-        }
-        else
-        {
-            searchResults = await _aiOrchestration.SearchMemoriesAsync(
-                familyId,
-                message,
-                cancellationToken,
-                expandedKeywords);
-            memoryContext = await BuildMemoryContextAsync(familyId, searchResults, cancellationToken);
-        }
-
         var useGrok = hasGrokKey
-            && (libraryIntent != AgentLibraryIntent.None
+            && (isStructuredIntent
                 || !(_options.AgentSkipGrokForSimpleSearch && AgentSearchQuery.IsSimpleSearchPhrase(message)));
 
         AiAgentChatResponseDto llmResult;
-        if (!useGrok && libraryIntent == AgentLibraryIntent.CountPhotos)
+        if (!useGrok)
         {
-            var count = await _aiOrchestration.CountVisiblePhotosAsync(familyId, cancellationToken);
-            llmResult = BuildPhotoCountResponse(count, request.Locale);
-        }
-        else if (useGrok)
-        {
-            llmResult = await CallGrokAsync(message, request.Locale, history, memoryContext, cancellationToken);
+            llmResult = await TryBuildStructuredFallbackAsync(
+                familyId,
+                intent,
+                request.Locale,
+                searchResults,
+                cancellationToken)
+                ?? BuildFallbackResponse(message, request.Locale, searchResults);
         }
         else
         {
-            llmResult = BuildFallbackResponse(message, request.Locale, searchResults);
+            llmResult = await CallGrokAsync(message, request.Locale, history, memoryContext, cancellationToken);
         }
 
         llmResult = await ValidateAndEnrichAsync(familyId, llmResult, searchResults, cancellationToken);
@@ -141,6 +125,145 @@ public class GrokAgentService : IGrokAgentService
         await _db.SaveChangesAsync(cancellationToken);
 
         return llmResult with { SessionId = session.Id, RelatedMemories = relatedForChat };
+    }
+
+    private async Task<(IReadOnlyList<SearchResultDto> Results, string Context)> BuildIntentContextAsync(
+        Guid familyId,
+        AgentIntent intent,
+        string message,
+        IReadOnlyList<string> expandedKeywords,
+        CancellationToken cancellationToken)
+    {
+        switch (intent.Kind)
+        {
+            case AgentIntentKind.CountPhotos:
+            {
+                var count = await _aiOrchestration.CountVisiblePhotosAsync(familyId, cancellationToken);
+                return ([], $"Library stats: visible_photo_count={count}. User asked total photo count — use this number exactly.");
+            }
+            case AgentIntentKind.ListPhotos:
+            {
+                var total = await _aiOrchestration.CountVisiblePhotosAsync(familyId, cancellationToken);
+                var results = await _aiOrchestration.ListVisiblePhotosForAgentAsync(
+                    familyId,
+                    _options.AgentMaxRelatedPhotosInChat,
+                    cancellationToken);
+                var browseContext = await BuildMemoryContextAsync(familyId, results, cancellationToken);
+                return (results,
+                    $"Library stats: visible_photo_count={total}; showing_most_recent={results.Count}. " +
+                    "User asked to browse photos — chat shows recent thumbnails; Timeline has the full library.\n" +
+                    browseContext);
+            }
+            case AgentIntentKind.CountRecentPhotos:
+            {
+                var since = DateTime.UtcNow.AddDays(-intent.RecentDays);
+                var count = await _aiOrchestration.CountVisiblePhotosSinceAsync(familyId, since, cancellationToken);
+                return ([], $"Library stats: recent_day_window={intent.RecentDays}; visible_photo_count_in_window={count}. Use these facts exactly.");
+            }
+            case AgentIntentKind.ListRecentPhotos:
+            {
+                var since = DateTime.UtcNow.AddDays(-intent.RecentDays);
+                var total = await _aiOrchestration.CountVisiblePhotosSinceAsync(familyId, since, cancellationToken);
+                var results = await _aiOrchestration.ListVisiblePhotosSinceAsync(
+                    familyId,
+                    since,
+                    _options.AgentMaxRelatedPhotosInChat,
+                    cancellationToken);
+                var browseContext = await BuildMemoryContextAsync(familyId, results, cancellationToken);
+                return (results,
+                    $"Library stats: recent_day_window={intent.RecentDays}; visible_photo_count_in_window={total}; showing_in_chat={results.Count}.\n" +
+                    browseContext);
+            }
+            case AgentIntentKind.StorageUsage:
+            {
+                var storage = await _uploads.GetStorageUsageAsync(cancellationToken);
+                if (!storage.Success || storage.Data is null)
+                {
+                    return ([], "Storage stats: unavailable (could not load quota).");
+                }
+
+                var used = storage.Data.UsedBytes;
+                var limit = storage.Data.LimitBytes;
+                var pct = limit > 0 ? Math.Round(100.0 * used / limit, 1) : 0;
+                return ([], $"Storage stats: used_bytes={used}; limit_bytes={limit}; used_percent={pct}. Explain clearly in user's language.");
+            }
+            case AgentIntentKind.UploadStatus:
+            {
+                var uploads = await _uploads.GetIncompleteUploadsAsync(cancellationToken);
+                if (!uploads.Success || uploads.Data is null)
+                {
+                    return ([], "Upload stats: unavailable (could not load sessions).");
+                }
+
+                var list = uploads.Data;
+                var names = string.Join(", ", list.Take(5).Select(u => u.FileName));
+                return ([], $"Upload stats: incomplete_count={list.Count}; sample_file_names={names}. Mention Upload queue in app if helpful.");
+            }
+            case AgentIntentKind.Help:
+                return ([], "User asked what the agent can do. Capabilities: search photos by tag/person/place/date; count or browse library; recent N days; storage quota; incomplete uploads; multi-turn chat.");
+            default:
+            {
+                var results = await _aiOrchestration.SearchMemoriesAsync(
+                    familyId,
+                    message,
+                    cancellationToken,
+                    expandedKeywords);
+                var ctx = await BuildMemoryContextAsync(familyId, results, cancellationToken);
+                return (results, ctx);
+            }
+        }
+    }
+
+    private async Task<AiAgentChatResponseDto?> TryBuildStructuredFallbackAsync(
+        Guid familyId,
+        AgentIntent intent,
+        string? locale,
+        IReadOnlyList<SearchResultDto> searchResults,
+        CancellationToken cancellationToken)
+    {
+        switch (intent.Kind)
+        {
+            case AgentIntentKind.None:
+                return null;
+            case AgentIntentKind.CountPhotos:
+            {
+                var count = await _aiOrchestration.CountVisiblePhotosAsync(familyId, cancellationToken);
+                return BuildPhotoCountResponse(count, locale);
+            }
+            case AgentIntentKind.CountRecentPhotos:
+            {
+                var since = DateTime.UtcNow.AddDays(-intent.RecentDays);
+                var count = await _aiOrchestration.CountVisiblePhotosSinceAsync(familyId, since, cancellationToken);
+                return BuildRecentPhotoCountResponse(count, intent.RecentDays, locale);
+            }
+            case AgentIntentKind.ListPhotos:
+            case AgentIntentKind.ListRecentPhotos:
+                return BuildBrowseFallbackResponse(intent, locale, searchResults);
+            case AgentIntentKind.StorageUsage:
+            {
+                var storage = await _uploads.GetStorageUsageAsync(cancellationToken);
+                if (!storage.Success || storage.Data is null)
+                {
+                    return BuildUnavailableStatsResponse(locale, isStorage: true);
+                }
+
+                return BuildStorageUsageResponse(storage.Data, locale);
+            }
+            case AgentIntentKind.UploadStatus:
+            {
+                var uploads = await _uploads.GetIncompleteUploadsAsync(cancellationToken);
+                if (!uploads.Success || uploads.Data is null)
+                {
+                    return BuildUnavailableStatsResponse(locale, isStorage: false);
+                }
+
+                return BuildUploadStatusResponse(uploads.Data, locale);
+            }
+            case AgentIntentKind.Help:
+                return BuildHelpResponse(locale);
+            default:
+                return null;
+        }
     }
 
     private async Task<AiChatSession> ResolveSessionAsync(
@@ -355,6 +478,143 @@ public class GrokAgentService : IGrokAgentService
         };
     }
 
+    private static AiAgentChatResponseDto BuildRecentPhotoCountResponse(int count, int days, string? locale)
+    {
+        var reply = IsChineseLocale(locale)
+            ? $"最近 {days} 天里，家庭相册新增了 {count} 张未隐藏的照片（按拍摄或上传时间）。想直接看缩图可以说「最近{days}天的照片」。"
+            : $"In the last {days} days, your family library has {count} visible photos (by taken or upload date). Ask to \"show photos from the last {days} days\" to see thumbnails here.";
+
+        return new AiAgentChatResponseDto
+        {
+            Reply = reply,
+            MatchReasonKeys = ["semantic"]
+        };
+    }
+
+    private static AiAgentChatResponseDto BuildBrowseFallbackResponse(
+        AgentIntent intent,
+        string? locale,
+        IReadOnlyList<SearchResultDto> searchResults)
+    {
+        var days = intent.RecentDays;
+        var showing = searchResults.Count;
+        if (showing == 0)
+        {
+            var empty = IsChineseLocale(locale)
+                ? intent.Kind == AgentIntentKind.ListRecentPhotos
+                    ? $"最近 {days} 天里没有找到未隐藏的照片。可以试试拉长时间，或用 tag、地点来搜。"
+                    : "相册里还没有可显示的照片，或都被隐藏了。上传后我可以帮你找或整理。"
+                : intent.Kind == AgentIntentKind.ListRecentPhotos
+                    ? $"No visible photos in the last {days} days. Try a longer window or search by tag or place."
+                    : "There are no visible photos to show yet. Upload some and I can help you find them.";
+
+            return new AiAgentChatResponseDto { Reply = empty, MatchReasonKeys = ["semantic"] };
+        }
+
+        var top = searchResults[0];
+        var reply = IsChineseLocale(locale)
+            ? intent.Kind == AgentIntentKind.ListRecentPhotos
+                ? $"最近 {days} 天里有 {showing} 张缩图在下方（聊天最多显示这么多张）。点图查看详情，或到时间轴看完整列表。"
+                : $"下面是最新的 {showing} 张缩图（聊天里一次看不全库）。需要全部请打开时间轴，或告诉我更具体的条件。"
+            : intent.Kind == AgentIntentKind.ListRecentPhotos
+                ? $"Here are {showing} thumbnails from the last {days} days (chat shows up to this many). Tap to open, or use Timeline for the full set."
+                : $"Here are the {showing} most recent thumbnails (not the entire library). Open Timeline for everything, or narrow your question.";
+
+        return new AiAgentChatResponseDto
+        {
+            Reply = reply,
+            MemoryId = top.MemoryId,
+            PhotoId = top.PhotoId,
+            MatchReasonKeys = ["semantic"]
+        };
+    }
+
+    private static AiAgentChatResponseDto BuildStorageUsageResponse(StorageUsageDto usage, string? locale)
+    {
+        var used = FormatBytes(usage.UsedBytes, locale);
+        var limit = FormatBytes(usage.LimitBytes, locale);
+        var pct = usage.LimitBytes > 0
+            ? Math.Round(100.0 * usage.UsedBytes / usage.LimitBytes, 1)
+            : 0;
+
+        var reply = IsChineseLocale(locale)
+            ? $"云端存储已用 {used} / {limit}（约 {pct}%）。若要腾空间，可以删除不需要的照片，或先处理未完成的上传。"
+            : $"Cloud storage: {used} of {limit} used (~{pct}%). Delete photos you no longer need, or finish pending uploads to free quota.";
+
+        return new AiAgentChatResponseDto { Reply = reply, MatchReasonKeys = ["semantic"] };
+    }
+
+    private static AiAgentChatResponseDto BuildUploadStatusResponse(
+        IReadOnlyList<IncompleteUploadSessionDto> sessions,
+        string? locale)
+    {
+        if (sessions.Count == 0)
+        {
+            var none = IsChineseLocale(locale)
+                ? "目前没有未完成的上传，一切都已经同步好了。"
+                : "You have no incomplete uploads — everything looks synced.";
+            return new AiAgentChatResponseDto { Reply = none, MatchReasonKeys = ["semantic"] };
+        }
+
+        var sample = string.Join(
+            IsChineseLocale(locale) ? "、" : ", ",
+            sessions.Take(3).Select(s => s.FileName));
+
+        var reply = IsChineseLocale(locale)
+            ? $"你有 {sessions.Count} 个上传还没完成（例如：{sample}）。请到 App 的上传队列继续传完，否则会占用存储配额。"
+            : $"You have {sessions.Count} upload(s) still in progress (e.g. {sample}). Open the upload queue in the app to finish them so quota is released.";
+
+        return new AiAgentChatResponseDto { Reply = reply, MatchReasonKeys = ["semantic"] };
+    }
+
+    private static AiAgentChatResponseDto BuildHelpResponse(string? locale)
+    {
+        var reply = IsChineseLocale(locale)
+            ? "我是 Memoressa 家庭回忆助手。你可以：用 tag、人名、地点或「今年9月」搜照片；问「有多少张」或「最近7天有几张」；说「显示最近照片」看缩图；问「存储空间」或「上传进度」。我会记住这段对话，越问越准。"
+            : "I'm Memoressa, your family memory assistant. Search by tag, name, place, or month; ask photo counts or \"last 7 days\"; browse recent thumbnails; check storage or upload progress. I keep chat context so follow-ups work naturally.";
+
+        return new AiAgentChatResponseDto { Reply = reply, MatchReasonKeys = ["semantic"] };
+    }
+
+    private static AiAgentChatResponseDto BuildUnavailableStatsResponse(string? locale, bool isStorage)
+    {
+        var reply = IsChineseLocale(locale)
+            ? isStorage
+                ? "暂时读不到存储用量，请稍后再试，或在 App 设置里查看云端空间。"
+                : "暂时读不到上传进度，请稍后再试，或在 App 的上传队列查看。"
+            : isStorage
+                ? "I couldn't load storage usage right now. Try again later or check cloud storage in Settings."
+                : "I couldn't load upload progress right now. Try again later or check the upload queue in the app.";
+
+        return new AiAgentChatResponseDto { Reply = reply, MatchReasonKeys = ["semantic"] };
+    }
+
+    private static string FormatBytes(long bytes, string? locale)
+    {
+        const double kb = 1024;
+        const double mb = kb * 1024;
+        const double gb = mb * 1024;
+
+        if (bytes >= gb)
+        {
+            return IsChineseLocale(locale)
+                ? $"{bytes / gb:0.##} GB"
+                : $"{bytes / gb:0.##} GB";
+        }
+
+        if (bytes >= mb)
+        {
+            return $"{bytes / mb:0.#} MB";
+        }
+
+        if (bytes >= kb)
+        {
+            return $"{bytes / kb:0.#} KB";
+        }
+
+        return $"{bytes} B";
+    }
+
     private static AiAgentChatResponseDto BuildFallbackResponse(
         string userMessage,
         string? locale,
@@ -555,7 +815,7 @@ public class GrokAgentService : IGrokAgentService
             You are Memoressa, a warm family memory curator inside a photo app — conversational, helpful, and concise.
             The user is chatting with you; treat each turn as part of an ongoing dialogue (use recent history).
             Use the search candidate list when it helps; never invent photos, people, dates, or events not supported by candidates.
-            When the context includes Library stats (visible_photo_count, showing_most_recent), use those numbers exactly for count or browse questions.
+            When the context includes Library stats (visible_photo_count, recent_day_window, showing_most_recent) or Storage/Upload stats (used_bytes, limit_bytes, incomplete_count), use those numbers exactly.
             If candidates are empty, say so kindly and suggest how to rephrase (tags, month, year, place, person).
             If candidates exist, briefly explain what you found and invite follow-up; pick memoryId/photoId from candidates when highlighting one photo.
             Write reply as 2–5 natural sentences (not bullet lists). JSON only:

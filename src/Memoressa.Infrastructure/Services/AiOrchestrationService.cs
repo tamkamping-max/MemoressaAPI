@@ -324,6 +324,19 @@ public class AiOrchestrationService : IAiOrchestrationService
             .CountAsync(p => p.FamilyId == familyId && !p.IsHidden, cancellationToken);
     }
 
+    public async Task<int> CountVisiblePhotosSinceAsync(
+        Guid familyId,
+        DateTime sinceUtc,
+        CancellationToken cancellationToken = default)
+    {
+        return await _db.Photos.AsNoTracking()
+            .CountAsync(
+                p => p.FamilyId == familyId
+                     && !p.IsHidden
+                     && (p.TakenAt ?? p.CreatedAt) >= sinceUtc,
+                cancellationToken);
+    }
+
     public async Task<IReadOnlyList<SearchResultDto>> ListVisiblePhotosForAgentAsync(
         Guid familyId,
         int limit,
@@ -355,6 +368,47 @@ public class AiOrchestrationService : IAiOrchestrationService
                 Title = ResolveSearchResultTitle(photo, null, null),
                 ThumbnailPath = thumb,
                 MatchReasons = ["Library browse"],
+                RelevanceScore = 1.0
+            });
+        }
+
+        return results;
+    }
+
+    public async Task<IReadOnlyList<SearchResultDto>> ListVisiblePhotosSinceAsync(
+        Guid familyId,
+        DateTime sinceUtc,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var take = Math.Clamp(limit, 1, 50);
+        var photos = await _db.Photos.AsNoTracking()
+            .Where(p => p.FamilyId == familyId
+                        && !p.IsHidden
+                        && (p.TakenAt ?? p.CreatedAt) >= sinceUtc)
+            .OrderByDescending(p => p.TakenAt ?? p.CreatedAt)
+            .Include(p => p.MemoryPhotos)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        var results = new List<SearchResultDto>();
+        foreach (var photo in photos)
+        {
+            var thumb = await _photoUrls.GetPresignedUrlAsync(photo, thumbnail: true, cancellationToken: cancellationToken)
+                ?? photo.LocalAssetPath;
+
+            var memoryId = photo.MemoryPhotos
+                .OrderBy(mp => mp.SortOrder)
+                .Select(mp => mp.MemoryId)
+                .FirstOrDefault();
+
+            results.Add(new SearchResultDto
+            {
+                PhotoId = photo.Id,
+                MemoryId = memoryId == Guid.Empty ? null : memoryId,
+                Title = ResolveSearchResultTitle(photo, null, null),
+                ThumbnailPath = thumb,
+                MatchReasons = ["Recent library"],
                 RelevanceScore = 1.0
             });
         }

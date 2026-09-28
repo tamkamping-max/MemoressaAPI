@@ -480,7 +480,21 @@ Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat 
 
 **MemoressaApp:** On opening the AI screen, call **`GET /session`** to restore the latest transcript and pass **`sessionId`** on subsequent **`POST /chat`** calls. When **`sessionId`** is omitted on chat, the API reuses the latest session for that user/family (no new empty session per visit). Do not show preset example chips; history replaces an empty-state welcome when messages exist.
 
-**Agent memory search (before each Grok call):** substring SQL on memories, photos, and photo albums (typically **2** DB term passes: user word + one cross-locale synonym). **Short tag-only queries** (e.g. `happy`, `開心` — no date/「照片」 wording) with **`AgentSkipGrokForSimpleSearch: true`** (default) return templated replies with **no** xAI call. Queries like **「今天9月份照片」** or anything mentioning photos/dates/months use **Grok**. Longer or question-style messages also use **one** **`chat/completions`** call. Set **`Ai:AgentGrokSearchExpansion`** to **true** for an extra Grok keyword-expansion call.
+**Agent memory search (before each Grok call):** substring SQL on memories, photos, and photo albums (typically **2** DB term passes: user word + one cross-locale synonym). **Structured intents** (no substring search) are detected locally and answered from DB facts + optional Grok wording:
+
+| Intent | Example user phrases |
+|--------|----------------------|
+| Photo count | 「有多少张」「how many photos」 |
+| Browse library | 「显示所有照片」「show all my photos」 |
+| Recent window count | 「最近7天有多少张」「最近一周有几张」 |
+| Recent window browse | 「最近7天的照片」「最近一周的照片」 |
+| Storage | 「存储空间」「容量」「quota」 |
+| Upload queue | 「上传进度」「未完成上传」 |
+| Help | 「你能做什么」「help」 |
+
+**Short tag-only queries** (e.g. `happy`, `開心` — no date/「照片」 wording) with **`AgentSkipGrokForSimpleSearch: true`** (default) return templated replies with **no** xAI call. Calendar/month queries (e.g. **「今年9月的照片」**) use memory search + **Grok** when a key is configured. Set **`Ai:AgentGrokSearchExpansion`** to **true** for an extra Grok keyword-expansion call (skipped for structured intents).
+
+**Possible future intents (not implemented yet):** per–family-member photo counts, hidden-photo stats, 「今日回忆」/on-this-day, album-only browse, deep links to Timeline or upload queue from reply actions.
 
 | Method | Path | Description |
 |--------|------|-------------|
