@@ -157,6 +157,7 @@ public class Photo : Entity, IFamilyScoped
     public UserAccount UploadedBy { get; set; } = null!;
     public SharedAlbum? SharedAlbum { get; set; }
     public ICollection<PhotoMember> PhotoMembers { get; set; } = [];
+    public ICollection<PhotoFriend> PhotoFriends { get; set; } = [];
     public ICollection<PhotoAiTag> AiTags { get; set; } = [];
     public ICollection<PhotoUserTag> UserTags { get; set; } = [];
     public ICollection<PhotoComment> Comments { get; set; } = [];
@@ -170,6 +171,16 @@ public class PhotoMember : Entity
     public Guid FamilyMemberId { get; set; }
     public Photo Photo { get; set; } = null!;
     public FamilyMember FamilyMember { get; set; } = null!;
+}
+
+public class PhotoFriend : Entity
+{
+    public Guid PhotoId { get; set; }
+    public Guid? FriendId { get; set; }
+    /// <summary>App friend id or display name as sent on PUT.</summary>
+    public string FriendReference { get; set; } = string.Empty;
+    public Photo Photo { get; set; } = null!;
+    public Friend? Friend { get; set; }
 }
 
 public class PhotoAiTag : Entity

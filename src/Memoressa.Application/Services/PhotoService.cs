@@ -126,6 +126,7 @@ public class PhotoService : IPhotoService
 
         var photo = await _db.Photos
             .Include(p => p.PhotoMembers)
+            .Include(p => p.PhotoFriends)
             .Include(p => p.AiTags)
             .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == ctx.Value.FamilyId, cancellationToken);
 
@@ -195,6 +196,26 @@ public class PhotoService : IPhotoService
                 }
 
                 await ReplacePhotoMembersAsync(photo, distinctMemberIds, cancellationToken);
+            }
+
+            if (request.FriendIds is not null)
+            {
+                var distinctFriendRefs = request.FriendIds
+                    .Select(f => f.Trim())
+                    .Where(f => !string.IsNullOrWhiteSpace(f))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
+                if (distinctFriendRefs.Count > 0 && !request.PrivacyScope.HasValue)
+                {
+                    photo.PrivacyScope = UploadPrivacyScope.Custom;
+                }
+
+                await ReplacePhotoFriendsAsync(
+                    photo,
+                    distinctFriendRefs,
+                    ctx.Value.UserId,
+                    cancellationToken);
             }
 
             var userTagReplace = PhotoUserTagRules.ResolveReplacePayload(request.UserTags, request.AiTags);
@@ -820,6 +841,7 @@ public class PhotoService : IPhotoService
                 _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId),
                 viewerUserId)
             .Include(p => p.PhotoMembers)
+            .Include(p => p.PhotoFriends)
             .Include(p => p.AiTags)
             .Include(p => p.UploadedBy)
             .Include(p => p.UserTags);
@@ -976,6 +998,80 @@ public class PhotoService : IPhotoService
         }
 
         foreach (var entry in context.ChangeTracker.Entries<PhotoMember>()
+                     .Where(e => e.Entity.PhotoId == photoId)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    private async Task ReplacePhotoFriendsAsync(
+        Photo photo,
+        IReadOnlyList<string> friendReferences,
+        Guid ownerUserId,
+        CancellationToken cancellationToken)
+    {
+        DetachPhotoFriendEntries(photo.Id);
+
+        if (_db.Database.IsRelational())
+        {
+            await _db.PhotoFriends
+                .Where(pf => pf.PhotoId == photo.Id)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+        else
+        {
+            var existing = await _db.PhotoFriends
+                .Where(pf => pf.PhotoId == photo.Id)
+                .ToListAsync(cancellationToken);
+
+            if (existing.Count > 0)
+            {
+                _db.PhotoFriends.RemoveRange(existing);
+            }
+        }
+
+        photo.PhotoFriends.Clear();
+
+        if (friendReferences.Count == 0)
+        {
+            return;
+        }
+
+        var ownerFriends = await _db.Friends.AsNoTracking()
+            .Where(f => f.OwnerUserId == ownerUserId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var friendRef in friendReferences)
+        {
+            Guid? friendId = null;
+            if (Guid.TryParse(friendRef, out var parsed))
+            {
+                friendId = ownerFriends.FirstOrDefault(f => f.Id == parsed)?.Id;
+            }
+            else
+            {
+                friendId = ownerFriends.FirstOrDefault(
+                    f => f.Id.ToString() == friendRef || f.Name == friendRef)?.Id;
+            }
+
+            _db.PhotoFriends.Add(new PhotoFriend
+            {
+                PhotoId = photo.Id,
+                FriendId = friendId,
+                FriendReference = friendRef
+            });
+        }
+    }
+
+    private void DetachPhotoFriendEntries(Guid photoId)
+    {
+        if (_db is not DbContext context)
+        {
+            return;
+        }
+
+        foreach (var entry in context.ChangeTracker.Entries<PhotoFriend>()
                      .Where(e => e.Entity.PhotoId == photoId)
                      .ToList())
         {

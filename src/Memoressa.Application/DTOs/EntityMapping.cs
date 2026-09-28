@@ -31,6 +31,7 @@ public static class EntityMapping
         Location = photo.Location,
         Description = photo.Description,
         MemberIds = photo.PhotoMembers.Select(pm => pm.FamilyMemberId).ToList(),
+        FriendIds = photo.PhotoFriends.Select(pf => pf.FriendReference).ToList(),
         UserTags = photo.UserTags.OrderBy(t => t.Tag).Select(t => t.Tag).ToList(),
         AiTags = photo.AiTags.OrderBy(t => t.Tag).Select(t => t.Tag).ToList(),
         EventId = photo.EventId,

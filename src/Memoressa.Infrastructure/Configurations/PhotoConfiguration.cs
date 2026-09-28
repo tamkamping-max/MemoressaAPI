@@ -16,6 +16,7 @@ public class PhotoConfiguration : IEntityTypeConfiguration<Photo>
         builder.HasOne(x => x.UploadedBy).WithMany().HasForeignKey(x => x.UploadedByUserId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.SharedAlbum).WithMany(x => x.Photos).HasForeignKey(x => x.SharedAlbumId).OnDelete(DeleteBehavior.SetNull);
         builder.HasMany(x => x.PhotoMembers).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(x => x.PhotoFriends).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(x => x.AiTags).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(x => x.UserTags).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(x => x.Comments).WithOne(x => x.Photo).HasForeignKey(x => x.PhotoId).OnDelete(DeleteBehavior.Cascade);
@@ -30,6 +31,18 @@ public class PhotoMemberConfiguration : IEntityTypeConfiguration<PhotoMember>
         builder.ToTable("photo_members");
         builder.HasKey(x => x.Id);
         builder.HasIndex(x => new { x.PhotoId, x.FamilyMemberId }).IsUnique();
+    }
+}
+
+public class PhotoFriendConfiguration : IEntityTypeConfiguration<PhotoFriend>
+{
+    public void Configure(EntityTypeBuilder<PhotoFriend> builder)
+    {
+        builder.ToTable("photo_friends");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.FriendReference).HasMaxLength(128).IsRequired();
+        builder.HasIndex(x => new { x.PhotoId, x.FriendReference }).IsUnique();
+        builder.HasOne(x => x.Friend).WithMany().HasForeignKey(x => x.FriendId).OnDelete(DeleteBehavior.SetNull);
     }
 }
 

@@ -420,6 +420,18 @@ CREATE TABLE photo_members (
     CONSTRAINT `FK_photo_members_photos_PhotoId` FOREIGN KEY (`PhotoId`) REFERENCES photos (`Id`) ON DELETE CASCADE
 );
 
+CREATE TABLE photo_friends (
+    `Id` char(36) NOT NULL,
+    `PhotoId` char(36) NOT NULL,
+    `FriendId` char(36) NULL,
+    `FriendReference` varchar(128) NOT NULL,
+    `CreatedAt` datetime(6) NOT NULL,
+    `UpdatedAt` datetime(6) NOT NULL,
+    CONSTRAINT `PK_photo_friends` PRIMARY KEY (`Id`),
+    CONSTRAINT `FK_photo_friends_friends_FriendId` FOREIGN KEY (`FriendId`) REFERENCES friends (`Id`) ON DELETE SET NULL,
+    CONSTRAINT `FK_photo_friends_photos_PhotoId` FOREIGN KEY (`PhotoId`) REFERENCES photos (`Id`) ON DELETE CASCADE
+);
+
 CREATE TABLE frame_comments (
     `Id` char(36) NOT NULL,
     `PackageId` char(36) NOT NULL,
@@ -507,6 +519,10 @@ CREATE INDEX `IX_photo_ai_tags_Tag` ON photo_ai_tags (`Tag`);
 CREATE INDEX `IX_photo_members_FamilyMemberId` ON photo_members (`FamilyMemberId`);
 
 CREATE UNIQUE INDEX `IX_photo_members_PhotoId_FamilyMemberId` ON photo_members (`PhotoId`, `FamilyMemberId`);
+
+CREATE INDEX `IX_photo_friends_FriendId` ON photo_friends (`FriendId`);
+
+CREATE UNIQUE INDEX `IX_photo_friends_PhotoId_FriendReference` ON photo_friends (`PhotoId`, `FriendReference`);
 
 CREATE INDEX `IX_photos_FamilyId` ON photos (`FamilyId`);
 
