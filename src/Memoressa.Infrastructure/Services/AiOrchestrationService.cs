@@ -117,43 +117,31 @@ public class AiOrchestrationService : IAiOrchestrationService
 
         var usePostgreSql = EfTextSearch.IsPostgreSqlProvider(_db);
         var years = AgentSearchQuery.ExtractYears(query);
-        var searchTerms = AgentSearchTermBuilder.Build(query, additionalSearchTerms);
+        var searchTerms = AgentSearchTermBuilder.Limit(
+            AgentSearchTermBuilder.Build(query, additionalSearchTerms),
+            _options.AgentMaxSearchTermsForDb);
+        var likePatterns = searchTerms.Select(EfTextSearch.ToLikePattern).ToList();
 
         var photoScope = _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId && !p.IsHidden);
 
-        var memoryTextMatches = new Dictionary<Guid, Memory>();
-        foreach (var term in searchTerms)
-        {
-            var pattern = EfTextSearch.ToLikePattern(term);
-            var batch = await EfTextSearch
-                .WhereMemoryTextMatches(_db.Memories.AsNoTracking().Where(m => m.FamilyId == familyId), pattern, usePostgreSql)
+        var memoryTextMatches = (await EfTextSearch
+                .WhereMemoryTextMatchesAny(
+                    _db.Memories.AsNoTracking().Where(m => m.FamilyId == familyId),
+                    likePatterns,
+                    usePostgreSql)
                 .Include(m => m.MemoryPhotos)
-                .ToListAsync(cancellationToken);
-
-            foreach (var memory in batch)
-            {
-                memoryTextMatches[memory.Id] = memory;
-            }
-        }
+                .ToListAsync(cancellationToken))
+            .ToDictionary(m => m.Id);
 
         var memoryTextMatchIds = memoryTextMatches.Keys.ToHashSet();
 
-        var fieldMatchedPhotos = new Dictionary<Guid, Photo>();
-        foreach (var term in searchTerms)
-        {
-            var pattern = EfTextSearch.ToLikePattern(term);
-            var batch = await EfTextSearch
-                .WherePhotoAgentFieldMatches(photoScope, pattern, usePostgreSql)
+        var fieldMatchedPhotos = (await EfTextSearch
+                .WherePhotoAgentFieldMatchesAny(photoScope, likePatterns, usePostgreSql)
                 .Include(p => p.MemoryPhotos)
                 .Include(p => p.AiTags)
                 .Include(p => p.UserTags)
-                .ToListAsync(cancellationToken);
-
-            foreach (var photo in batch)
-            {
-                fieldMatchedPhotos[photo.Id] = photo;
-            }
-        }
+                .ToListAsync(cancellationToken))
+            .ToDictionary(p => p.Id);
 
         var dateMatchedPhotos = years.Count == 0
             ? []
@@ -164,25 +152,16 @@ public class AiOrchestrationService : IAiOrchestrationService
                 .Include(p => p.UserTags)
                 .ToListAsync(cancellationToken);
 
-        var albumTextMatches = new Dictionary<Guid, PhotoAlbum>();
-        foreach (var term in searchTerms)
-        {
-            var pattern = EfTextSearch.ToLikePattern(term);
-            var batch = await EfTextSearch
-                .WherePhotoAlbumAgentFieldMatches(
+        var albumTextMatches = (await EfTextSearch
+                .WherePhotoAlbumAgentFieldMatchesAny(
                     _db.PhotoAlbums.AsNoTracking().Where(a => a.FamilyId == familyId),
-                    pattern,
+                    likePatterns,
                     usePostgreSql)
                 .Include(a => a.AlbumPhotos)
                 .Include(a => a.UserTags)
                 .Include(a => a.Comments)
-                .ToListAsync(cancellationToken);
-
-            foreach (var album in batch)
-            {
-                albumTextMatches[album.Id] = album;
-            }
-        }
+                .ToListAsync(cancellationToken))
+            .ToDictionary(a => a.Id);
 
         var albumTextMatchIds = albumTextMatches.Keys.ToHashSet();
         var albumLookup = albumTextMatches;

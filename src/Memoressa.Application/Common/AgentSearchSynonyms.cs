@@ -32,7 +32,7 @@ public static class AgentSearchSynonyms
             return [];
         }
 
-        var terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { trimmed };
+        var terms = new List<string> { trimmed };
 
         foreach (var group in Groups)
         {
@@ -43,13 +43,18 @@ public static class AgentSearchSynonyms
 
             foreach (var member in group)
             {
-                if (!string.IsNullOrWhiteSpace(member))
+                if (string.IsNullOrWhiteSpace(member))
+                {
+                    continue;
+                }
+
+                if (!terms.Any(t => t.Equals(member, StringComparison.OrdinalIgnoreCase)))
                 {
                     terms.Add(member);
                 }
             }
         }
 
-        return terms.ToList();
+        return terms;
     }
 }

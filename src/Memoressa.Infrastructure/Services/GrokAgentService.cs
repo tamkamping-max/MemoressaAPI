@@ -160,14 +160,14 @@ public class GrokAgentService : IGrokAgentService
 
         var photos = await _db.Photos.AsNoTracking()
             .Where(p => p.FamilyId == familyId && photoIds.Contains(p.Id))
+            .Include(p => p.UserTags)
+            .Include(p => p.AiTags)
             .ToDictionaryAsync(p => p.Id, cancellationToken);
 
         var memories = memoryIds.Count == 0
             ? new Dictionary<Guid, Memory>()
             : await _db.Memories.AsNoTracking()
                 .Where(m => m.FamilyId == familyId && memoryIds.Contains(m.Id))
-                .Include(m => m.MemoryMembers)
-                .ThenInclude(mm => mm.FamilyMember)
                 .ToDictionaryAsync(m => m.Id, cancellationToken);
 
         var albums = albumIds.Count == 0
@@ -191,10 +191,6 @@ public class GrokAgentService : IGrokAgentService
                 memories.TryGetValue(result.MemoryId.Value, out memory);
             }
 
-            var members = memory is null
-                ? string.Empty
-                : string.Join(", ", memory.MemoryMembers.Select(mm => mm.FamilyMember.Name));
-
             PhotoAlbum? album = null;
             if (result.PhotoAlbumId.HasValue)
             {
@@ -205,14 +201,17 @@ public class GrokAgentService : IGrokAgentService
                 ? string.Empty
                 : string.Join(", ", album.UserTags.Select(t => t.Tag));
 
+            var photoTags = string.Join(
+                ", ",
+                photo.UserTags.Select(t => t.Tag).Concat(photo.AiTags.Select(t => t.Tag)).Take(6));
+
             lines.Add(
-                $"- photoId={photo.Id}; memoryId={(result.MemoryId.HasValue ? result.MemoryId.Value : "null")}; " +
-                $"photoAlbumId={(result.PhotoAlbumId.HasValue ? result.PhotoAlbumId.Value : "null")}; " +
-                $"photoDescription={photo.Description}; photoLocation={photo.Location}; photoTakenAt={photo.TakenAt:yyyy-MM-dd}; " +
-                $"albumDescription={album?.Description}; albumUserTags={albumTags}; " +
-                $"memoryTitle={memory?.Title}; memoryDescription={memory?.Description}; memoryLocation={memory?.Location}; " +
-                $"startDate={memory?.StartDate:yyyy-MM-dd}; eventType={memory?.EventType}; members={members}; " +
-                $"matchReasons={string.Join('|', result.MatchReasons)}; score={result.RelevanceScore:F2}");
+                $"- pid={photo.Id}; mid={result.MemoryId}; aid={result.PhotoAlbumId}; " +
+                $"why={string.Join('|', result.MatchReasons)}; " +
+                $"cap={TrimContextField(photo.Description ?? memory?.Title)}; " +
+                $"loc={TrimContextField(photo.Location ?? memory?.Location)}; " +
+                $"date={photo.TakenAt:yyyy-MM-dd}; tags={TrimContextField(photoTags)}; " +
+                $"albumTags={TrimContextField(albumTags)}");
         }
 
         return string.Join('\n', lines);
@@ -239,9 +238,7 @@ public class GrokAgentService : IGrokAgentService
         messages.Add(new
         {
             role = "user",
-            content =
-                $"Family memory candidates:\n{memoryContext}\n\nUser question:\n{userMessage}\n\n" +
-                "Respond using the required JSON schema."
+            content = $"Candidates:\n{memoryContext}\n\nQuestion: {userMessage}"
         });
 
         var payload = new
@@ -249,6 +246,7 @@ public class GrokAgentService : IGrokAgentService
             model = _options.ChatModel,
             messages,
             temperature = 0.4,
+            max_tokens = _options.AgentMaxCompletionTokens,
             response_format = new { type = "json_object" }
         };
 
@@ -475,22 +473,25 @@ public class GrokAgentService : IGrokAgentService
             : "Reply in the same language as the user.";
 
         return """
-            You are Memoressa, a warm family memory assistant. Help the user find and talk about their family photos and memories.
-            Use ONLY the provided family memory candidates. Do not invent memories, people, or dates.
-            Return JSON with this exact shape:
-            {
-              "reply": "natural conversational answer for the user",
-              "memoryId": "uuid or null",
-              "photoId": "uuid or null",
-              "matchReasonKeys": ["semantic", "familyRelation"]
-            }
-            Allowed matchReasonKeys: familyRelation, faceMatch, summer2018, birthdayEvent, childGrowth, familyGathering, locationTokyo, travelEvent, multiGeneration, semantic, aiCurated, highEmotional.
-            Pick at most 3 matchReasonKeys. Prefer the best matching memoryId/photoId from the candidates when relevant.
+            Memoressa family photo assistant. Answer only from the candidate list; do not invent facts.
+            JSON: {"reply":"","memoryId":null,"photoId":null,"matchReasonKeys":["semantic"]}
+            matchReasonKeys (max 3): familyRelation, faceMatch, summer2018, birthdayEvent, childGrowth, familyGathering, locationTokyo, travelEvent, multiGeneration, semantic, aiCurated, highEmotional.
             """ + language;
     }
 
     private static bool IsChineseLocale(string? locale) =>
         locale?.StartsWith("zh", StringComparison.OrdinalIgnoreCase) == true;
+
+    private static string TrimContextField(string? value, int maxLength = 80)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength] + "…";
+    }
 
     private static IReadOnlyList<string> NormalizeMatchReasons(IEnumerable<string>? keys)
     {

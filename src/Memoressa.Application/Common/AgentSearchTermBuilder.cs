@@ -6,15 +6,15 @@ public static class AgentSearchTermBuilder
 
     public static IReadOnlyList<string> Build(string query, IReadOnlyList<string>? additionalTerms = null)
     {
-        var terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var terms = new List<string>();
         foreach (var term in AgentSearchSynonyms.BuildSearchTerms(query))
         {
-            terms.Add(term);
+            AddDistinct(terms, term);
         }
 
         if (additionalTerms is null)
         {
-            return terms.ToList();
+            return terms;
         }
 
         foreach (var raw in additionalTerms)
@@ -30,9 +30,30 @@ public static class AgentSearchTermBuilder
                 continue;
             }
 
-            terms.Add(trimmed);
+            AddDistinct(terms, trimmed);
         }
 
-        return terms.ToList();
+        return terms;
+    }
+
+    /// <summary>Caps DB/Grok substring fan-out; always keeps the first (user) term.</summary>
+    public static IReadOnlyList<string> Limit(IReadOnlyList<string> terms, int maxTerms)
+    {
+        if (terms.Count <= maxTerms || maxTerms < 1)
+        {
+            return terms;
+        }
+
+        return terms.Take(maxTerms).ToList();
+    }
+
+    private static void AddDistinct(List<string> terms, string value)
+    {
+        if (terms.Any(t => t.Equals(value, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        terms.Add(value);
     }
 }

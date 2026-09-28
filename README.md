@@ -290,10 +290,12 @@ LLM calls use xAI **`POST /v1/chat/completions`** (Chat Completions API) by defa
 | `Ai:GrokBaseUrl` | Default **`https://api.x.ai/v1`**. Legacy **`Ai:OpenAiBaseUrl`** is used when `GrokBaseUrl` is empty. |
 | `Ai:ChatModel` | AI Agent chat (default **`grok-4.7`**) |
 | `Ai:VisionModel` | Batch photo vision (default **`grok-4.7`**) |
-| `Ai:AgentMaxHistoryMessages` | Multi-turn history sent to the LLM |
-| `Ai:AgentMaxContextMemories` | Max memory candidates in RAG context |
+| `Ai:AgentMaxHistoryMessages` | Multi-turn history sent to the LLM (default **6**) |
+| `Ai:AgentMaxContextMemories` | Max photo candidates in RAG context (default **4**) |
 | `Ai:AgentGrokSearchExpansion` | Extra Grok call to expand multilingual search keywords (default **false** — one Grok call per Agent chat) |
 | `Ai:AgentMaxSearchKeywords` | Max Grok-expanded keywords merged into substring search (default **16**) |
+| `Ai:AgentMaxSearchTermsForDb` | Max synonym strings per DB search; first term is always the user query (default **4**) |
+| `Ai:AgentMaxCompletionTokens` | Cap on Grok completion tokens for Agent JSON (default **320**) |
 | `Ai:EnableVisionBatch` | Enable batch vision processing |
 | `Ai:MaxBatchSize` | Max photos per batch |
 
@@ -475,7 +477,7 @@ Migration **`009_activity_albums.sql`**.
 
 Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat Completions with family memory search as RAG context.
 
-**Agent memory search (before each Grok call):** SQL substring match on memories, photos, and photo albums. **Default:** one **`chat/completions`** call per Agent message (reply only). Set **`Ai:AgentGrokSearchExpansion`** to **true** to add a **second** Grok call that expands keywords across locales (8-language tag matching); otherwise **`AgentSearchSynonyms`** (static zh/en groups) plus the raw user message are used.
+**Agent memory search (before each Grok call):** one batched SQL substring query each for memories, photos, and photo albums (all synonym terms OR’d together). **Default:** one **`chat/completions`** call per Agent message (reply only). Set **`Ai:AgentGrokSearchExpansion`** to **true** to add a **second** Grok call that expands keywords across locales; otherwise **`AgentSearchSynonyms`** (static zh/en groups, capped by **`AgentMaxSearchTermsForDb`**) plus the raw user message are used. RAG candidate lines and history defaults are tuned to keep prompt size down (~500–800 input tokens for short queries like 「開心」 when **`AgentGrokSearchExpansion`** is false).
 
 | Method | Path | Description |
 |--------|------|-------------|
