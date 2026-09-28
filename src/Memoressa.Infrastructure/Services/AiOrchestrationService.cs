@@ -75,7 +75,7 @@ public class AiOrchestrationService : IAiOrchestrationService
         _db.AiAnalysisJobs.Add(job);
         await _db.SaveChangesAsync(cancellationToken);
 
-        if (_options.EnableVisionBatch && !string.IsNullOrWhiteSpace(_options.OpenAiApiKey))
+        if (_options.EnableVisionBatch && !string.IsNullOrWhiteSpace(_options.GrokApiKey))
         {
             _ = Task.Run(() => ProcessVisionBatchAsync(job.Id, CancellationToken.None), cancellationToken);
         }
@@ -350,15 +350,15 @@ public class AiOrchestrationService : IAiOrchestrationService
                 .Take(_options.MaxBatchSize)
                 .ToListAsync(cancellationToken);
 
-            if (string.IsNullOrWhiteSpace(_options.OpenAiApiKey))
+            if (string.IsNullOrWhiteSpace(_options.GrokApiKey))
             {
                 await ApplyHeuristicAnalysisAsync(photos, [], cancellationToken);
                 return;
             }
 
-            var client = _httpClientFactory.CreateClient("OpenAi");
+            var client = _httpClientFactory.CreateClient("Grok");
             client.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.OpenAiApiKey);
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.GrokApiKey);
 
             foreach (var photo in photos)
             {
@@ -394,7 +394,7 @@ public class AiOrchestrationService : IAiOrchestrationService
                 var response = await client.PostAsJsonAsync("chat/completions", payload, cancellationToken);
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogWarning("OpenAI vision call failed for photo {PhotoId}: {Status}", photo.Id, response.StatusCode);
+                    _logger.LogWarning("Grok vision call failed for photo {PhotoId}: {Status}", photo.Id, response.StatusCode);
                     continue;
                 }
 

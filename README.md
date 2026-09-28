@@ -165,7 +165,7 @@ RDS must be reachable from the API host (security group: EC2 → RDS on port 543
 | `AwsS3:PresignedUrlExpiryMinutes` | Presigned **GET** for photos in API responses (default **15** minutes) |
 | `AwsS3:UploadPresignedUrlExpiryMinutes` | Presigned **PUT** for uploads + **`sessionId` / `expiresAt`** (default **10080** = 7 days) |
 | `AwsS3:DownloadPresignedUrlExpiryMinutes` | Presigned GET for **`GET /photos/{id}/download`** (default **60** minutes) |
-| `AwsS3:AiPresignedUrlExpiryMinutes` | Presigned GET expiry for server-side AI (OpenAI Vision) |
+| `AwsS3:AiPresignedUrlExpiryMinutes` | Presigned GET expiry for server-side AI (Grok vision) |
 
 ### Private S3 media access
 
@@ -282,14 +282,14 @@ For production at scale, you can swap presigned GET for **CloudFront signed URLs
 
 ### Ai (xAI Grok)
 
-LLM calls use the **OpenAI-compatible** `POST /v1/chat/completions` client pointed at **xAI** by default.
+LLM calls use xAI **`POST /v1/chat/completions`** (Chat Completions API) by default.
 
 | Key | Description |
 |-----|-------------|
-| `Ai:OpenAiApiKey` | **xAI API key** ([console.x.ai](https://console.x.ai)). Also set env **`XAI_API_KEY`** if this is empty. |
-| `Ai:OpenAiBaseUrl` | Default **`https://api.x.ai/v1`**. Override only for another compatible provider. |
-| `Ai:ChatModel` | AI Agent chat (default **`grok-4-3`**) |
-| `Ai:VisionModel` | Batch photo vision (default **`grok-2-vision-1212`**) |
+| `Ai:GrokApiKey` | **xAI API key** ([console.x.ai](https://console.x.ai)). Also set env **`XAI_API_KEY`** if this is empty. Legacy **`Ai:OpenAiApiKey`** is still read when `GrokApiKey` is empty. |
+| `Ai:GrokBaseUrl` | Default **`https://api.x.ai/v1`**. Legacy **`Ai:OpenAiBaseUrl`** is used when `GrokBaseUrl` is empty. |
+| `Ai:ChatModel` | AI Agent chat (default **`grok-4-7`**) |
+| `Ai:VisionModel` | Batch photo vision (default **`grok-4-7`**) |
 | `Ai:AgentMaxHistoryMessages` | Multi-turn history sent to the LLM |
 | `Ai:AgentMaxContextMemories` | Max memory candidates in RAG context |
 | `Ai:EnableVisionBatch` | Enable batch vision processing |
@@ -328,10 +328,10 @@ export ConnectionStrings__PostgreSql="Host=your-instance.xxxxx.region.rds.amazon
 export Jwt__SecretKey="your-production-secret-key"
 export InternalApi__ApiKey="your-internal-key"
 export XAI_API_KEY="xai-..."
-# or: export Ai__OpenAiApiKey="$XAI_API_KEY"
-export Ai__ChatModel="grok-4-3"
-export Ai__VisionModel="grok-2-vision-1212"
-export Ai__OpenAiBaseUrl="https://api.x.ai/v1"
+# or: export Ai__GrokApiKey="$XAI_API_KEY"
+export Ai__ChatModel="grok-4-7"
+export Ai__VisionModel="grok-4-7"
+export Ai__GrokBaseUrl="https://api.x.ai/v1"
 ```
 
 ## Authentication
@@ -469,9 +469,9 @@ Migration **`009_activity_albums.sql`**.
 | POST | `/inferences/{photoId}/confirm?memberId=` | Confirm AI member inference |
 | POST | `/inferences/{photoId}/reject` | Reject AI inference |
 
-### AI Agent (OpenAI chat) — `api/v1/ai/agent`
+### AI Agent (Grok chat) — `api/v1/ai/agent`
 
-Conversational assistant for the MemoressaApp top-left AI entry. Uses OpenAI Chat Completions with family memory search as RAG context.
+Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat Completions with family memory search as RAG context.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -502,7 +502,7 @@ Conversational assistant for the MemoressaApp top-left AI entry. Uses OpenAI Cha
 }
 ```
 
-Requires **`Ai:OpenAiApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Completions (`response_format: json_object` for structured agent replies). When no key is configured, the API falls back to search-only templated replies (no LLM).
+Requires **`Ai:GrokApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Completions (`response_format: json_object` for structured agent replies). When no key is configured, the API falls back to search-only templated replies (no LLM).
 
 ### Settings — `api/v1/settings`
 

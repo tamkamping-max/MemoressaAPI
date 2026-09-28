@@ -6,6 +6,7 @@ using Memoressa.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Memoressa.Infrastructure;
 
@@ -20,12 +21,27 @@ public static class DependencyInjection
         services.Configure<AiOptions>(configuration.GetSection(AiOptions.SectionName));
         services.PostConfigure<AiOptions>(options =>
         {
-            if (string.IsNullOrWhiteSpace(options.OpenAiApiKey))
+            if (string.IsNullOrWhiteSpace(options.GrokApiKey))
             {
                 var xaiKey = Environment.GetEnvironmentVariable("XAI_API_KEY");
                 if (!string.IsNullOrWhiteSpace(xaiKey))
                 {
-                    options.OpenAiApiKey = xaiKey;
+                    options.GrokApiKey = xaiKey;
+                }
+            }
+
+            var legacyKey = configuration["Ai:OpenAiApiKey"];
+            if (string.IsNullOrWhiteSpace(options.GrokApiKey) && !string.IsNullOrWhiteSpace(legacyKey))
+            {
+                options.GrokApiKey = legacyKey;
+            }
+
+            if (string.IsNullOrWhiteSpace(options.GrokBaseUrl))
+            {
+                var legacyBase = configuration["Ai:OpenAiBaseUrl"];
+                if (!string.IsNullOrWhiteSpace(legacyBase))
+                {
+                    options.GrokBaseUrl = legacyBase;
                 }
             }
         });
@@ -50,10 +66,10 @@ public static class DependencyInjection
         services.AddScoped<IMemoressaDbContext>(sp => sp.GetRequiredService<MemoressaDbContext>());
 
         services.AddHttpContextAccessor();
-        services.AddHttpClient("OpenAi", (sp, client) =>
+        services.AddHttpClient("Grok", (sp, client) =>
         {
-            var aiOptions = configuration.GetSection(AiOptions.SectionName).Get<AiOptions>() ?? new AiOptions();
-            client.BaseAddress = new Uri(aiOptions.OpenAiBaseUrl.TrimEnd('/') + "/");
+            var aiOptions = sp.GetRequiredService<IOptions<AiOptions>>().Value;
+            client.BaseAddress = new Uri(aiOptions.GrokBaseUrl.TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromMinutes(2);
         });
 
@@ -62,7 +78,7 @@ public static class DependencyInjection
         services.AddScoped<IS3StorageService, S3StorageService>();
         services.AddScoped<IPhotoUrlResolver, PhotoUrlResolver>();
         services.AddScoped<IThumbnailGenerationService, ThumbnailGenerationService>();
-        services.AddScoped<IOpenAiAgentService, OpenAiAgentService>();
+        services.AddScoped<IGrokAgentService, GrokAgentService>();
         services.AddScoped<IAiOrchestrationService, AiOrchestrationService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();

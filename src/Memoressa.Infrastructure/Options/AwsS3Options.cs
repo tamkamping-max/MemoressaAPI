@@ -14,7 +14,7 @@ public class AwsS3Options
     public int DownloadPresignedUrlExpiryMinutes { get; set; } = 60;
 
     /// <summary>
-    /// Longer-lived presigned GET URLs for server-side AI (e.g. OpenAI Vision fetching images).
+    /// Longer-lived presigned GET URLs for server-side AI (e.g. Grok vision fetching images).
     /// </summary>
     public int AiPresignedUrlExpiryMinutes { get; set; } = 60;
 }

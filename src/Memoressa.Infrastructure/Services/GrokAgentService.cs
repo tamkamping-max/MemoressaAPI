@@ -12,7 +12,7 @@ using Microsoft.Extensions.Options;
 
 namespace Memoressa.Infrastructure.Services;
 
-public class OpenAiAgentService : IOpenAiAgentService
+public class GrokAgentService : IGrokAgentService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -22,15 +22,15 @@ public class OpenAiAgentService : IOpenAiAgentService
     private readonly IMemoressaDbContext _db;
     private readonly AiOptions _options;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<OpenAiAgentService> _logger;
+    private readonly ILogger<GrokAgentService> _logger;
     private readonly IAiOrchestrationService _aiOrchestration;
     private readonly IPhotoUrlResolver _photoUrls;
 
-    public OpenAiAgentService(
+    public GrokAgentService(
         IMemoressaDbContext db,
         IOptions<AiOptions> options,
         IHttpClientFactory httpClientFactory,
-        ILogger<OpenAiAgentService> logger,
+        ILogger<GrokAgentService> logger,
         IAiOrchestrationService aiOrchestration,
         IPhotoUrlResolver photoUrls)
     {
@@ -59,9 +59,9 @@ public class OpenAiAgentService : IOpenAiAgentService
         var searchResults = await _aiOrchestration.SearchMemoriesAsync(familyId, message, cancellationToken);
         var memoryContext = await BuildMemoryContextAsync(familyId, searchResults, cancellationToken);
 
-        var llmResult = string.IsNullOrWhiteSpace(_options.OpenAiApiKey)
+        var llmResult = string.IsNullOrWhiteSpace(_options.GrokApiKey)
             ? BuildFallbackResponse(message, request.Locale, searchResults)
-            : await CallOpenAiAsync(message, request.Locale, history, memoryContext, cancellationToken);
+            : await CallGrokAsync(message, request.Locale, history, memoryContext, cancellationToken);
 
         llmResult = await ValidateAndEnrichAsync(familyId, llmResult, searchResults, cancellationToken);
 
@@ -180,7 +180,7 @@ public class OpenAiAgentService : IOpenAiAgentService
         return string.Join('\n', lines);
     }
 
-    private async Task<AiAgentChatResponseDto> CallOpenAiAsync(
+    private async Task<AiAgentChatResponseDto> CallGrokAsync(
         string userMessage,
         string? locale,
         IReadOnlyList<AiChatMessage> history,
@@ -214,19 +214,19 @@ public class OpenAiAgentService : IOpenAiAgentService
             response_format = new { type = "json_object" }
         };
 
-        var client = _httpClientFactory.CreateClient("OpenAi");
+        var client = _httpClientFactory.CreateClient("Grok");
         client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.OpenAiApiKey);
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.GrokApiKey);
 
         using var response = await client.PostAsJsonAsync("chat/completions", payload, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogWarning("OpenAI chat failed: {Status} {Body}", response.StatusCode, errorBody);
+            _logger.LogWarning("Grok chat failed: {Status} {Body}", response.StatusCode, errorBody);
             throw new Application.Common.ApiException("AI agent is temporarily unavailable", 503);
         }
 
-        var body = await response.Content.ReadFromJsonAsync<OpenAiChatCompletionResponse>(JsonOptions, cancellationToken);
+        var body = await response.Content.ReadFromJsonAsync<GrokChatCompletionResponse>(JsonOptions, cancellationToken);
         var content = body?.Choices?.FirstOrDefault()?.Message?.Content;
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -395,17 +395,17 @@ public class OpenAiAgentService : IOpenAiAgentService
         [JsonPropertyName("matchReasonKeys")] public List<string>? MatchReasonKeys { get; set; }
     }
 
-    private sealed class OpenAiChatCompletionResponse
+    private sealed class GrokChatCompletionResponse
     {
-        [JsonPropertyName("choices")] public List<OpenAiChoice>? Choices { get; set; }
+        [JsonPropertyName("choices")] public List<GrokChoice>? Choices { get; set; }
     }
 
-    private sealed class OpenAiChoice
+    private sealed class GrokChoice
     {
-        [JsonPropertyName("message")] public OpenAiMessage? Message { get; set; }
+        [JsonPropertyName("message")] public GrokMessage? Message { get; set; }
     }
 
-    private sealed class OpenAiMessage
+    private sealed class GrokMessage
     {
         [JsonPropertyName("content")] public string? Content { get; set; }
     }

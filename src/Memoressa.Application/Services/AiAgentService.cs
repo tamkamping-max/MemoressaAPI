@@ -11,18 +11,18 @@ public class AiAgentService : IAiAgentService
 {
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
-    private readonly IOpenAiAgentService _openAiAgent;
+    private readonly IGrokAgentService _grokAgent;
     private readonly IPhotoUrlResolver _photoUrls;
 
     public AiAgentService(
         IMemoressaDbContext db,
         ICurrentUserService currentUser,
-        IOpenAiAgentService openAiAgent,
+        IGrokAgentService grokAgent,
         IPhotoUrlResolver photoUrls)
     {
         _db = db;
         _currentUser = currentUser;
-        _openAiAgent = openAiAgent;
+        _grokAgent = grokAgent;
         _photoUrls = photoUrls;
     }
 
@@ -38,7 +38,7 @@ public class AiAgentService : IAiAgentService
 
         try
         {
-            var response = await _openAiAgent.ChatAsync(
+            var response = await _grokAgent.ChatAsync(
                 ctx.Value.UserId,
                 ctx.Value.FamilyId,
                 request,

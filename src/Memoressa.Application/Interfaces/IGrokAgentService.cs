@@ -2,7 +2,7 @@ using Memoressa.Application.DTOs;
 
 namespace Memoressa.Application.Interfaces;
 
-public interface IOpenAiAgentService
+public interface IGrokAgentService
 {
     Task<AiAgentChatResponseDto> ChatAsync(
         Guid userId,
