@@ -76,6 +76,7 @@ public record PhotoAlbumCommentDto
     [JsonPropertyName("authorId")] public Guid AuthorId { get; init; }
     [JsonPropertyName("userId")] public Guid UserId { get; init; }
     [JsonPropertyName("authorName")] public string? AuthorName { get; init; }
+    [JsonPropertyName("isMine")] public bool IsMine { get; init; }
 }
 
 public record AddPhotoAlbumCommentRequestDto

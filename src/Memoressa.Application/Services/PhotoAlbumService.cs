@@ -375,7 +375,8 @@ public class PhotoAlbumService : IPhotoAlbumService
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return ServiceResult<IReadOnlyList<PhotoAlbumCommentDto>>.Ok(comments.Select(c => c.ToDto()).ToList());
+        return ServiceResult<IReadOnlyList<PhotoAlbumCommentDto>>.Ok(
+            comments.Select(c => c.ToDto(ctx.Value.UserId)).ToList());
     }
 
     public async Task<ServiceResult<PhotoAlbumCommentDto>> AddCommentAsync(
@@ -417,7 +418,7 @@ public class PhotoAlbumService : IPhotoAlbumService
             .Include(c => c.User)
             .FirstAsync(c => c.Id == comment.Id, cancellationToken);
 
-        return ServiceResult<PhotoAlbumCommentDto>.Ok(saved.ToDto());
+        return ServiceResult<PhotoAlbumCommentDto>.Ok(saved.ToDto(ctx.Value.UserId));
     }
 
     public async Task<ServiceResult> DeleteCommentAsync(

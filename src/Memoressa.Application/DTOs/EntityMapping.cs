@@ -220,7 +220,7 @@ public static class EntityMapping
         CreatedAt = entry.CreatedAt
     };
 
-    public static PhotoAlbumCommentDto ToDto(this PhotoAlbumComment comment) => new()
+    public static PhotoAlbumCommentDto ToDto(this PhotoAlbumComment comment, Guid? viewerUserId = null) => new()
     {
         Id = comment.Id,
         AlbumId = comment.PhotoAlbumId,
@@ -228,6 +228,7 @@ public static class EntityMapping
         CreatedAt = comment.CreatedAt,
         AuthorId = comment.UserId,
         UserId = comment.UserId,
-        AuthorName = comment.User?.Nickname ?? comment.User?.Email
+        AuthorName = comment.User?.Nickname ?? comment.User?.Email,
+        IsMine = viewerUserId.HasValue && comment.UserId == viewerUserId.Value
     };
 }
