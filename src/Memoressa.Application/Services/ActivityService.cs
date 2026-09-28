@@ -582,6 +582,13 @@ public class ActivityService : IActivityService
     {
         var albumId = activity.Id;
 
+        // Included join rows must leave the tracker before Clear(); otherwise EF marks them Deleted/Modified
+        // and SaveChanges re-issues DELETE/UPDATE after ExecuteDelete already removed DB rows.
+        DetachActivityRelationEntries(albumId, includeDeletedState: true);
+        activity.AgendaItems.Clear();
+        activity.FamilyMembers.Clear();
+        activity.Friends.Clear();
+
         if (_db.Database.IsRelational())
         {
             await _db.ActivityAgendaItems
@@ -597,12 +604,8 @@ public class ActivityService : IActivityService
         else
         {
             await DeleteActivityRelationsViaTrackerAsync(albumId, cancellationToken);
+            DetachActivityRelationEntries(albumId, includeDeletedState: false);
         }
-
-        activity.AgendaItems.Clear();
-        activity.FamilyMembers.Clear();
-        activity.Friends.Clear();
-        DetachAllActivityRelationEntries(albumId);
 
         return await ApplyRelationsAsync(activity, request, creatorUserId, cancellationToken);
     }
@@ -634,7 +637,7 @@ public class ActivityService : IActivityService
         }
     }
 
-    private void DetachAllActivityRelationEntries(Guid activityAlbumId)
+    private void DetachActivityRelationEntries(Guid activityAlbumId, bool includeDeletedState)
     {
         if (_db is not DbContext context)
         {
@@ -642,21 +645,24 @@ public class ActivityService : IActivityService
         }
 
         foreach (var entry in context.ChangeTracker.Entries<ActivityAgendaItem>()
-                     .Where(e => e.Entity.ActivityAlbumId == activityAlbumId && e.State != EntityState.Deleted)
+                     .Where(e => e.Entity.ActivityAlbumId == activityAlbumId
+                                 && (includeDeletedState || e.State != EntityState.Deleted))
                      .ToList())
         {
             entry.State = EntityState.Detached;
         }
 
         foreach (var entry in context.ChangeTracker.Entries<ActivityAlbumFamilyMember>()
-                     .Where(e => e.Entity.ActivityAlbumId == activityAlbumId && e.State != EntityState.Deleted)
+                     .Where(e => e.Entity.ActivityAlbumId == activityAlbumId
+                                 && (includeDeletedState || e.State != EntityState.Deleted))
                      .ToList())
         {
             entry.State = EntityState.Detached;
         }
 
         foreach (var entry in context.ChangeTracker.Entries<ActivityAlbumFriend>()
-                     .Where(e => e.Entity.ActivityAlbumId == activityAlbumId && e.State != EntityState.Deleted)
+                     .Where(e => e.Entity.ActivityAlbumId == activityAlbumId
+                                 && (includeDeletedState || e.State != EntityState.Deleted))
                      .ToList())
         {
             entry.State = EntityState.Detached;
@@ -682,7 +688,7 @@ public class ActivityService : IActivityService
 
             foreach (var memberId in memberIds)
             {
-                activity.FamilyMembers.Add(new ActivityAlbumFamilyMember
+                _db.ActivityAlbumFamilyMembers.Add(new ActivityAlbumFamilyMember
                 {
                     ActivityAlbumId = activity.Id,
                     FamilyMemberId = memberId
@@ -693,7 +699,7 @@ public class ActivityService : IActivityService
         var order = 0;
         foreach (var item in request.Agenda ?? [])
         {
-            activity.AgendaItems.Add(new ActivityAgendaItem
+            _db.ActivityAgendaItems.Add(new ActivityAgendaItem
             {
                 ActivityAlbumId = activity.Id,
                 ExternalId = string.IsNullOrWhiteSpace(item.Id) ? null : item.Id.Trim(),
@@ -727,7 +733,7 @@ public class ActivityService : IActivityService
                 friendId = ownerFriends.FirstOrDefault(f => f.Id.ToString() == trimmed || f.Name == trimmed)?.Id;
             }
 
-            activity.Friends.Add(new ActivityAlbumFriend
+            _db.ActivityAlbumFriends.Add(new ActivityAlbumFriend
             {
                 ActivityAlbumId = activity.Id,
                 FriendId = friendId,
