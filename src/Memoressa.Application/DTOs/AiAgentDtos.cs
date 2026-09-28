@@ -32,6 +32,12 @@ public record AiAgentMessageDto
     [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
 }
 
+public record AiAgentSessionDto
+{
+    [JsonPropertyName("sessionId")] public Guid? SessionId { get; init; }
+    [JsonPropertyName("messages")] public IReadOnlyList<AiAgentMessageDto> Messages { get; init; } = [];
+}
+
 public static class AiAgentMatchReasons
 {
     public static readonly IReadOnlyList<string> AllowedKeys =

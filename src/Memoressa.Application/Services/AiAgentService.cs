@@ -3,6 +3,7 @@ using Memoressa.Application.Abstractions;
 using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
+using Memoressa.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Memoressa.Application.Services;
@@ -51,6 +52,38 @@ public class AiAgentService : IAiAgentService
         }
     }
 
+    public async Task<ServiceResult<AiAgentSessionDto>> GetCurrentSessionAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<AiAgentSessionDto>.Fail("Unauthorized", 401);
+        }
+
+        var session = await _db.AiChatSessions.AsNoTracking()
+            .Where(s => s.UserId == ctx.Value.UserId && s.FamilyId == ctx.Value.FamilyId)
+            .OrderByDescending(s => s.UpdatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (session is null)
+        {
+            return ServiceResult<AiAgentSessionDto>.Ok(new AiAgentSessionDto());
+        }
+
+        var messages = await _db.AiChatMessages.AsNoTracking()
+            .Where(m => m.SessionId == session.Id)
+            .OrderBy(m => m.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var dtos = await MapMessagesAsync(messages, cancellationToken);
+        return ServiceResult<AiAgentSessionDto>.Ok(new AiAgentSessionDto
+        {
+            SessionId = session.Id,
+            Messages = dtos
+        });
+    }
+
     public async Task<ServiceResult<IReadOnlyList<AiAgentMessageDto>>> GetSessionMessagesAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default)
@@ -76,6 +109,14 @@ public class AiAgentService : IAiAgentService
             .OrderBy(m => m.CreatedAt)
             .ToListAsync(cancellationToken);
 
+        var dtos = await MapMessagesAsync(messages, cancellationToken);
+        return ServiceResult<IReadOnlyList<AiAgentMessageDto>>.Ok(dtos);
+    }
+
+    private async Task<List<AiAgentMessageDto>> MapMessagesAsync(
+        IReadOnlyList<AiChatMessage> messages,
+        CancellationToken cancellationToken)
+    {
         var dtos = new List<AiAgentMessageDto>();
         foreach (var message in messages)
         {
@@ -86,7 +127,10 @@ public class AiAgentService : IAiAgentService
                     .FirstOrDefaultAsync(p => p.Id == message.PhotoId.Value, cancellationToken);
                 if (photo is not null)
                 {
-                    thumbnailUrl = await _photoUrls.GetPresignedUrlAsync(photo, thumbnail: true, cancellationToken: cancellationToken);
+                    thumbnailUrl = await _photoUrls.GetPresignedUrlAsync(
+                        photo,
+                        thumbnail: true,
+                        cancellationToken: cancellationToken);
                 }
             }
 
@@ -107,6 +151,6 @@ public class AiAgentService : IAiAgentService
             });
         }
 
-        return ServiceResult<IReadOnlyList<AiAgentMessageDto>>.Ok(dtos);
+        return dtos;
     }
 }

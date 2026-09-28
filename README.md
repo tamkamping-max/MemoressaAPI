@@ -477,11 +477,14 @@ Migration **`009_activity_albums.sql`**.
 
 Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat Completions with family memory search as RAG context.
 
+**MemoressaApp:** On opening the AI screen, call **`GET /session`** to restore the latest transcript and pass **`sessionId`** on subsequent **`POST /chat`** calls. When **`sessionId`** is omitted on chat, the API reuses the latest session for that user/family (no new empty session per visit). Do not show preset example chips; history replaces an empty-state welcome when messages exist.
+
 **Agent memory search (before each Grok call):** one batched SQL substring query each for memories, photos, and photo albums (all synonym terms OR’d together). **Default:** one **`chat/completions`** call per Agent message (reply only). Set **`Ai:AgentGrokSearchExpansion`** to **true** to add a **second** Grok call that expands keywords across locales; otherwise **`AgentSearchSynonyms`** (static zh/en groups, capped by **`AgentMaxSearchTermsForDb`**) plus the raw user message are used. RAG candidate lines and history defaults are tuned to keep prompt size down (~500–800 input tokens for short queries like 「開心」 when **`AgentGrokSearchExpansion`** is false).
 
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/chat` | Send a message; returns natural-language reply + memory/photo links |
+| GET | `/session` | **MemoressaApp on enter:** latest chat session for the user/family + full message history (`sessionId` null when none) |
 | GET | `/sessions/{sessionId}/messages` | Reload a chat session history |
 
 **POST `/chat` request**

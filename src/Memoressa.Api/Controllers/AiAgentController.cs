@@ -25,6 +25,13 @@ public class AiAgentController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpGet("session")]
+    public async Task<IActionResult> GetCurrentSession(CancellationToken cancellationToken)
+    {
+        var result = await _aiAgentService.GetCurrentSessionAsync(cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("sessions/{sessionId:guid}/messages")]
     public async Task<IActionResult> GetMessages(Guid sessionId, CancellationToken cancellationToken)
     {

@@ -113,6 +113,16 @@ public class GrokAgentService : IGrokAgentService
             }
         }
 
+        var latest = await _db.AiChatSessions
+            .Where(s => s.UserId == userId && s.FamilyId == familyId)
+            .OrderByDescending(s => s.UpdatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (latest is not null)
+        {
+            return latest;
+        }
+
         var session = new AiChatSession
         {
             UserId = userId,

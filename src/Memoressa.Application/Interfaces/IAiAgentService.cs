@@ -12,4 +12,7 @@ public interface IAiAgentService
     Task<ServiceResult<IReadOnlyList<AiAgentMessageDto>>> GetSessionMessagesAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<AiAgentSessionDto>> GetCurrentSessionAsync(
+        CancellationToken cancellationToken = default);
 }
