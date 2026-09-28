@@ -57,20 +57,55 @@ public class GrokAgentService : IGrokAgentService
 
         var session = await ResolveSessionAsync(userId, familyId, request.SessionId, cancellationToken);
         var history = await LoadRecentMessagesAsync(session.Id, cancellationToken);
+        var libraryIntent = AgentLibraryQuery.DetectIntent(message);
         var expandedKeywords = await TryExpandSearchKeywordsWithGrokAsync(message, request.Locale, cancellationToken);
-        var searchResults = await _aiOrchestration.SearchMemoriesAsync(
-            familyId,
-            message,
-            cancellationToken,
-            expandedKeywords);
 
-        var useGrok = !string.IsNullOrWhiteSpace(_options.GrokApiKey)
-            && !(_options.AgentSkipGrokForSimpleSearch && AgentSearchQuery.IsSimpleSearchPhrase(message));
+        IReadOnlyList<SearchResultDto> searchResults;
+        string memoryContext;
+        var hasGrokKey = !string.IsNullOrWhiteSpace(_options.GrokApiKey);
+
+        if (libraryIntent == AgentLibraryIntent.CountPhotos)
+        {
+            var count = await _aiOrchestration.CountVisiblePhotosAsync(familyId, cancellationToken);
+            searchResults = [];
+            memoryContext =
+                $"Library stats: visible_photo_count={count}. The user asked how many photos they have — answer with this exact count.";
+        }
+        else if (libraryIntent == AgentLibraryIntent.ListPhotos)
+        {
+            var total = await _aiOrchestration.CountVisiblePhotosAsync(familyId, cancellationToken);
+            searchResults = await _aiOrchestration.ListVisiblePhotosForAgentAsync(
+                familyId,
+                _options.AgentMaxRelatedPhotosInChat,
+                cancellationToken);
+            var browseContext = await BuildMemoryContextAsync(familyId, searchResults, cancellationToken);
+            memoryContext =
+                $"Library stats: visible_photo_count={total}; showing_most_recent={searchResults.Count}. " +
+                "The user asked to see (all) photos — explain that chat shows the most recent thumbnails and they can open Timeline for the full library.\n" +
+                browseContext;
+        }
+        else
+        {
+            searchResults = await _aiOrchestration.SearchMemoriesAsync(
+                familyId,
+                message,
+                cancellationToken,
+                expandedKeywords);
+            memoryContext = await BuildMemoryContextAsync(familyId, searchResults, cancellationToken);
+        }
+
+        var useGrok = hasGrokKey
+            && (libraryIntent != AgentLibraryIntent.None
+                || !(_options.AgentSkipGrokForSimpleSearch && AgentSearchQuery.IsSimpleSearchPhrase(message)));
 
         AiAgentChatResponseDto llmResult;
-        if (useGrok)
+        if (!useGrok && libraryIntent == AgentLibraryIntent.CountPhotos)
         {
-            var memoryContext = await BuildMemoryContextAsync(familyId, searchResults, cancellationToken);
+            var count = await _aiOrchestration.CountVisiblePhotosAsync(familyId, cancellationToken);
+            llmResult = BuildPhotoCountResponse(count, request.Locale);
+        }
+        else if (useGrok)
+        {
             llmResult = await CallGrokAsync(message, request.Locale, history, memoryContext, cancellationToken);
         }
         else
@@ -307,6 +342,19 @@ public class GrokAgentService : IGrokAgentService
         };
     }
 
+    private static AiAgentChatResponseDto BuildPhotoCountResponse(int count, string? locale)
+    {
+        var reply = IsChineseLocale(locale)
+            ? $"你的家庭相册里目前有 {count} 张未隐藏的照片。想浏览的话可以说「显示最近的照片」，或到时间轴查看全部。"
+            : $"You have {count} visible photos in your family library. Say \"show recent photos\" here, or open the timeline for everything.";
+
+        return new AiAgentChatResponseDto
+        {
+            Reply = reply,
+            MatchReasonKeys = ["semantic"]
+        };
+    }
+
     private static AiAgentChatResponseDto BuildFallbackResponse(
         string userMessage,
         string? locale,
@@ -507,6 +555,7 @@ public class GrokAgentService : IGrokAgentService
             You are Memoressa, a warm family memory curator inside a photo app — conversational, helpful, and concise.
             The user is chatting with you; treat each turn as part of an ongoing dialogue (use recent history).
             Use the search candidate list when it helps; never invent photos, people, dates, or events not supported by candidates.
+            When the context includes Library stats (visible_photo_count, showing_most_recent), use those numbers exactly for count or browse questions.
             If candidates are empty, say so kindly and suggest how to rephrase (tags, month, year, place, person).
             If candidates exist, briefly explain what you found and invite follow-up; pick memoryId/photoId from candidates when highlighting one photo.
             Write reply as 2–5 natural sentences (not bullet lists). JSON only:

@@ -46,6 +46,11 @@ public interface IAiOrchestrationService
         string query,
         CancellationToken cancellationToken = default,
         IReadOnlyList<string>? additionalSearchTerms = null);
+    Task<int> CountVisiblePhotosAsync(Guid familyId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SearchResultDto>> ListVisiblePhotosForAgentAsync(
+        Guid familyId,
+        int limit,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PlaybackItemDto>> GeneratePlaybackAsync(Guid familyId, PlaybackRequestDto request, CancellationToken cancellationToken = default);
     Task<MemoryDto> CreateAiMemoryAsync(Guid userId, Guid familyId, IReadOnlyList<Guid> photoIds, CancellationToken cancellationToken = default);
     Task ProcessVisionBatchAsync(Guid jobId, CancellationToken cancellationToken = default);
