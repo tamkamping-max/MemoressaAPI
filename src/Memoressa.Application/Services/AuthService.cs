@@ -269,6 +269,48 @@ public partial class AuthService : IAuthService
             : ServiceResult<UserDto>.Ok(user.ToDto());
     }
 
+    public async Task<ServiceResult<UserDto>> PatchCurrentUserAsync(
+        PatchMeRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_currentUser.UserId.HasValue)
+        {
+            return ServiceResult<UserDto>.Fail("Unauthorized", 401);
+        }
+
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<UserDto>.Fail("Unauthorized", 401);
+        }
+
+        var user = await _db.UserAccounts
+            .FirstOrDefaultAsync(u => u.Id == _currentUser.UserId.Value, cancellationToken);
+
+        if (user is null)
+        {
+            return ServiceResult<UserDto>.NotFound("User not found");
+        }
+
+        if (request.SelfFamilyMemberId.HasValue)
+        {
+            var memberExists = await _db.FamilyMembers.AsNoTracking()
+                .AnyAsync(
+                    m => m.Id == request.SelfFamilyMemberId.Value && m.FamilyId == ctx.Value.FamilyId,
+                    cancellationToken);
+
+            if (!memberExists)
+            {
+                return ServiceResult<UserDto>.Fail("Family member not found in your family", 404);
+            }
+        }
+
+        user.SelfFamilyMemberId = request.SelfFamilyMemberId;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return ServiceResult<UserDto>.Ok(user.ToDto());
+    }
+
     public async Task<ServiceResult<AccountDeletionStatusDto>> GetDeletionStatusAsync(
         CancellationToken cancellationToken = default)
     {

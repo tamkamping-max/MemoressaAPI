@@ -12,6 +12,7 @@ public static class EntityMapping
         Nickname = user.Nickname,
         AvatarUrl = user.AvatarUrl,
         Generation = user.Generation,
+        SelfFamilyMemberId = user.SelfFamilyMemberId,
         CreatedAt = user.CreatedAt
     };
 

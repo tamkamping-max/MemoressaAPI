@@ -158,7 +158,23 @@ public class PhotoService : IPhotoService
 
         if (request.MemberIds is not null)
         {
-            await ReplacePhotoMembersAsync(photo, request.MemberIds, cancellationToken);
+            var distinctMemberIds = request.MemberIds.Distinct().ToList();
+            if (distinctMemberIds.Count > 0)
+            {
+                var validCount = await _db.FamilyMembers.AsNoTracking()
+                    .CountAsync(
+                        m => m.FamilyId == photo.FamilyId && distinctMemberIds.Contains(m.Id),
+                        cancellationToken);
+
+                if (validCount != distinctMemberIds.Count)
+                {
+                    return ServiceResult<PhotoDto>.Fail(
+                        "One or more family members are invalid for this photo",
+                        403);
+                }
+            }
+
+            await ReplacePhotoMembersAsync(photo, distinctMemberIds, cancellationToken);
         }
 
         var userTagReplace = PhotoUserTagRules.ResolveReplacePayload(request.UserTags, request.AiTags);

@@ -236,7 +236,7 @@ Quota is checked at `start` (includes pending sessions). `complete` returns **40
 
 **`POST /api/v1/photos/today-memories`** resolves the caller’s family from the JWT (`sub` + `family_id` claim validated against `family_memberships`) and only returns photos that family (and the viewer may see, e.g. not another member’s `onlySelf` uploads).
 
-**Photo user tags vs AI tags:** `PhotoDto.userTags` = user-selected tags (photo experience chips). `PhotoDto.aiTags` = AI-generated tags in `photo_ai_tags` only. **`PUT /api/v1/photos/{id}`** accepts **`userTags`** and/or legacy **`aiTags`** in the body as a **full replace** of user tags on **that photo only**; **`photo_ai_tags` is never modified** by this endpoint. JWT access tokens include a **`family_id`** claim (same as login `familyId`). **MemoressaApp** should bind the tag UI to **`userTags`** only (do not treat `aiTags` as user tags when `userTags` is present, even if empty).
+**Photo user tags vs AI tags:** `PhotoDto.userTags` = user-selected tags (photo experience chips). `PhotoDto.aiTags` = AI-generated tags in `photo_ai_tags` only. **`PUT /api/v1/photos/{id}`** accepts **`userTags`** and/or legacy **`aiTags`** in the body as a **full replace** of user tags on **that photo only**; **`photo_ai_tags` is never modified** by this endpoint. **`memberIds`** in the same body is a **full replace** of people on the photo (same as manual tagging); every id must belong to the photo's family or the API returns **403**. Face sync on the App appends the matched member id client-side, then sends the full array. JWT access tokens include a **`family_id`** claim (same as login `familyId`). **MemoressaApp** should bind the tag UI to **`userTags`** only (do not treat `aiTags` as user tags when `userTags` is present, even if empty).
 
 **Photo user tag library (tags sheet — per user, reusable across photos):**
 
@@ -374,7 +374,8 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | POST | `/password-reset/code/confirm` | Public | `{ "email", "code", "newPassword", "confirmPassword" }` — updates password, invalidates code → **204** |
 | POST | `/account/deletion/schedule` | JWT | Schedule account deletion |
 | POST | `/account/deletion/cancel` | JWT | Cancel scheduled deletion |
-| GET | `/me` | JWT | Get current user |
+| GET | `/me` | JWT | Current user (`selfFamilyMemberId`: linked family member for face sync, or null) |
+| PATCH | `/me` | JWT | Update profile; body `{ "selfFamilyMemberId": "<uuid>" \| null }` — member must belong to your family (**404** if not) |
 | GET | `/account/deletion/status` | JWT | Get deletion status |
 | POST | `/oauth/google` | Public | Login/register with Google id token |
 | POST | `/oauth/facebook` | Public | Login/register with Facebook access token |
@@ -701,6 +702,7 @@ dotnet test
 | `004_frame_package_external_id.sql` | `004_frame_package_external_id.sql` | Frame package `external_id` |
 | `005_upload_variants_and_storage_quota.sql` | `005_upload_variants_and_storage_quota.sql` | Upload variant keys + user storage quota |
 | `019_ai_chat_related_photos.sql` | `019_ai_chat_related_photos.sql` | AI agent assistant `RelatedPhotoIdsJson` (multi-photo hits) |
+| `020_user_self_family_member.sql` | `020_user_self_family_member.sql` | `users.self_family_member_id` for face sync / 「這是我」 |
 
 After changing schema, update **both** SQL trees, then `Memoressa.Domain` entities and `Infrastructure/Configurations`, then deploy SQL before/with the API.
 

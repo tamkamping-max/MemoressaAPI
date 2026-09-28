@@ -119,6 +119,16 @@ public class AuthController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpPatch("me")]
+    [Authorize]
+    public async Task<IActionResult> PatchCurrentUser(
+        [FromBody] PatchMeRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.PatchCurrentUserAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("account/deletion/status")]
     [Authorize]
     public async Task<IActionResult> GetDeletionStatus(CancellationToken cancellationToken)

@@ -17,6 +17,7 @@ public interface IAuthService
     Task<ServiceResult> ScheduleAccountDeletionAsync(string password, CancellationToken cancellationToken = default);
     Task<ServiceResult> CancelAccountDeletionAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<UserDto>> GetCurrentUserAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<UserDto>> PatchCurrentUserAsync(PatchMeRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<AccountDeletionStatusDto>> GetDeletionStatusAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<AuthResponseDto>> LoginWithGoogleAsync(OAuthLoginRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<AuthResponseDto>> LoginWithFacebookAsync(OAuthLoginRequestDto request, CancellationToken cancellationToken = default);

@@ -10,7 +10,13 @@ public record UserDto
     [JsonPropertyName("nickname")] public string? Nickname { get; init; }
     [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
     [JsonPropertyName("generation")] public Generation? Generation { get; init; }
+    [JsonPropertyName("selfFamilyMemberId")] public Guid? SelfFamilyMemberId { get; init; }
     [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
+}
+
+public record PatchMeRequestDto
+{
+    [JsonPropertyName("selfFamilyMemberId")] public Guid? SelfFamilyMemberId { get; init; }
 }
 
 public record AuthTokensDto

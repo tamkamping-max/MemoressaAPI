@@ -20,6 +20,9 @@ public class UserAccount : Entity
     public bool IsActive { get; set; } = true;
     /// <summary>Sum of original (full) photo bytes stored for this user.</summary>
     public long CloudStorageUsedBytes { get; set; }
+    /// <summary>Family member representing this user ("this is me") for face recognition sync.</summary>
+    public Guid? SelfFamilyMemberId { get; set; }
+    public FamilyMember? SelfFamilyMember { get; set; }
 
     public ICollection<UserOAuthLink> OAuthLinks { get; set; } = [];
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
