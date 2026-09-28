@@ -45,7 +45,7 @@ public static class ActivityAlbumRequestRules
             return "Invalid activity status";
         }
 
-        foreach (var item in request.Agenda)
+        foreach (var item in request.Agenda ?? [])
         {
             if (string.IsNullOrWhiteSpace(item.Title))
             {

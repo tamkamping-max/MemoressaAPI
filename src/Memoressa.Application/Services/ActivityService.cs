@@ -182,14 +182,7 @@ public class ActivityService : IActivityService
 
         activity.UpdatedAt = DateTime.UtcNow;
 
-        _db.ActivityAgendaItems.RemoveRange(activity.AgendaItems);
-        _db.ActivityAlbumFamilyMembers.RemoveRange(activity.FamilyMembers);
-        _db.ActivityAlbumFriends.RemoveRange(activity.Friends);
-        activity.AgendaItems.Clear();
-        activity.FamilyMembers.Clear();
-        activity.Friends.Clear();
-
-        var relationError = await ApplyRelationsAsync(activity, request, activity.CreatorUserId, cancellationToken);
+        var relationError = await ReplaceActivityRelationsAsync(activity, request, activity.CreatorUserId, cancellationToken);
         if (relationError is not null)
         {
             return ServiceResult<ActivityAlbumDto>.Fail(relationError, 400);
@@ -537,6 +530,78 @@ public class ActivityService : IActivityService
         || activity.FamilyMembers.Count > 0
         || activity.Friends.Count > 0;
 
+    private async Task<string?> ReplaceActivityRelationsAsync(
+        ActivityAlbum activity,
+        UpsertActivityAlbumRequestDto request,
+        Guid creatorUserId,
+        CancellationToken cancellationToken)
+    {
+        var albumId = activity.Id;
+
+        var existingAgenda = await _db.ActivityAgendaItems
+            .Where(x => x.ActivityAlbumId == albumId)
+            .ToListAsync(cancellationToken);
+        if (existingAgenda.Count > 0)
+        {
+            _db.ActivityAgendaItems.RemoveRange(existingAgenda);
+        }
+
+        var existingMembers = await _db.ActivityAlbumFamilyMembers
+            .Where(x => x.ActivityAlbumId == albumId)
+            .ToListAsync(cancellationToken);
+        if (existingMembers.Count > 0)
+        {
+            _db.ActivityAlbumFamilyMembers.RemoveRange(existingMembers);
+        }
+
+        var existingFriends = await _db.ActivityAlbumFriends
+            .Where(x => x.ActivityAlbumId == albumId)
+            .ToListAsync(cancellationToken);
+        if (existingFriends.Count > 0)
+        {
+            _db.ActivityAlbumFriends.RemoveRange(existingFriends);
+        }
+
+        activity.AgendaItems.Clear();
+        activity.FamilyMembers.Clear();
+        activity.Friends.Clear();
+        DetachUntrackedActivityRelationOrphans(albumId);
+
+        return await ApplyRelationsAsync(activity, request, creatorUserId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Drop stale included children that are no longer in the database (avoids 0-row DELETE concurrency errors).
+    /// </summary>
+    private void DetachUntrackedActivityRelationOrphans(Guid activityAlbumId)
+    {
+        if (_db is not DbContext context)
+        {
+            return;
+        }
+
+        foreach (var entry in context.ChangeTracker.Entries<ActivityAgendaItem>()
+                     .Where(e => e.Entity.ActivityAlbumId == activityAlbumId && e.State == EntityState.Unchanged)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+
+        foreach (var entry in context.ChangeTracker.Entries<ActivityAlbumFamilyMember>()
+                     .Where(e => e.Entity.ActivityAlbumId == activityAlbumId && e.State == EntityState.Unchanged)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+
+        foreach (var entry in context.ChangeTracker.Entries<ActivityAlbumFriend>()
+                     .Where(e => e.Entity.ActivityAlbumId == activityAlbumId && e.State == EntityState.Unchanged)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
     private async Task<string?> ApplyRelationsAsync(
         ActivityAlbum activity,
         UpsertActivityAlbumRequestDto request,
@@ -556,15 +621,20 @@ public class ActivityService : IActivityService
 
             foreach (var memberId in memberIds)
             {
-                activity.FamilyMembers.Add(new ActivityAlbumFamilyMember { FamilyMemberId = memberId });
+                activity.FamilyMembers.Add(new ActivityAlbumFamilyMember
+                {
+                    ActivityAlbumId = activity.Id,
+                    FamilyMemberId = memberId
+                });
             }
         }
 
         var order = 0;
-        foreach (var item in request.Agenda)
+        foreach (var item in request.Agenda ?? [])
         {
             activity.AgendaItems.Add(new ActivityAgendaItem
             {
+                ActivityAlbumId = activity.Id,
                 ExternalId = string.IsNullOrWhiteSpace(item.Id) ? null : item.Id.Trim(),
                 Title = item.Title.Trim(),
                 StartDate = item.StartDate,
@@ -598,6 +668,7 @@ public class ActivityService : IActivityService
 
             activity.Friends.Add(new ActivityAlbumFriend
             {
+                ActivityAlbumId = activity.Id,
                 FriendId = friendId,
                 FriendReference = trimmed
             });
