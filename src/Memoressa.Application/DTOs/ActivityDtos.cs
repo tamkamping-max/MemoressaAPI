@@ -26,6 +26,7 @@ public record ActivityAlbumDto
     [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
     [JsonPropertyName("title")] public string Title { get; init; } = string.Empty;
     [JsonPropertyName("type")] public ActivityAlbumType Type { get; init; }
+    [JsonPropertyName("activityType")] public ActivityAlbumType ActivityType => Type;
     [JsonPropertyName("status")] public ActivityAlbumStatus Status { get; init; }
     [JsonPropertyName("startDate")] public DateOnly StartDate { get; init; }
     [JsonPropertyName("endDate")] public DateOnly? EndDate { get; init; }
@@ -40,11 +41,13 @@ public record ActivityAlbumDto
 public record UpsertActivityAlbumRequestDto
 {
     [JsonPropertyName("title")] public string Title { get; init; } = string.Empty;
-    [JsonPropertyName("type")] public ActivityAlbumType Type { get; init; }
+    [JsonPropertyName("type")] public ActivityAlbumType? Type { get; init; }
+    [JsonPropertyName("activityType")] public ActivityAlbumType? ActivityType { get; init; }
     [JsonPropertyName("status")] public ActivityAlbumStatus Status { get; init; } = ActivityAlbumStatus.InProgress;
     [JsonPropertyName("startDate")] public DateOnly StartDate { get; init; }
     [JsonPropertyName("endDate")] public DateOnly? EndDate { get; init; }
     [JsonPropertyName("location")] public string? Location { get; init; }
+    [JsonPropertyName("creatorUserId")] public Guid? CreatorUserId { get; init; }
     [JsonPropertyName("familyMemberIds")] public IReadOnlyList<Guid> FamilyMemberIds { get; init; } = [];
     [JsonPropertyName("friendIds")] public IReadOnlyList<string> FriendIds { get; init; } = [];
     [JsonPropertyName("coverPhotoId")] public Guid? CoverPhotoId { get; init; }

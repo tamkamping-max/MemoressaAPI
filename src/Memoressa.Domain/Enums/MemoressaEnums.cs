@@ -157,7 +157,8 @@ public enum ActivityAlbumType
     Wedding = 1,
     Conference = 2,
     Concert = 3,
-    Gathering = 4
+    Gathering = 4,
+    Other = 5
 }
 
 public enum ActivityAlbumStatus

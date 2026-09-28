@@ -403,17 +403,21 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 
 ### Activities — `api/v1/activities`
 
+MemoressaApp: upload settings picker, home carousel, create on upload confirm, edit in modal. All routes require JWT family scope.
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/in-progress` | Upload picker: `{ data: { items: [ActivityAlbum...] } }`, `status=inProgress`, user has access |
-| GET | `/active-today?date=yyyy-MM-dd&limit=8` | Home carousel: `{ data: { strategy, items: [{ sortRank, subtitle, activity, photos }] } }`. Default `limit=8`, max 20. `strategy`: `empty` \| `singleActive` \| `multiActive`. Sort: creator first, then companion; then startDate proximity to `date`. |
-| POST | `/` | Create activity (returns full DTO with `id` = `act_...`) |
-| PUT | `/{activityId}` | Update activity (`activityId` = external id) |
-| POST | `/{activityId}/photos` | Batch attach `{ photoIds: [...] }` |
+| GET | `/in-progress` | Link existing activity modal. **200** `{ data: { items: [ActivityAlbum...] } }` (empty `items: []`, never 404). Only `status=inProgress`, caller has access, creator account active. |
+| GET | `/active-today?date=yyyy-MM-dd&limit=8` | Home carousel. **200** `{ data: { strategy, items: [{ sortRank, subtitle, activity, photos }] } }`. `date` defaults UTC today. Active on `date`: `inProgress` and `startDate ≤ date` and (`endDate` null or `date ≤ endDate`). Sort: creator tier first, then start-date proximity. `photos` up to 12 previews from uploads linked via `activityAlbumId`. |
+| POST | `/` | Create activity. Body: `title` (required), `type` or `activityType` (travel \| wedding \| conference \| concert \| gathering \| **other**), `status`, `startDate`, optional `endDate`, `location`, `familyMemberIds`, `friendIds`, `agenda[]` (`title` required per item). **`creatorUserId`** defaults to JWT user if omitted. Unknown enum strings → **400**. |
+| PUT | `/{activityId}` | Full update (same body as POST). `activityId` = external id (`act_...`). Returns updated DTO including `creatorUserId` and agenda ids. |
+| POST | `/{activityId}/photos` | Attach `{ photoIds: [...] }` |
 
-`POST /uploads/start` optional **`activityAlbumId`** (`act_...`): validates in-progress + permission; links photo on **complete**.
+`POST /uploads/start` optional **`activityAlbumId`** (`act_...`): activity must exist, **`inProgress`**, caller **`CanUploadTo`**; links photo on **complete** (feeds `active-today` photos).
 
-Enums (JSON camelCase): `type` = travel \| wedding \| conference \| concert \| gathering; `status` = inProgress \| completed \| cancelled.
+Response activity fields (camelCase): `id`, `title`, `type`, `activityType` (mirror of `type`), `status`, `startDate`, `endDate`, `location`, **`creatorUserId`**, `familyMemberIds`, `friendIds`, `agenda`, optional `coverPhotoId`.
+
+Enums (JSON camelCase): `type` = travel \| wedding \| conference \| concert \| gathering \| **other**; `status` = inProgress \| completed \| cancelled.
 
 Migration **`009_activity_albums.sql`**.
 

@@ -78,17 +78,35 @@ public class ActivityService : IActivityService
             return ServiceResult<ActivityAlbumDto>.Fail("title is required", 400);
         }
 
+        var validationError = ActivityAlbumRequestRules.ValidateUpsert(request);
+        if (validationError is not null)
+        {
+            return ServiceResult<ActivityAlbumDto>.Fail(validationError, 400);
+        }
+
+        var (ok, activityType, _) = ActivityAlbumRequestRules.ResolveType(request);
+        if (!ok)
+        {
+            return ServiceResult<ActivityAlbumDto>.Fail("type is required", 400);
+        }
+
+        var creatorUserId = ctx.Value.UserId;
+        if (request.CreatorUserId.HasValue && request.CreatorUserId.Value != ctx.Value.UserId)
+        {
+            return ServiceResult<ActivityAlbumDto>.Fail("creatorUserId must match the authenticated user", 400);
+        }
+
         var activity = new ActivityAlbum
         {
             FamilyId = ctx.Value.FamilyId,
             ExternalId = ActivityAlbumAccess.NewExternalId(),
             Title = request.Title.Trim(),
-            Type = request.Type,
+            Type = activityType,
             Status = request.Status,
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             Location = request.Location?.Trim(),
-            CreatorUserId = ctx.Value.UserId,
+            CreatorUserId = creatorUserId,
             CoverPhotoId = request.CoverPhotoId
         };
 
@@ -127,8 +145,27 @@ public class ActivityService : IActivityService
             return ServiceResult<ActivityAlbumDto>.Fail("Forbidden", 403);
         }
 
+        var validationError = ActivityAlbumRequestRules.ValidateUpsert(request);
+        if (validationError is not null)
+        {
+            return ServiceResult<ActivityAlbumDto>.Fail(validationError, 400);
+        }
+
+        var (ok, activityType, _) = ActivityAlbumRequestRules.ResolveType(request);
+        if (!ok)
+        {
+            return ServiceResult<ActivityAlbumDto>.Fail("type is required", 400);
+        }
+
+        if (request.CreatorUserId.HasValue
+            && request.CreatorUserId.Value != activity.CreatorUserId
+            && request.CreatorUserId.Value != ctx.Value.UserId)
+        {
+            return ServiceResult<ActivityAlbumDto>.Fail("creatorUserId cannot be changed to another user", 400);
+        }
+
         activity.Title = request.Title.Trim();
-        activity.Type = request.Type;
+        activity.Type = activityType;
         activity.Status = request.Status;
         activity.StartDate = request.StartDate;
         activity.EndDate = request.EndDate;
@@ -387,7 +424,9 @@ public class ActivityService : IActivityService
     }
 
     private static bool HasValidParticipant(ActivityAlbum activity) =>
-        activity.FamilyMembers.Count > 0 || activity.Friends.Count > 0;
+        activity.CreatorUserId != Guid.Empty
+        || activity.FamilyMembers.Count > 0
+        || activity.Friends.Count > 0;
 
     private async Task<string?> ApplyRelationsAsync(
         ActivityAlbum activity,
