@@ -479,7 +479,7 @@ Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat 
 
 **MemoressaApp:** On opening the AI screen, call **`GET /session`** to restore the latest transcript and pass **`sessionId`** on subsequent **`POST /chat`** calls. When **`sessionId`** is omitted on chat, the API reuses the latest session for that user/family (no new empty session per visit). Do not show preset example chips; history replaces an empty-state welcome when messages exist.
 
-**Agent memory search (before each Grok call):** one batched SQL substring query each for memories, photos, and photo albums (all synonym terms OR’d together). **Default:** one **`chat/completions`** call per Agent message (reply only). Set **`Ai:AgentGrokSearchExpansion`** to **true** to add a **second** Grok call that expands keywords across locales; otherwise **`AgentSearchSynonyms`** (static zh/en groups, capped by **`AgentMaxSearchTermsForDb`**) plus the raw user message are used. RAG candidate lines and history defaults are tuned to keep prompt size down (~500–800 input tokens for short queries like 「開心」 when **`AgentGrokSearchExpansion`** is false).
+**Agent memory search (before each Grok call):** substring SQL on memories, photos, and photo albums (one query per synonym term, capped by **`AgentMaxSearchTermsForDb`** — MySQL/Pomelo cannot OR a primitive keyword list in one LINQ expression). **Default:** one **`chat/completions`** call per Agent message (reply only). Set **`Ai:AgentGrokSearchExpansion`** to **true** for an extra Grok keyword-expansion call.
 
 | Method | Path | Description |
 |--------|------|-------------|

@@ -75,7 +75,21 @@ public static class EfTextSearch
             return query.Where(_ => false);
         }
 
-        return query.Where(p => p.TakenAt.HasValue && years.Contains(p.TakenAt.Value.Year));
+        if (years.Count == 1)
+        {
+            var year = years[0];
+            return query.Where(p => p.TakenAt.HasValue && p.TakenAt.Value.Year == year);
+        }
+
+        // Avoid years.Contains(...) — primitive collections are not enabled on MySQL Pomelo.
+        IQueryable<Photo> combined = query.Where(_ => false);
+        foreach (var year in years.Distinct())
+        {
+            var y = year;
+            combined = combined.Union(query.Where(p => p.TakenAt.HasValue && p.TakenAt.Value.Year == y));
+        }
+
+        return combined;
     }
 
     /// <summary>Photo album fields for AI Agent search (description, user tags, comments).</summary>
@@ -96,94 +110,5 @@ public static class EfTextSearch
             (a.Description != null && EF.Functions.Like(a.Description, likePattern))
             || a.UserTags.Any(t => EF.Functions.Like(t.Tag, likePattern))
             || a.Comments.Any(c => EF.Functions.Like(c.Message, likePattern)));
-    }
-
-    public static IQueryable<Memory> WhereMemoryTextMatchesAny(
-        IQueryable<Memory> query,
-        IReadOnlyList<string> likePatterns,
-        bool usePostgreSql)
-    {
-        if (likePatterns.Count == 0)
-        {
-            return query.Where(_ => false);
-        }
-
-        if (likePatterns.Count == 1)
-        {
-            return WhereMemoryTextMatches(query, likePatterns[0], usePostgreSql);
-        }
-
-        if (usePostgreSql)
-        {
-            return query.Where(m =>
-                likePatterns.Any(p => EF.Functions.ILike(m.Title, p))
-                || likePatterns.Any(p => EF.Functions.ILike(m.Description ?? string.Empty, p))
-                || likePatterns.Any(p => EF.Functions.ILike(m.Location ?? string.Empty, p)));
-        }
-
-        return query.Where(m =>
-            likePatterns.Any(p => EF.Functions.Like(m.Title, p))
-            || likePatterns.Any(p => m.Description != null && EF.Functions.Like(m.Description, p))
-            || likePatterns.Any(p => m.Location != null && EF.Functions.Like(m.Location, p)));
-    }
-
-    public static IQueryable<Photo> WherePhotoAgentFieldMatchesAny(
-        IQueryable<Photo> query,
-        IReadOnlyList<string> likePatterns,
-        bool usePostgreSql)
-    {
-        if (likePatterns.Count == 0)
-        {
-            return query.Where(_ => false);
-        }
-
-        if (likePatterns.Count == 1)
-        {
-            return WherePhotoAgentFieldMatches(query, likePatterns[0], usePostgreSql);
-        }
-
-        if (usePostgreSql)
-        {
-            return query.Where(p =>
-                likePatterns.Any(pat => EF.Functions.ILike(p.Description ?? string.Empty, pat))
-                || likePatterns.Any(pat => EF.Functions.ILike(p.Location ?? string.Empty, pat))
-                || p.AiTags.Any(t => likePatterns.Any(pat => EF.Functions.ILike(t.Tag, pat)))
-                || p.UserTags.Any(t => likePatterns.Any(pat => EF.Functions.ILike(t.Tag, pat))));
-        }
-
-        return query.Where(p =>
-            likePatterns.Any(pat => p.Description != null && EF.Functions.Like(p.Description, pat))
-            || likePatterns.Any(pat => p.Location != null && EF.Functions.Like(p.Location, pat))
-            || p.AiTags.Any(t => likePatterns.Any(pat => EF.Functions.Like(t.Tag, pat)))
-            || p.UserTags.Any(t => likePatterns.Any(pat => EF.Functions.Like(t.Tag, pat))));
-    }
-
-    public static IQueryable<PhotoAlbum> WherePhotoAlbumAgentFieldMatchesAny(
-        IQueryable<PhotoAlbum> query,
-        IReadOnlyList<string> likePatterns,
-        bool usePostgreSql)
-    {
-        if (likePatterns.Count == 0)
-        {
-            return query.Where(_ => false);
-        }
-
-        if (likePatterns.Count == 1)
-        {
-            return WherePhotoAlbumAgentFieldMatches(query, likePatterns[0], usePostgreSql);
-        }
-
-        if (usePostgreSql)
-        {
-            return query.Where(a =>
-                likePatterns.Any(p => EF.Functions.ILike(a.Description ?? string.Empty, p))
-                || a.UserTags.Any(t => likePatterns.Any(p => EF.Functions.ILike(t.Tag, p)))
-                || a.Comments.Any(c => likePatterns.Any(p => EF.Functions.ILike(c.Message, p))));
-        }
-
-        return query.Where(a =>
-            likePatterns.Any(p => a.Description != null && EF.Functions.Like(a.Description, p))
-            || a.UserTags.Any(t => likePatterns.Any(p => EF.Functions.Like(t.Tag, p)))
-            || a.Comments.Any(c => likePatterns.Any(p => EF.Functions.Like(c.Message, p))));
     }
 }

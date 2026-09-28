@@ -120,48 +120,81 @@ public class AiOrchestrationService : IAiOrchestrationService
         var searchTerms = AgentSearchTermBuilder.Limit(
             AgentSearchTermBuilder.Build(query, additionalSearchTerms),
             _options.AgentMaxSearchTermsForDb);
-        var likePatterns = searchTerms.Select(EfTextSearch.ToLikePattern).ToList();
 
         var photoScope = _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId && !p.IsHidden);
+        var memoryScope = _db.Memories.AsNoTracking().Where(m => m.FamilyId == familyId);
+        var albumScope = _db.PhotoAlbums.AsNoTracking().Where(a => a.FamilyId == familyId);
 
-        var memoryTextMatches = (await EfTextSearch
-                .WhereMemoryTextMatchesAny(
-                    _db.Memories.AsNoTracking().Where(m => m.FamilyId == familyId),
-                    likePatterns,
-                    usePostgreSql)
+        var memoryTextMatches = new Dictionary<Guid, Memory>();
+        foreach (var term in searchTerms)
+        {
+            var pattern = EfTextSearch.ToLikePattern(term);
+            var batch = await EfTextSearch
+                .WhereMemoryTextMatches(memoryScope, pattern, usePostgreSql)
                 .Include(m => m.MemoryPhotos)
-                .ToListAsync(cancellationToken))
-            .ToDictionary(m => m.Id);
+                .ToListAsync(cancellationToken);
+
+            foreach (var memory in batch)
+            {
+                memoryTextMatches[memory.Id] = memory;
+            }
+        }
 
         var memoryTextMatchIds = memoryTextMatches.Keys.ToHashSet();
 
-        var fieldMatchedPhotos = (await EfTextSearch
-                .WherePhotoAgentFieldMatchesAny(photoScope, likePatterns, usePostgreSql)
-                .Include(p => p.MemoryPhotos)
-                .Include(p => p.AiTags)
-                .Include(p => p.UserTags)
-                .ToListAsync(cancellationToken))
-            .ToDictionary(p => p.Id);
-
-        var dateMatchedPhotos = years.Count == 0
-            ? []
-            : await EfTextSearch
-                .WherePhotoTakenAtYearIn(photoScope, years)
+        var fieldMatchedPhotos = new Dictionary<Guid, Photo>();
+        foreach (var term in searchTerms)
+        {
+            var pattern = EfTextSearch.ToLikePattern(term);
+            var batch = await EfTextSearch
+                .WherePhotoAgentFieldMatches(photoScope, pattern, usePostgreSql)
                 .Include(p => p.MemoryPhotos)
                 .Include(p => p.AiTags)
                 .Include(p => p.UserTags)
                 .ToListAsync(cancellationToken);
 
-        var albumTextMatches = (await EfTextSearch
-                .WherePhotoAlbumAgentFieldMatchesAny(
-                    _db.PhotoAlbums.AsNoTracking().Where(a => a.FamilyId == familyId),
-                    likePatterns,
-                    usePostgreSql)
+            foreach (var photo in batch)
+            {
+                fieldMatchedPhotos[photo.Id] = photo;
+            }
+        }
+
+        List<Photo> dateMatchedPhotos;
+        if (years.Count == 0)
+        {
+            dateMatchedPhotos = [];
+        }
+        else
+        {
+            dateMatchedPhotos = new List<Photo>();
+            foreach (var year in years.Distinct())
+            {
+                var batch = await photoScope
+                    .Where(p => p.TakenAt.HasValue && p.TakenAt.Value.Year == year)
+                    .Include(p => p.MemoryPhotos)
+                    .Include(p => p.AiTags)
+                    .Include(p => p.UserTags)
+                    .ToListAsync(cancellationToken);
+                dateMatchedPhotos.AddRange(batch);
+            }
+        }
+
+        var albumTextMatches = new Dictionary<Guid, PhotoAlbum>();
+        foreach (var term in searchTerms)
+        {
+            var pattern = EfTextSearch.ToLikePattern(term);
+            var batch = await EfTextSearch
+                .WherePhotoAlbumAgentFieldMatches(albumScope, pattern, usePostgreSql)
                 .Include(a => a.AlbumPhotos)
                 .Include(a => a.UserTags)
                 .Include(a => a.Comments)
-                .ToListAsync(cancellationToken))
-            .ToDictionary(a => a.Id);
+                .ToListAsync(cancellationToken);
+
+            foreach (var album in batch)
+            {
+                albumTextMatches[album.Id] = album;
+            }
+        }
 
         var albumTextMatchIds = albumTextMatches.Keys.ToHashSet();
         var albumLookup = albumTextMatches;
