@@ -473,7 +473,7 @@ Migration **`009_activity_albums.sql`**.
 
 Conversational assistant for the MemoressaApp top-left AI entry. Uses Grok Chat Completions with family memory search as RAG context.
 
-**Agent memory search (before each Grok call):** SQL substring match on memories (title, description, location), on photos (**description**, **location**, **TakenAt year**, user/AI tags), and on **`photo_albums`** (**description**, **user tags**, **comments**). Album hits expand to **one result row per photo** in that album. Each row includes **`photoId`**, optional **`memoryId`**, optional **`photoAlbumId`**, and **`title`** (photo description → album description → memory title).
+**Agent memory search (before each Grok call):** SQL substring match on memories (title, description, location), on photos (**description**, **location**, **TakenAt year**, user/AI tags), and on **`photo_albums`** (**description**, **user tags**, **comments**). When the user message contains a term from a built-in **zh/en synonym group** (e.g. **開心** ↔ **happy**), the API searches **all synonyms in that group** so English tags match Chinese queries. Album hits expand to **one result row per photo** in that album. Each row includes **`photoId`**, optional **`memoryId`**, optional **`photoAlbumId`**, and **`title`** (photo description → album description → memory title).
 
 | Method | Path | Description |
 |--------|------|-------------|
