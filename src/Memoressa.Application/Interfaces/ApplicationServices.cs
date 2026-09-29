@@ -107,6 +107,9 @@ public interface IDisplayDeviceService
     Task<ServiceResult> UnbindDeviceAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ServiceResult> SendMemoryToDeviceAsync(Guid deviceId, SendMemoryToDeviceRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<string>> GenerateQrCodeAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<DisplayDevicePairingStatusDto>> GetPairingStatusAsync(
+        string qrCode,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IAiService

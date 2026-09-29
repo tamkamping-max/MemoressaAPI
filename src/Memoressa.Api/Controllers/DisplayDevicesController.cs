@@ -39,6 +39,16 @@ public class DisplayDevicesController : ControllerBase
         return result.ToActionResult();
     }
 
+    [AllowAnonymous]
+    [HttpGet("pairing-status")]
+    public async Task<IActionResult> GetPairingStatus(
+        [FromQuery] string qrCode,
+        CancellationToken cancellationToken)
+    {
+        var result = await _displayDeviceService.GetPairingStatusAsync(qrCode, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpPut("{id:guid}/rename")]
     public async Task<IActionResult> RenameDevice(Guid id, [FromBody] RenameDisplayDeviceRequestDto request, CancellationToken cancellationToken)
     {

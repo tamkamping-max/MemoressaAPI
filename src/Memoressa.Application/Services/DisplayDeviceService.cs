@@ -237,4 +237,32 @@ public class DisplayDeviceService : IDisplayDeviceService
 
     public Task<ServiceResult<string>> GenerateQrCodeAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(ServiceResult<string>.Ok(Guid.NewGuid().ToString()));
+
+    public async Task<ServiceResult<DisplayDevicePairingStatusDto>> GetPairingStatusAsync(
+        string qrCode,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(qrCode))
+        {
+            return ServiceResult<DisplayDevicePairingStatusDto>.Fail("qrCode is required", 400);
+        }
+
+        var device = await _db.DisplayDevices.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.QrCode == qrCode, cancellationToken);
+
+        if (device is null)
+        {
+            return ServiceResult<DisplayDevicePairingStatusDto>.Ok(new DisplayDevicePairingStatusDto
+            {
+                IsBound = false
+            });
+        }
+
+        return ServiceResult<DisplayDevicePairingStatusDto>.Ok(new DisplayDevicePairingStatusDto
+        {
+            IsBound = true,
+            DeviceId = device.Id,
+            Name = device.Name
+        });
+    }
 }

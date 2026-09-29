@@ -24,6 +24,13 @@ public record BindDisplayDeviceRequestDto
     [JsonPropertyName("name")] public string? Name { get; init; }
 }
 
+public record DisplayDevicePairingStatusDto
+{
+    [JsonPropertyName("isBound")] public bool IsBound { get; init; }
+    [JsonPropertyName("deviceId")] public Guid? DeviceId { get; init; }
+    [JsonPropertyName("name")] public string? Name { get; init; }
+}
+
 public record RenameDisplayDeviceRequestDto
 {
     [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
