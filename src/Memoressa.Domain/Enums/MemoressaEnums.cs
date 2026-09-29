@@ -94,7 +94,8 @@ public enum FrameCommandType
     Stop,
     SyncQueue,
     PushComment,
-    UpdateStatus
+    UpdateStatus,
+    ClearFamilySharedContent = 9
 }
 
 public enum FrameCommandStatus

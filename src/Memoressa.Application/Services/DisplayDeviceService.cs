@@ -183,6 +183,43 @@ public class DisplayDeviceService : IDisplayDeviceService
             return ServiceResult.NotFound("Device not found");
         }
 
+        _db.FrameCommands.Add(new FrameCommand
+        {
+            DisplayDeviceId = device.Id,
+            IssuedByUserId = ctx.Value.UserId,
+            CommandType = FrameCommandType.ClearFamilySharedContent,
+            Status = FrameCommandStatus.Pending,
+            PayloadJson = "{}"
+        });
+
+        var packages = await _db.FramePlaybackPackages
+            .Where(p => p.DisplayDeviceId == device.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var package in packages)
+        {
+            if (FramePlaybackPackageRetention.ShouldRemoveOnDeviceUnbind(package.PackageJson))
+            {
+                _db.FramePlaybackPackages.Remove(package);
+            }
+        }
+
+        var existingCommands = await _db.FrameCommands
+            .Where(c => c.DisplayDeviceId == device.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var command in existingCommands)
+        {
+            if (command.CommandType == FrameCommandType.ClearFamilySharedContent
+                && command.Status == FrameCommandStatus.Pending
+                && command.PayloadJson == "{}")
+            {
+                continue;
+            }
+
+            _db.FrameCommands.Remove(command);
+        }
+
         _db.DisplayDevices.Remove(device);
         await _db.SaveChangesAsync(cancellationToken);
         return ServiceResult.Ok();
@@ -316,7 +353,14 @@ public class DisplayDeviceService : IDisplayDeviceService
             return false;
         }
 
-        if (!Guid.TryParse(qrCode.Trim(), out var guid))
+        var trimmed = qrCode.Trim();
+        const string framePairPrefix = "memoressa://frame-pair/";
+        if (trimmed.StartsWith(framePairPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[framePairPrefix.Length..].Trim();
+        }
+
+        if (!Guid.TryParse(trimmed, out var guid))
         {
             error = "Invalid pairing code";
             return false;

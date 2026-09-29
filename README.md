@@ -462,13 +462,15 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 | POST | `/` | Create device |
 | POST | `/bind` | Bind device via QR code |
 | PUT | `/{id}/rename` | Rename device |
-| POST | `/{id}/unbind` | Unbind device |
+| POST | `/{id}/unbind` | Unbind device; queues `ClearFamilySharedContent` for the frame, removes family-shared `frame_playback_packages` (keeps friend packages until device cascade), clears other pending commands |
 | POST | `/{deviceId}/send-memory` | Send memory to frame |
 | GET | `/qr-code` | Generate binding QR code |
 | GET | `/pairing-status?qrCode=` | **Anonymous.** Whether the frame QR is bound; `canBind` is true only while the frame has an active pairing session (10 min) |
 | POST | `/pairing/register` | **Anonymous.** Frame welcome screen registers `{ "qrCode": "<uuid>" }` to start the pairing session |
 
-**Pairing flow:** The frame shows a UUID QR and calls `POST /pairing/register`. The app polls `GET /pairing-status` until `canBind` is true, then the signed-in user calls `POST /bind` with the same `qrCode`. New binds require an active session; re-binding the same QR to the same family does not.
+**Pairing flow:** The frame shows a UUID QR (`memoressa://frame-pair/{uuid}` in the app UI; API bodies/query use the **uuid** only, or the full deep link for register/status/bind). The frame calls `POST /pairing/register`. The app polls `GET /pairing-status` until `canBind` is true, then the signed-in user calls `POST /bind` with the same `qrCode`. New binds require an active session; re-binding the same QR to the same family does not.
+
+**Unbind:** `POST /{id}/unbind` enqueues a pending `ClearFamilySharedContent` frame command (enum value **9**) so the device clears locally shared queue content. Server-side `frame_playback_packages` with `isFriendShare: true` or `source: "friend"` in `packageJson` are retained until the device row is deleted; other packages are removed before unbind completes.
 
 ### AI — `api/v1/ai`
 
