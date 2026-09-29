@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Memoressa.Application.Interfaces;
 using Memoressa.Domain.Enums;
 
 namespace Memoressa.Application.DTOs;
@@ -52,6 +53,9 @@ public record PlaybackRequestDto
     [JsonPropertyName("year")] public int? Year { get; init; }
     [JsonPropertyName("generation")] public Generation? Generation { get; init; }
     [JsonPropertyName("photoIds")] public IReadOnlyList<Guid>? PhotoIds { get; init; }
+
+    [JsonIgnore]
+    public PhotoUrlPurpose UrlPurpose { get; init; } = PhotoUrlPurpose.ApiResponse;
 }
 
 public record NotificationDto

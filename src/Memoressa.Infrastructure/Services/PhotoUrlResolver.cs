@@ -72,6 +72,7 @@ public class PhotoUrlResolver : IPhotoUrlResolver
         var expiry = purpose switch
         {
             PhotoUrlPurpose.AiProcessing => TimeSpan.FromMinutes(_options.AiPresignedUrlExpiryMinutes),
+            PhotoUrlPurpose.FramePlayback => TimeSpan.FromMinutes(_options.DownloadPresignedUrlExpiryMinutes),
             _ => TimeSpan.FromMinutes(_options.PresignedUrlExpiryMinutes)
         };
 

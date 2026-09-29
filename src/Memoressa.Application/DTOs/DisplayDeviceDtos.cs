@@ -59,6 +59,13 @@ public record DisplayFrameQueueItemDto
     [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
 }
 
+public record FrameDevicePhotoMediaDto
+{
+    [JsonPropertyName("photoId")] public Guid PhotoId { get; init; }
+    [JsonPropertyName("remoteUrl")] public string? RemoteUrl { get; init; }
+    [JsonPropertyName("thumbnailUrl")] public string? ThumbnailUrl { get; init; }
+}
+
 public record FrameCommandDto
 {
     [JsonPropertyName("id")] public Guid Id { get; init; }

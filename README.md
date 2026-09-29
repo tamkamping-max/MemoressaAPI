@@ -646,6 +646,7 @@ User-scoped reusable labels for the photo tags sheet (not journal tags). See Pho
 | GET | `/devices/{deviceId}/playback-packages` | List playback packages |
 | POST | `/devices/{deviceId}/playback-packages` | Create playback package |
 | POST | `/devices/{deviceId}/playback-packages/ensure` | Upsert package by `externalId` (maps client ids like `remote_pkg_*` to server GUID) |
+| GET | `/devices/{deviceId}/photos/{photoId}/media` | **Anonymous.** Presigned `remoteUrl` / `thumbnailUrl` for a family photo (`PhotoUrlPurpose.FramePlayback`, same expiry as download URLs) |
 | GET | `/playback-packages/{packageId}/comments` | List frame comments (requires server package GUID) |
 | POST | `/playback-packages/{packageId}/comments` | Add frame comment |
 

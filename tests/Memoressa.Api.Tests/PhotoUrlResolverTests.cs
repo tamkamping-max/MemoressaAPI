@@ -54,6 +54,23 @@ public class PhotoUrlResolverTests
     }
 
     [Fact]
+    public async Task GetPresignedUrlAsync_FramePlayback_UsesDownloadExpiry()
+    {
+        var s3 = new FakeS3StorageService();
+        var resolver = new PhotoUrlResolver(s3, Options.Create(new AwsS3Options
+        {
+            PresignedUrlExpiryMinutes = 15,
+            DownloadPresignedUrlExpiryMinutes = 60
+        }));
+
+        var photo = new Photo { S3Key = "uploads/family/user/photo.jpg" };
+
+        var url = await resolver.GetPresignedUrlAsync(photo, purpose: PhotoUrlPurpose.FramePlayback);
+
+        Assert.Equal("GET:uploads/family/user/photo.jpg:60", url);
+    }
+
+    [Fact]
     public async Task ToDtoAsync_LegacyFullUrlDerivedFromCompressedKey()
     {
         var s3 = new FakeS3StorageService();

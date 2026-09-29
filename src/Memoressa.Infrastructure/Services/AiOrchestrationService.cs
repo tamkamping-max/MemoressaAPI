@@ -727,7 +727,11 @@ public class AiOrchestrationService : IAiOrchestrationService
         for (var index = 0; index < photos.Count; index++)
         {
             var photo = photos[index];
-            var assetPath = await _photoUrls.GetPresignedUrlAsync(photo, thumbnail: false, cancellationToken: cancellationToken)
+            var assetPath = await _photoUrls.GetPresignedUrlAsync(
+                    photo,
+                    thumbnail: false,
+                    purpose: request.UrlPurpose,
+                    cancellationToken: cancellationToken)
                 ?? photo.LocalAssetPath
                 ?? string.Empty;
 

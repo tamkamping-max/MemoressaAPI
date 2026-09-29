@@ -42,6 +42,17 @@ public class FrameController : ControllerBase
         return result.ToActionResult();
     }
 
+    [AllowAnonymous]
+    [HttpGet("devices/{deviceId:guid}/photos/{photoId:guid}/media")]
+    public async Task<IActionResult> GetDevicePhotoMedia(
+        Guid deviceId,
+        Guid photoId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _frameService.GetDevicePhotoMediaAsync(deviceId, photoId, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("playback-packages/{packageId:guid}/comments")]
     public async Task<IActionResult> GetComments(Guid packageId, CancellationToken cancellationToken)
     {

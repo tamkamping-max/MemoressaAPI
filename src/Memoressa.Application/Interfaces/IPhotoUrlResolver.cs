@@ -6,7 +6,8 @@ namespace Memoressa.Application.Interfaces;
 public enum PhotoUrlPurpose
 {
     ApiResponse,
-    AiProcessing
+    AiProcessing,
+    FramePlayback
 }
 
 public interface IPhotoUrlResolver

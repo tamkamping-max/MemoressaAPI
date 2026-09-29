@@ -11,11 +11,16 @@ public class FrameService : IFrameService
 {
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly IPhotoUrlResolver _photoUrls;
 
-    public FrameService(IMemoressaDbContext db, ICurrentUserService currentUser)
+    public FrameService(
+        IMemoressaDbContext db,
+        ICurrentUserService currentUser,
+        IPhotoUrlResolver photoUrls)
     {
         _db = db;
         _currentUser = currentUser;
+        _photoUrls = photoUrls;
     }
 
     public async Task<ServiceResult<IReadOnlyList<FramePlaybackPackageDto>>> GetPlaybackPackagesAsync(
@@ -193,5 +198,40 @@ public class FrameService : IFrameService
             .FirstAsync(c => c.Id == comment.Id, cancellationToken);
 
         return ServiceResult<FrameCommentDto>.Ok(saved.ToDto());
+    }
+
+    public async Task<ServiceResult<FrameDevicePhotoMediaDto>> GetDevicePhotoMediaAsync(
+        Guid deviceId,
+        Guid photoId,
+        CancellationToken cancellationToken = default)
+    {
+        var device = await _db.DisplayDevices.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
+
+        if (device is null)
+        {
+            return ServiceResult<FrameDevicePhotoMediaDto>.NotFound("Device not found");
+        }
+
+        var photo = await _db.Photos.AsNoTracking()
+            .FirstOrDefaultAsync(
+                p => p.Id == photoId && p.FamilyId == device.FamilyId && !p.IsHidden,
+                cancellationToken);
+
+        if (photo is null)
+        {
+            return ServiceResult<FrameDevicePhotoMediaDto>.NotFound("Photo not found");
+        }
+
+        var purpose = PhotoUrlPurpose.FramePlayback;
+        var remoteUrl = await _photoUrls.GetPresignedUrlAsync(photo, thumbnail: false, purpose, cancellationToken);
+        var thumbnailUrl = await _photoUrls.GetPresignedUrlAsync(photo, thumbnail: true, purpose, cancellationToken);
+
+        return ServiceResult<FrameDevicePhotoMediaDto>.Ok(new FrameDevicePhotoMediaDto
+        {
+            PhotoId = photo.Id,
+            RemoteUrl = remoteUrl,
+            ThumbnailUrl = thumbnailUrl
+        });
     }
 }

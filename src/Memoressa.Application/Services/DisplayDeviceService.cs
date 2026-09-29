@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Memoressa.Application.Abstractions;
+using Memoressa.Application.Interfaces;
 using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
@@ -260,7 +261,12 @@ public class DisplayDeviceService : IDisplayDeviceService
 
         var items = await _aiOrchestrationService.GeneratePlaybackAsync(
             ctx.Value.FamilyId,
-            new PlaybackRequestDto { PhotoIds = memoryPhotos, AiCurated = false },
+            new PlaybackRequestDto
+            {
+                PhotoIds = memoryPhotos,
+                AiCurated = false,
+                UrlPurpose = PhotoUrlPurpose.FramePlayback
+            },
             cancellationToken);
 
         var payload = JsonSerializer.Serialize(new

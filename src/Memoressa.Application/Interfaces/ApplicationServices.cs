@@ -278,6 +278,10 @@ public interface IFrameService
     Task<ServiceResult<FramePlaybackPackageDto>> EnsurePlaybackPackageAsync(Guid deviceId, EnsurePlaybackPackageRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<IReadOnlyList<FrameCommentDto>>> GetCommentsAsync(Guid packageId, CancellationToken cancellationToken = default);
     Task<ServiceResult<FrameCommentDto>> AddCommentAsync(Guid packageId, AddFrameCommentRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult<FrameDevicePhotoMediaDto>> GetDevicePhotoMediaAsync(
+        Guid deviceId,
+        Guid photoId,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IInternalRealtimeService
