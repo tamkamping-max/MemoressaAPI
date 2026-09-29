@@ -84,6 +84,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddMemoryCache();
+        services.AddSingleton<IDisplayDevicePairingSessionStore, DisplayDevicePairingSessionStore>();
         services.AddHttpClient("AppleOAuth");
         services.AddScoped<IAppleSignInValidator, AppleSignInValidator>();
 

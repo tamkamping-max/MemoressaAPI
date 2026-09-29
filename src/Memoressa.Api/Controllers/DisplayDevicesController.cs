@@ -49,6 +49,16 @@ public class DisplayDevicesController : ControllerBase
         return result.ToActionResult();
     }
 
+    [AllowAnonymous]
+    [HttpPost("pairing/register")]
+    public async Task<IActionResult> RegisterPairingSession(
+        [FromBody] RegisterDisplayDevicePairingRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _displayDeviceService.RegisterPairingSessionAsync(request.QrCode, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpPut("{id:guid}/rename")]
     public async Task<IActionResult> RenameDevice(Guid id, [FromBody] RenameDisplayDeviceRequestDto request, CancellationToken cancellationToken)
     {

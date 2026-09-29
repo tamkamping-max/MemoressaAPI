@@ -465,6 +465,10 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 | POST | `/{id}/unbind` | Unbind device |
 | POST | `/{deviceId}/send-memory` | Send memory to frame |
 | GET | `/qr-code` | Generate binding QR code |
+| GET | `/pairing-status?qrCode=` | **Anonymous.** Whether the frame QR is bound; `canBind` is true only while the frame has an active pairing session (10 min) |
+| POST | `/pairing/register` | **Anonymous.** Frame welcome screen registers `{ "qrCode": "<uuid>" }` to start the pairing session |
+
+**Pairing flow:** The frame shows a UUID QR and calls `POST /pairing/register`. The app polls `GET /pairing-status` until `canBind` is true, then the signed-in user calls `POST /bind` with the same `qrCode`. New binds require an active session; re-binding the same QR to the same family does not.
 
 ### AI — `api/v1/ai`
 

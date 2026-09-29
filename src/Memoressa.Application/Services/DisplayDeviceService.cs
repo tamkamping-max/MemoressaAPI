@@ -11,18 +11,23 @@ namespace Memoressa.Application.Services;
 
 public class DisplayDeviceService : IDisplayDeviceService
 {
+    private static readonly TimeSpan PairingSessionTtl = TimeSpan.FromMinutes(10);
+
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IAiOrchestrationService _aiOrchestrationService;
+    private readonly IDisplayDevicePairingSessionStore _pairingSessions;
 
     public DisplayDeviceService(
         IMemoressaDbContext db,
         ICurrentUserService currentUser,
-        IAiOrchestrationService aiOrchestrationService)
+        IAiOrchestrationService aiOrchestrationService,
+        IDisplayDevicePairingSessionStore pairingSessions)
     {
         _db = db;
         _currentUser = currentUser;
         _aiOrchestrationService = aiOrchestrationService;
+        _pairingSessions = pairingSessions;
     }
 
     public async Task<ServiceResult<IReadOnlyList<DisplayDeviceDto>>> GetDevicesAsync(CancellationToken cancellationToken = default)
@@ -87,8 +92,13 @@ public class DisplayDeviceService : IDisplayDeviceService
             return ServiceResult<DisplayDeviceDto>.Fail($"Maximum {AppConstants.MaxDisplayDevices} devices allowed");
         }
 
+        if (!TryNormalizePairingQrCode(request.QrCode, out var qrCode, out var qrError))
+        {
+            return ServiceResult<DisplayDeviceDto>.Fail(qrError!, 400);
+        }
+
         var existing = await _db.DisplayDevices
-            .FirstOrDefaultAsync(d => d.QrCode == request.QrCode, cancellationToken);
+            .FirstOrDefaultAsync(d => d.QrCode == qrCode, cancellationToken);
 
         if (existing is not null)
         {
@@ -106,7 +116,15 @@ public class DisplayDeviceService : IDisplayDeviceService
             }
 
             await _db.SaveChangesAsync(cancellationToken);
+            _pairingSessions.Remove(qrCode);
             return ServiceResult<DisplayDeviceDto>.Ok(existing.ToDto());
+        }
+
+        if (!_pairingSessions.IsActive(qrCode))
+        {
+            return ServiceResult<DisplayDeviceDto>.Fail(
+                "This QR code is not from an active Memoressa frame pairing screen",
+                400);
         }
 
         var device = new DisplayDevice
@@ -114,13 +132,14 @@ public class DisplayDeviceService : IDisplayDeviceService
             FamilyId = ctx.Value.FamilyId,
             BoundByUserId = ctx.Value.UserId,
             Name = request.Name ?? $"Frame {count + 1}",
-            QrCode = request.QrCode,
+            QrCode = qrCode,
             Status = DisplayDeviceStatus.Online,
             LastSeenAt = DateTime.UtcNow
         };
 
         _db.DisplayDevices.Add(device);
         await _db.SaveChangesAsync(cancellationToken);
+        _pairingSessions.Remove(qrCode);
         return ServiceResult<DisplayDeviceDto>.Ok(device.ToDto());
     }
 
@@ -247,22 +266,63 @@ public class DisplayDeviceService : IDisplayDeviceService
             return ServiceResult<DisplayDevicePairingStatusDto>.Fail("qrCode is required", 400);
         }
 
+        if (!TryNormalizePairingQrCode(qrCode, out var normalized, out var qrError))
+        {
+            return ServiceResult<DisplayDevicePairingStatusDto>.Fail(qrError!, 400);
+        }
+
         var device = await _db.DisplayDevices.AsNoTracking()
-            .FirstOrDefaultAsync(d => d.QrCode == qrCode, cancellationToken);
+            .FirstOrDefaultAsync(d => d.QrCode == normalized, cancellationToken);
 
         if (device is null)
         {
             return ServiceResult<DisplayDevicePairingStatusDto>.Ok(new DisplayDevicePairingStatusDto
             {
-                IsBound = false
+                IsBound = false,
+                CanBind = _pairingSessions.IsActive(normalized)
             });
         }
 
         return ServiceResult<DisplayDevicePairingStatusDto>.Ok(new DisplayDevicePairingStatusDto
         {
             IsBound = true,
+            CanBind = false,
             DeviceId = device.Id,
             Name = device.Name
         });
+    }
+
+    public Task<ServiceResult> RegisterPairingSessionAsync(
+        string qrCode,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryNormalizePairingQrCode(qrCode, out var normalized, out var qrError))
+        {
+            return Task.FromResult(ServiceResult.Fail(qrError!, 400));
+        }
+
+        _pairingSessions.Register(normalized, PairingSessionTtl);
+        return Task.FromResult(ServiceResult.Ok());
+    }
+
+    private static bool TryNormalizePairingQrCode(string qrCode, out string normalized, out string? error)
+    {
+        normalized = string.Empty;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(qrCode))
+        {
+            error = "qrCode is required";
+            return false;
+        }
+
+        if (!Guid.TryParse(qrCode.Trim(), out var guid))
+        {
+            error = "Invalid pairing code";
+            return false;
+        }
+
+        normalized = guid.ToString();
+        return true;
     }
 }

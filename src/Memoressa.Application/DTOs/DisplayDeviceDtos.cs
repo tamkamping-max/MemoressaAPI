@@ -27,8 +27,14 @@ public record BindDisplayDeviceRequestDto
 public record DisplayDevicePairingStatusDto
 {
     [JsonPropertyName("isBound")] public bool IsBound { get; init; }
+    [JsonPropertyName("canBind")] public bool CanBind { get; init; }
     [JsonPropertyName("deviceId")] public Guid? DeviceId { get; init; }
     [JsonPropertyName("name")] public string? Name { get; init; }
+}
+
+public record RegisterDisplayDevicePairingRequestDto
+{
+    [JsonPropertyName("qrCode")] public string QrCode { get; init; } = string.Empty;
 }
 
 public record RenameDisplayDeviceRequestDto

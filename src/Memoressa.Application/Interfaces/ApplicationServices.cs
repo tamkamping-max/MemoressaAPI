@@ -110,6 +110,9 @@ public interface IDisplayDeviceService
     Task<ServiceResult<DisplayDevicePairingStatusDto>> GetPairingStatusAsync(
         string qrCode,
         CancellationToken cancellationToken = default);
+    Task<ServiceResult> RegisterPairingSessionAsync(
+        string qrCode,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IAiService
