@@ -291,6 +291,59 @@ public class DisplayDeviceService : IDisplayDeviceService
         return ServiceResult.Ok();
     }
 
+    public async Task<ServiceResult<IReadOnlyList<DisplayFrameQueueItemDto>>> GetPlaybackQueueAsync(
+        Guid deviceId,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<IReadOnlyList<DisplayFrameQueueItemDto>>.Fail("Unauthorized", 401);
+        }
+
+        var device = await _db.DisplayDevices.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == deviceId && d.FamilyId == ctx.Value.FamilyId, cancellationToken);
+
+        if (device is null)
+        {
+            return ServiceResult<IReadOnlyList<DisplayFrameQueueItemDto>>.NotFound("Device not found");
+        }
+
+        var commands = await _db.FrameCommands.AsNoTracking()
+            .Where(c =>
+                c.DisplayDeviceId == deviceId
+                && c.CommandType == FrameCommandType.PlayMemory
+                && (c.Status == FrameCommandStatus.Pending || c.Status == FrameCommandStatus.Delivered))
+            .OrderBy(c => c.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var queue = new List<DisplayFrameQueueItemDto>(commands.Count);
+        foreach (var command in commands)
+        {
+            if (!TryParsePlayMemoryPayload(command.PayloadJson, out var memoryId, out var playNow, out var title))
+            {
+                continue;
+            }
+
+            if (playNow)
+            {
+                continue;
+            }
+
+            queue.Add(new DisplayFrameQueueItemDto
+            {
+                Id = command.Id,
+                Title = title ?? string.Empty,
+                MemoryId = memoryId,
+                Status = command.Status,
+                PlayNow = playNow,
+                CreatedAt = command.CreatedAt
+            });
+        }
+
+        return ServiceResult<IReadOnlyList<DisplayFrameQueueItemDto>>.Ok(queue);
+    }
+
     public Task<ServiceResult<string>> GenerateQrCodeAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(ServiceResult<string>.Ok(Guid.NewGuid().ToString()));
 
@@ -368,5 +421,58 @@ public class DisplayDeviceService : IDisplayDeviceService
 
         normalized = guid.ToString();
         return true;
+    }
+
+    private static bool TryParsePlayMemoryPayload(
+        string payloadJson,
+        out Guid? memoryId,
+        out bool playNow,
+        out string? title)
+    {
+        memoryId = null;
+        playNow = false;
+        title = null;
+
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payloadJson);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            if (!root.TryGetProperty("memoryId", out var memoryIdElement)
+                || memoryIdElement.ValueKind != JsonValueKind.String
+                || !Guid.TryParse(memoryIdElement.GetString(), out var parsedMemoryId))
+            {
+                return false;
+            }
+
+            memoryId = parsedMemoryId;
+
+            if (root.TryGetProperty("playNow", out var playNowElement)
+                && (playNowElement.ValueKind == JsonValueKind.True || playNowElement.ValueKind == JsonValueKind.False))
+            {
+                playNow = playNowElement.GetBoolean();
+            }
+
+            if (root.TryGetProperty("packageTitle", out var titleElement)
+                && titleElement.ValueKind == JsonValueKind.String)
+            {
+                title = titleElement.GetString();
+            }
+
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }

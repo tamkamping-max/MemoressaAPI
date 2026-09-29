@@ -80,6 +80,13 @@ public class DisplayDevicesController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpGet("{deviceId:guid}/playback-queue")]
+    public async Task<IActionResult> GetPlaybackQueue(Guid deviceId, CancellationToken cancellationToken)
+    {
+        var result = await _displayDeviceService.GetPlaybackQueueAsync(deviceId, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("qr-code")]
     public async Task<IActionResult> GenerateQrCode(CancellationToken cancellationToken)
     {

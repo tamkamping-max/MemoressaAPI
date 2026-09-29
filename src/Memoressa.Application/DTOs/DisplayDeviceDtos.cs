@@ -49,6 +49,16 @@ public record SendMemoryToDeviceRequestDto
     [JsonPropertyName("packageTitle")] public string? PackageTitle { get; init; }
 }
 
+public record DisplayFrameQueueItemDto
+{
+    [JsonPropertyName("id")] public Guid Id { get; init; }
+    [JsonPropertyName("title")] public string Title { get; init; } = string.Empty;
+    [JsonPropertyName("memoryId")] public Guid? MemoryId { get; init; }
+    [JsonPropertyName("status")] public FrameCommandStatus Status { get; init; }
+    [JsonPropertyName("playNow")] public bool PlayNow { get; init; }
+    [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
+}
+
 public record FrameCommandDto
 {
     [JsonPropertyName("id")] public Guid Id { get; init; }

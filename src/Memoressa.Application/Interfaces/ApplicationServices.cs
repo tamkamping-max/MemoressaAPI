@@ -106,6 +106,9 @@ public interface IDisplayDeviceService
     Task<ServiceResult<DisplayDeviceDto>> RenameDeviceAsync(Guid id, RenameDisplayDeviceRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult> UnbindDeviceAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ServiceResult> SendMemoryToDeviceAsync(Guid deviceId, SendMemoryToDeviceRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult<IReadOnlyList<DisplayFrameQueueItemDto>>> GetPlaybackQueueAsync(
+        Guid deviceId,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult<string>> GenerateQrCodeAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<DisplayDevicePairingStatusDto>> GetPairingStatusAsync(
         string qrCode,

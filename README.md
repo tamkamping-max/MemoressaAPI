@@ -464,6 +464,7 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 | PUT | `/{id}/rename` | Rename device |
 | POST | `/{id}/unbind` | Unbind device; queues `ClearFamilySharedContent` for the frame, removes family-shared `frame_playback_packages` (keeps friend packages until device cascade), clears other pending commands |
 | POST | `/{deviceId}/send-memory` | Send memory to frame |
+| GET | `/{deviceId}/playback-queue` | Pending/delivered `PlayMemory` queue (`playNow: false` only) |
 | GET | `/qr-code` | Generate binding QR code |
 | GET | `/pairing-status?qrCode=` | **Anonymous.** Whether the frame QR is bound; `canBind` is true only while the frame has an active pairing session (10 min) |
 | POST | `/pairing/register` | **Anonymous.** Frame welcome screen registers `{ "qrCode": "<uuid>" }` to start the pairing session |
