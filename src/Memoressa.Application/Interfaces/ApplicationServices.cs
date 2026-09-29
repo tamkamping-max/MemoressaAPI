@@ -148,6 +148,11 @@ public interface IProfileService
     Task<ServiceResult<AvatarUploadStartResponseDto>> StartAvatarUploadAsync(
         AvatarUploadStartRequestDto request,
         CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<AvatarViewUrlResponseDto>> GetAvatarViewUrlAsync(
+        Guid? friendId,
+        Guid? friendUserId,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IJournalTagService

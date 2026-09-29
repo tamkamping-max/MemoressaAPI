@@ -63,6 +63,14 @@ public record NotificationDto
     [JsonPropertyName("isRead")] public bool IsRead { get; init; }
 }
 
+public record FriendUserSummaryDto
+{
+    [JsonPropertyName("id")] public Guid Id { get; init; }
+    [JsonPropertyName("nickname")] public string? Nickname { get; init; }
+    [JsonPropertyName("email")] public string? Email { get; init; }
+    [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
+}
+
 public record FriendDto
 {
     [JsonPropertyName("id")] public Guid Id { get; init; }
@@ -70,6 +78,8 @@ public record FriendDto
     [JsonPropertyName("nickname")] public string? Nickname { get; init; }
     [JsonPropertyName("email")] public string? Email { get; init; }
     [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
+    [JsonPropertyName("friendUserId")] public Guid? FriendUserId { get; init; }
+    [JsonPropertyName("friendUser")] public FriendUserSummaryDto? FriendUser { get; init; }
     [JsonPropertyName("frameLinked")] public bool FrameLinked { get; init; }
     [JsonPropertyName("status")] public string Status { get; init; } = "accepted";
     [JsonPropertyName("sharedActivityCount")] public int SharedActivityCount { get; init; }

@@ -26,4 +26,14 @@ public class ProfileController : ControllerBase
         var result = await _profileService.StartAvatarUploadAsync(request, cancellationToken);
         return result.ToActionResult();
     }
+
+    [HttpGet("avatars/view-url")]
+    public async Task<IActionResult> GetAvatarViewUrl(
+        [FromQuery] Guid? friendId,
+        [FromQuery] Guid? friendUserId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _profileService.GetAvatarViewUrlAsync(friendId, friendUserId, cancellationToken);
+        return result.ToActionResult();
+    }
 }

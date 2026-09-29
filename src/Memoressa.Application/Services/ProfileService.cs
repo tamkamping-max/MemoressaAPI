@@ -7,23 +7,26 @@ using Microsoft.Extensions.Options;
 
 namespace Memoressa.Application.Services;
 
-public class ProfileService : IProfileService
+public partial class ProfileService : IProfileService
 {
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IS3StorageService _s3;
     private readonly MediaStorageSettings _storageSettings;
+    private readonly IAvatarUrlResolver _avatarUrls;
 
     public ProfileService(
         IMemoressaDbContext db,
         ICurrentUserService currentUser,
         IS3StorageService s3,
-        IOptions<MediaStorageSettings> storageSettings)
+        IOptions<MediaStorageSettings> storageSettings,
+        IAvatarUrlResolver avatarUrls)
     {
         _db = db;
         _currentUser = currentUser;
         _s3 = s3;
         _storageSettings = storageSettings.Value;
+        _avatarUrls = avatarUrls;
     }
 
     public async Task<ServiceResult<AvatarUploadStartResponseDto>> StartAvatarUploadAsync(

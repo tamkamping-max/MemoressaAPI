@@ -11,11 +11,16 @@ public partial class FriendService : IFriendService
 {
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly IAvatarUrlResolver _avatarUrls;
 
-    public FriendService(IMemoressaDbContext db, ICurrentUserService currentUser)
+    public FriendService(
+        IMemoressaDbContext db,
+        ICurrentUserService currentUser,
+        IAvatarUrlResolver avatarUrls)
     {
         _db = db;
         _currentUser = currentUser;
+        _avatarUrls = avatarUrls;
     }
 
     public async Task<ServiceResult<IReadOnlyList<FriendDto>>> GetFriendsAsync(CancellationToken cancellationToken = default)
@@ -61,24 +66,12 @@ public partial class FriendService : IFriendService
                     .Where(u => linkedUserIds.Contains(u.Id))
                     .ToDictionaryAsync(u => u.Id, cancellationToken);
 
-            dtos.AddRange(friends.Select(f =>
+            foreach (var f in friends)
             {
                 linkedUsers.TryGetValue(f.FriendUserId ?? Guid.Empty, out var linked);
                 var activityCount = activityCountMap.GetValueOrDefault(f.Id);
-                var displayName = linked?.Nickname ?? linked?.Email ?? f.Name;
-                return new FriendDto
-                {
-                    Id = f.Id,
-                    Name = f.Name,
-                    Nickname = displayName,
-                    Email = linked?.Email,
-                    AvatarUrl = f.AvatarUrl ?? linked?.AvatarUrl,
-                    FrameLinked = f.FrameLinked,
-                    Status = "accepted",
-                    SharedActivityCount = activityCount > 0 ? activityCount : f.SharedMemoryCount,
-                    SharedMemoryCount = f.SharedMemoryCount
-                };
-            }));
+                dtos.Add(await MapAcceptedFriendDtoAsync(f, linked, activityCount, cancellationToken));
+            }
         }
 
         dtos.AddRange(await BuildPendingFriendDtosAsync(userId, user.Email, cancellationToken));

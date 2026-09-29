@@ -25,23 +25,13 @@ public partial class FriendService
             .OrderByDescending(i => i.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return invites.Select(i =>
+        var list = new List<FriendDto>(invites.Count);
+        foreach (var invite in invites)
         {
-            var outgoing = i.InviterUserId == userId;
-            var counterparty = outgoing ? i.Invitee : i.Inviter;
-            var displayName = counterparty?.Nickname ?? counterparty?.Email ?? i.InviteeEmail;
-            return new FriendDto
-            {
-                Id = i.Id,
-                Name = displayName ?? i.InviteeEmail,
-                Nickname = displayName,
-                Email = outgoing ? i.InviteeEmail : i.Inviter.Email,
-                AvatarUrl = counterparty?.AvatarUrl,
-                Status = outgoing ? "pending_outgoing" : "pending_incoming",
-                SharedActivityCount = 0,
-                SharedMemoryCount = 0
-            };
-        }).ToList();
+            list.Add(await MapPendingInviteFriendDtoAsync(invite, userId, cancellationToken));
+        }
+
+        return list;
     }
 
     public async Task<ServiceResult<IReadOnlyList<FriendInviteDto>>> GetFriendInvitesAsync(

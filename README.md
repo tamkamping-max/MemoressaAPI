@@ -558,6 +558,7 @@ Requires **`Ai:GrokApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Comple
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/avatars/upload-start` | `{ contentType: image/jpeg, purpose: user_profile \| family_member, familyMemberId? }` → `{ uploadUrl, avatarUrl }` (S3 key). PUT JPEG to `uploadUrl`, then PATCH `/auth/me` or PUT `/family-members/{id}` with `avatarUrl`. |
+| GET | `/avatars/view-url?friendId=&friendUserId=` | Presigned **`viewUrl`** + stored **`avatarUrl`** key for a linked **accepted** friend or **pending** invite counterparty (**403/404** if not in your friend/invite graph). Either query param may be used; both may be supplied together. |
 
 **Response avatars:** `GET /auth/me`, auth login/register `user`, and **`GET/POST/PUT /family-members`** return `avatarUrl` as a **presigned HTTPS GET** when the stored value is an S3 object key (same expiry as `AwsS3:PresignedUrlExpiryMinutes`). Already-absolute `http(s)` URLs are unchanged.
 
@@ -565,7 +566,7 @@ Requires **`Ai:GrokApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Comple
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | Accepted + **pending** friends (`status`: `accepted` \| `pending_incoming` \| `pending_outgoing`; pending rows use invite id) |
+| GET | `/` | Accepted + **pending** friends (`status`, `friendUserId`, nested **`friendUser`** `{ id, nickname, email, avatarUrl }`, top-level **`avatarUrl`**) |
 | GET | `/invites` | Pending invites (`pending_incoming` / `pending_outgoing`) |
 | POST | `/invites` | `{ email }` |
 | POST | `/invites/{id}/accept` | Accept invite (creates reciprocal `friends` rows) |

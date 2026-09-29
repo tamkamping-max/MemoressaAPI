@@ -14,3 +14,10 @@ public record AvatarUploadStartResponseDto
     [JsonPropertyName("uploadUrl")] public string UploadUrl { get; init; } = string.Empty;
     [JsonPropertyName("avatarUrl")] public string AvatarUrl { get; init; } = string.Empty;
 }
+
+public record AvatarViewUrlResponseDto
+{
+    [JsonPropertyName("viewUrl")] public string ViewUrl { get; init; } = string.Empty;
+    /// <summary>Stable S3 object key when the avatar is stored privately.</summary>
+    [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
+}
