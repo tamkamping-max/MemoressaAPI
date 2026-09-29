@@ -63,6 +63,7 @@ public class FamilyService : IFamilyService
             Generation = request.Generation,
             Relationship = request.Relationship,
             AvatarUrl = request.AvatarUrl,
+            CityId = request.CityId,
             FaceRecognitionEnabled = request.FaceRecognitionEnabled
         };
 
@@ -97,6 +98,7 @@ public class FamilyService : IFamilyService
         member.Generation = request.Generation;
         member.Relationship = request.Relationship;
         member.AvatarUrl = request.AvatarUrl;
+        member.CityId = request.CityId;
         member.FaceRecognitionEnabled = request.FaceRecognitionEnabled;
         await _db.SaveChangesAsync(cancellationToken);
         return ServiceResult<FamilyMemberDto>.Ok(member.ToDto());

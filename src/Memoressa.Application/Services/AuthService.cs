@@ -270,7 +270,7 @@ public partial class AuthService : IAuthService
     }
 
     public async Task<ServiceResult<UserDto>> PatchCurrentUserAsync(
-        PatchMeRequestDto request,
+        PatchMeRequest request,
         CancellationToken cancellationToken = default)
     {
         if (!_currentUser.UserId.HasValue)
@@ -292,20 +292,49 @@ public partial class AuthService : IAuthService
             return ServiceResult<UserDto>.NotFound("User not found");
         }
 
-        if (request.SelfFamilyMemberId.HasValue)
+        if (request.IsSet("selfFamilyMemberId"))
         {
-            var memberExists = await _db.FamilyMembers.AsNoTracking()
-                .AnyAsync(
-                    m => m.Id == request.SelfFamilyMemberId.Value && m.FamilyId == ctx.Value.FamilyId,
-                    cancellationToken);
-
-            if (!memberExists)
+            if (request.SelfFamilyMemberId.HasValue)
             {
-                return ServiceResult<UserDto>.Fail("Family member not found in your family", 404);
+                var memberExists = await _db.FamilyMembers.AsNoTracking()
+                    .AnyAsync(
+                        m => m.Id == request.SelfFamilyMemberId.Value && m.FamilyId == ctx.Value.FamilyId,
+                        cancellationToken);
+
+                if (!memberExists)
+                {
+                    return ServiceResult<UserDto>.Fail("Family member not found in your family", 404);
+                }
             }
+
+            user.SelfFamilyMemberId = request.SelfFamilyMemberId;
         }
 
-        user.SelfFamilyMemberId = request.SelfFamilyMemberId;
+        if (request.IsSet("nickname"))
+        {
+            user.Nickname = UploadMetadata.NormalizeOptionalText(request.Nickname);
+        }
+
+        if (request.IsSet("avatarUrl"))
+        {
+            user.AvatarUrl = UploadMetadata.NormalizeOptionalText(request.AvatarUrl);
+        }
+
+        if (request.IsSet("birthDate"))
+        {
+            user.BirthDate = request.BirthDate;
+        }
+
+        if (request.IsSet("profileCityId"))
+        {
+            user.ProfileCityId = UploadMetadata.NormalizeOptionalText(request.ProfileCityId);
+        }
+
+        if (request.IsSet("generation"))
+        {
+            user.Generation = request.Generation;
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
 
         return ServiceResult<UserDto>.Ok(user.ToDto());

@@ -73,6 +73,8 @@ public interface IEmailService
 {
     Task SendPasswordResetAsync(string email, string resetToken, CancellationToken cancellationToken = default);
     Task SendPasswordResetCodeAsync(string email, string code, CancellationToken cancellationToken = default);
+    Task SendEmailVerificationCodeAsync(string email, string code, CancellationToken cancellationToken = default);
+    Task SendEmailChangeCodeAsync(string email, string code, CancellationToken cancellationToken = default);
 }
 
 public interface ICurrentUserService

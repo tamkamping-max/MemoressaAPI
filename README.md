@@ -541,14 +541,38 @@ Requires **`Ai:GrokApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Comple
 | GET | `/ai` | Get AI feature toggles |
 | PUT | `/ai` | Update AI settings |
 
+### Auth profile & security — `api/v1/auth`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| PATCH | `/me` | Partial update: `selfFamilyMemberId`, `nickname`, `avatarUrl`, `birthDate`, `profileCityId`, `generation` (App enum index; gen 1 = `0`) |
+| POST | `/password/change` | `{ currentPassword, newPassword, confirmPassword }` |
+| POST | `/email/verification/request` | Sends OTP to current email |
+| POST | `/email/change/request` | `{ currentPassword, newEmail }` — OTP to new email |
+| POST | `/email/change/confirm` | `{ newEmail, code }` |
+
+### Profile avatars — `api/v1/profile`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/avatars/upload-start` | `{ contentType: image/jpeg, purpose: user_profile \| family_member, familyMemberId? }` → `{ uploadUrl, avatarUrl }` (S3 key). PUT JPEG to `uploadUrl`, then PATCH `/auth/me` or PUT `/family-members/{id}` with `avatarUrl`. |
+
 ### Friends — `api/v1/friends`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | List friends |
-| POST | `/` | Add friend |
+| GET | `/` | Accepted friends (`status`: `accepted`; `sharedActivityCount` + `sharedMemoryCount` fallback) |
+| GET | `/invites` | Pending invites (`pending_incoming` / `pending_outgoing`) |
+| POST | `/invites` | `{ email }` |
+| POST | `/invites/{id}/accept` | Accept invite (creates reciprocal `friends` rows) |
+| POST | `/invites/{id}/reject` | Reject or cancel pending invite |
+| POST | `/` | Add friend (manual) |
 | PUT | `/{id}` | Update friend |
 | DELETE | `/{id}` | Delete friend |
+
+Family members `POST`/`PUT` accept optional **`cityId`** (separate from user `profileCityId` on PATCH `/me`).
+
+Migration **`024_app_profile_friends_security.sql`**: `friend_invites`, email OTP tables, `family_members.CityId`, `user_accounts.EmailVerifiedAt`.
 
 ### Journal Tags — `api/v1/journal-tags`
 

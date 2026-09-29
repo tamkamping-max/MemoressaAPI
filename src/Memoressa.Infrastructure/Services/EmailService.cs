@@ -105,6 +105,87 @@ public class EmailService : IEmailService
             _sesOptions.FromEmail.Trim());
     }
 
+    public Task SendEmailVerificationCodeAsync(string email, string code, CancellationToken cancellationToken = default) =>
+        SendOtpEmailAsync(
+            email,
+            code,
+            "Memoressa email verification code",
+            "Your Memoressa email verification code is:",
+            cancellationToken);
+
+    public Task SendEmailChangeCodeAsync(string email, string code, CancellationToken cancellationToken = default) =>
+        SendOtpEmailAsync(
+            email,
+            code,
+            "Memoressa email change verification code",
+            "Your Memoressa email change verification code is:",
+            cancellationToken);
+
+    private async Task SendOtpEmailAsync(
+        string email,
+        string code,
+        string subject,
+        string introLine,
+        CancellationToken cancellationToken)
+    {
+        if (_environment.IsDevelopment() && !IsSmtpConfigured())
+        {
+            _logger.LogInformation("DEV OTP for {Email} ({Subject}). Code: {Code}", email, subject, code);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_sesOptions.FromEmail))
+        {
+            _logger.LogWarning("AwsSes:FromEmail is not configured; cannot send OTP to {Email}", email);
+            throw new InvalidOperationException("Email is not configured");
+        }
+
+        if (!IsSmtpConfigured())
+        {
+            _logger.LogWarning("AwsSes SMTP (host/username/password) is not configured");
+            throw new InvalidOperationException("Email SMTP is not configured");
+        }
+
+        var ttl = PasswordResetCodeRules.TtlMinutes;
+        var textBody =
+            $"{introLine} {code}\n\n" +
+            $"This code is valid for {ttl} minutes. If you did not request this, you can ignore this email.\n";
+        var htmlBody =
+            $"<p>{WebUtility.HtmlEncode(introLine)} <strong>{WebUtility.HtmlEncode(code)}</strong></p>" +
+            $"<p>This code is valid for {ttl} minutes. If you did not request this, you can ignore this email.</p>";
+
+        var fromAddress = new MailAddress(
+            _sesOptions.FromEmail.Trim(),
+            string.IsNullOrWhiteSpace(_sesOptions.FromDisplayName)
+                ? "Memoressa"
+                : _sesOptions.FromDisplayName.Trim());
+
+        using var message = new MailMessage
+        {
+            From = fromAddress,
+            Subject = subject,
+            Body = textBody,
+            IsBodyHtml = false
+        };
+        message.To.Add(email.Trim());
+        message.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(htmlBody, null, "text/html"));
+
+        if (!string.IsNullOrWhiteSpace(_sesOptions.ConfigurationSetName))
+        {
+            message.Headers.Add("X-SES-CONFIGURATION-SET", _sesOptions.ConfigurationSetName.Trim());
+        }
+
+        using var client = new SmtpClient(ResolveSmtpHost(), _sesOptions.SmtpPort)
+        {
+            EnableSsl = true,
+            Credentials = new NetworkCredential(
+                _sesOptions.SmtpUsername!.Trim(),
+                _sesOptions.SmtpPassword)
+        };
+
+        await client.SendMailAsync(message, cancellationToken);
+    }
+
     private bool IsSmtpConfigured() =>
         !string.IsNullOrWhiteSpace(_sesOptions.SmtpUsername)
         && !string.IsNullOrWhiteSpace(_sesOptions.SmtpPassword)

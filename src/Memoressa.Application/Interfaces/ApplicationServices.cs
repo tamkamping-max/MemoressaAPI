@@ -17,7 +17,11 @@ public interface IAuthService
     Task<ServiceResult> ScheduleAccountDeletionAsync(string password, CancellationToken cancellationToken = default);
     Task<ServiceResult> CancelAccountDeletionAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<UserDto>> GetCurrentUserAsync(CancellationToken cancellationToken = default);
-    Task<ServiceResult<UserDto>> PatchCurrentUserAsync(PatchMeRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult<UserDto>> PatchCurrentUserAsync(PatchMeRequest request, CancellationToken cancellationToken = default);
+    Task<ServiceResult> ChangePasswordAsync(ChangePasswordRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult> RequestEmailVerificationAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult> RequestEmailChangeAsync(EmailChangeRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult> ConfirmEmailChangeAsync(EmailChangeConfirmRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<AccountDeletionStatusDto>> GetDeletionStatusAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<AuthResponseDto>> LoginWithGoogleAsync(OAuthLoginRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<AuthResponseDto>> LoginWithFacebookAsync(OAuthLoginRequestDto request, CancellationToken cancellationToken = default);
@@ -125,9 +129,22 @@ public interface ISettingsService
 public interface IFriendService
 {
     Task<ServiceResult<IReadOnlyList<FriendDto>>> GetFriendsAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<IReadOnlyList<FriendInviteDto>>> GetFriendInvitesAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<FriendInviteDto>> CreateFriendInviteAsync(
+        CreateFriendInviteRequestDto request,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult> AcceptFriendInviteAsync(Guid inviteId, CancellationToken cancellationToken = default);
+    Task<ServiceResult> RejectFriendInviteAsync(Guid inviteId, CancellationToken cancellationToken = default);
     Task<ServiceResult<FriendDto>> AddFriendAsync(CreateFriendRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<FriendDto>> UpdateFriendAsync(Guid id, UpdateFriendRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult> DeleteFriendAsync(Guid id, CancellationToken cancellationToken = default);
+}
+
+public interface IProfileService
+{
+    Task<ServiceResult<AvatarUploadStartResponseDto>> StartAvatarUploadAsync(
+        AvatarUploadStartRequestDto request,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IJournalTagService

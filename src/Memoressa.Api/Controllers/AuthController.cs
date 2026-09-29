@@ -1,8 +1,10 @@
 using Memoressa.Api.Extensions;
+using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace Memoressa.Api.Controllers;
 
@@ -122,10 +124,49 @@ public class AuthController : ControllerBase
     [HttpPatch("me")]
     [Authorize]
     public async Task<IActionResult> PatchCurrentUser(
-        [FromBody] PatchMeRequestDto request,
+        [FromBody] JsonElement body,
         CancellationToken cancellationToken)
     {
+        var request = PatchMeRequest.FromJson(body);
         var result = await _authService.PatchCurrentUserAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("password/change")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.ChangePasswordAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("email/verification/request")]
+    [Authorize]
+    public async Task<IActionResult> RequestEmailVerification(CancellationToken cancellationToken)
+    {
+        var result = await _authService.RequestEmailVerificationAsync(cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("email/change/request")]
+    [Authorize]
+    public async Task<IActionResult> RequestEmailChange(
+        [FromBody] EmailChangeRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.RequestEmailChangeAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("email/change/confirm")]
+    [Authorize]
+    public async Task<IActionResult> ConfirmEmailChange(
+        [FromBody] EmailChangeConfirmRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.ConfirmEmailChangeAsync(request, cancellationToken);
         return result.ToActionResult();
     }
 

@@ -67,9 +67,29 @@ public record FriendDto
 {
     [JsonPropertyName("id")] public Guid Id { get; init; }
     [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
+    [JsonPropertyName("nickname")] public string? Nickname { get; init; }
+    [JsonPropertyName("email")] public string? Email { get; init; }
     [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
     [JsonPropertyName("frameLinked")] public bool FrameLinked { get; init; }
+    [JsonPropertyName("status")] public string Status { get; init; } = "accepted";
+    [JsonPropertyName("sharedActivityCount")] public int SharedActivityCount { get; init; }
     [JsonPropertyName("sharedMemoryCount")] public int SharedMemoryCount { get; init; }
+}
+
+public record FriendInviteDto
+{
+    [JsonPropertyName("id")] public Guid Id { get; init; }
+    [JsonPropertyName("name")] public string? Name { get; init; }
+    [JsonPropertyName("nickname")] public string? Nickname { get; init; }
+    [JsonPropertyName("email")] public string Email { get; init; } = string.Empty;
+    [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
+    [JsonPropertyName("status")] public string Status { get; init; } = string.Empty;
+    [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
+}
+
+public record CreateFriendInviteRequestDto
+{
+    [JsonPropertyName("email")] public string Email { get; init; } = string.Empty;
 }
 
 public record CreateFriendRequestDto

@@ -11,6 +11,8 @@ public static class EntityMapping
         Email = user.Email,
         Nickname = user.Nickname,
         AvatarUrl = user.AvatarUrl,
+        BirthDate = user.BirthDate,
+        ProfileCityId = user.ProfileCityId,
         Generation = user.Generation,
         SelfFamilyMemberId = user.SelfFamilyMemberId,
         CreatedAt = user.CreatedAt
@@ -110,6 +112,7 @@ public static class EntityMapping
         Generation = member.Generation,
         Relationship = member.Relationship,
         AvatarUrl = member.AvatarUrl,
+        CityId = member.CityId,
         FaceRecognitionEnabled = member.FaceRecognitionEnabled,
         PhotoIds = member.PhotoMembers.Select(pm => pm.PhotoId).ToList()
     };
@@ -140,8 +143,11 @@ public static class EntityMapping
     {
         Id = friend.Id,
         Name = friend.Name,
+        Nickname = friend.Name,
         AvatarUrl = friend.AvatarUrl,
         FrameLinked = friend.FrameLinked,
+        Status = "accepted",
+        SharedActivityCount = friend.SharedMemoryCount,
         SharedMemoryCount = friend.SharedMemoryCount
     };
 

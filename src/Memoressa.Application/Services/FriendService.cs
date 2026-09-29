@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Memoressa.Application.Services;
 
-public class FriendService : IFriendService
+public partial class FriendService : IFriendService
 {
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
@@ -25,12 +25,56 @@ public class FriendService : IFriendService
             return ServiceResult<IReadOnlyList<FriendDto>>.Fail("Unauthorized", 401);
         }
 
+        var userId = _currentUser.UserId.Value;
         var friends = await _db.Friends.AsNoTracking()
-            .Where(f => f.OwnerUserId == _currentUser.UserId.Value)
+            .Where(f => f.OwnerUserId == userId)
             .OrderBy(f => f.Name)
             .ToListAsync(cancellationToken);
 
-        return ServiceResult<IReadOnlyList<FriendDto>>.Ok(friends.Select(f => f.ToDto()).ToList());
+        if (friends.Count == 0)
+        {
+            return ServiceResult<IReadOnlyList<FriendDto>>.Ok([]);
+        }
+
+        var friendIds = friends.Select(f => f.Id).ToList();
+        var activityCounts = await _db.ActivityAlbumFriends.AsNoTracking()
+            .Where(af => af.FriendId != null && friendIds.Contains(af.FriendId.Value))
+            .GroupBy(af => af.FriendId!.Value)
+            .Select(g => new { FriendId = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+        var activityCountMap = activityCounts.ToDictionary(x => x.FriendId, x => x.Count);
+
+        var linkedUserIds = friends
+            .Where(f => f.FriendUserId.HasValue)
+            .Select(f => f.FriendUserId!.Value)
+            .Distinct()
+            .ToList();
+        var linkedUsers = linkedUserIds.Count == 0
+            ? new Dictionary<Guid, UserAccount>()
+            : await _db.UserAccounts.AsNoTracking()
+                .Where(u => linkedUserIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, cancellationToken);
+
+        var dtos = friends.Select(f =>
+        {
+            linkedUsers.TryGetValue(f.FriendUserId ?? Guid.Empty, out var linked);
+            var activityCount = activityCountMap.GetValueOrDefault(f.Id);
+            var displayName = linked?.Nickname ?? linked?.Email ?? f.Name;
+            return new FriendDto
+            {
+                Id = f.Id,
+                Name = f.Name,
+                Nickname = displayName,
+                Email = linked?.Email,
+                AvatarUrl = f.AvatarUrl ?? linked?.AvatarUrl,
+                FrameLinked = f.FrameLinked,
+                Status = "accepted",
+                SharedActivityCount = activityCount > 0 ? activityCount : f.SharedMemoryCount,
+                SharedMemoryCount = f.SharedMemoryCount
+            };
+        }).ToList();
+
+        return ServiceResult<IReadOnlyList<FriendDto>>.Ok(dtos);
     }
 
     public async Task<ServiceResult<FriendDto>> AddFriendAsync(

@@ -25,6 +25,36 @@ public class FriendsController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpGet("invites")]
+    public async Task<IActionResult> GetFriendInvites(CancellationToken cancellationToken)
+    {
+        var result = await _friendService.GetFriendInvitesAsync(cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("invites")]
+    public async Task<IActionResult> CreateFriendInvite(
+        [FromBody] CreateFriendInviteRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _friendService.CreateFriendInviteAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("invites/{id:guid}/accept")]
+    public async Task<IActionResult> AcceptFriendInvite(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _friendService.AcceptFriendInviteAsync(id, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("invites/{id:guid}/reject")]
+    public async Task<IActionResult> RejectFriendInvite(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _friendService.RejectFriendInviteAsync(id, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpPost]
     public async Task<IActionResult> AddFriend([FromBody] CreateFriendRequestDto request, CancellationToken cancellationToken)
     {

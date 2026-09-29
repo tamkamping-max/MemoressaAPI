@@ -9,14 +9,30 @@ public record UserDto
     [JsonPropertyName("email")] public string Email { get; init; } = string.Empty;
     [JsonPropertyName("nickname")] public string? Nickname { get; init; }
     [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
+    [JsonPropertyName("birthDate")] public DateTime? BirthDate { get; init; }
+    [JsonPropertyName("profileCityId")] public string? ProfileCityId { get; init; }
     [JsonPropertyName("generation")] public Generation? Generation { get; init; }
     [JsonPropertyName("selfFamilyMemberId")] public Guid? SelfFamilyMemberId { get; init; }
     [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
 }
 
-public record PatchMeRequestDto
+public record ChangePasswordRequestDto
 {
-    [JsonPropertyName("selfFamilyMemberId")] public Guid? SelfFamilyMemberId { get; init; }
+    [JsonPropertyName("currentPassword")] public string CurrentPassword { get; init; } = string.Empty;
+    [JsonPropertyName("newPassword")] public string NewPassword { get; init; } = string.Empty;
+    [JsonPropertyName("confirmPassword")] public string ConfirmPassword { get; init; } = string.Empty;
+}
+
+public record EmailChangeRequestDto
+{
+    [JsonPropertyName("currentPassword")] public string CurrentPassword { get; init; } = string.Empty;
+    [JsonPropertyName("newEmail")] public string NewEmail { get; init; } = string.Empty;
+}
+
+public record EmailChangeConfirmRequestDto
+{
+    [JsonPropertyName("newEmail")] public string NewEmail { get; init; } = string.Empty;
+    [JsonPropertyName("code")] public string Code { get; init; } = string.Empty;
 }
 
 public record AuthTokensDto

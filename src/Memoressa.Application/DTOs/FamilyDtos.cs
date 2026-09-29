@@ -12,6 +12,7 @@ public record FamilyMemberDto
     [JsonPropertyName("generation")] public Generation Generation { get; init; }
     [JsonPropertyName("relationship")] public string? Relationship { get; init; }
     [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
+    [JsonPropertyName("cityId")] public string? CityId { get; init; }
     [JsonPropertyName("faceRecognitionEnabled")] public bool FaceRecognitionEnabled { get; init; }
     [JsonPropertyName("photoIds")] public IReadOnlyList<Guid> PhotoIds { get; init; } = [];
 }
@@ -24,6 +25,7 @@ public record CreateFamilyMemberRequestDto
     [JsonPropertyName("generation")] public Generation Generation { get; init; } = Generation.Self;
     [JsonPropertyName("relationship")] public string? Relationship { get; init; }
     [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
+    [JsonPropertyName("cityId")] public string? CityId { get; init; }
     [JsonPropertyName("faceRecognitionEnabled")] public bool FaceRecognitionEnabled { get; init; } = true;
 }
 

@@ -167,3 +167,10 @@ public enum ActivityAlbumStatus
     Completed = 1,
     Cancelled = 2
 }
+
+public enum FriendInviteStatus
+{
+    Pending = 0,
+    Accepted = 1,
+    Rejected = 2
+}

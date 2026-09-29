@@ -17,6 +17,7 @@ public class UserAccount : Entity
     public string Locale { get; set; } = "en";
     public DateTime? DeletionScheduledAt { get; set; }
     public DateTime? DeletedAt { get; set; }
+    public DateTime? EmailVerifiedAt { get; set; }
     public bool IsActive { get; set; } = true;
     /// <summary>Sum of original (full) photo bytes stored for this user.</summary>
     public long CloudStorageUsedBytes { get; set; }
@@ -66,6 +67,37 @@ public class PasswordResetCode : Entity
     public UserAccount User { get; set; } = null!;
 }
 
+public class EmailVerificationCode : Entity
+{
+    public Guid UserId { get; set; }
+    public string CodeHash { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? UsedAt { get; set; }
+    public int FailedVerifyAttempts { get; set; }
+    public UserAccount User { get; set; } = null!;
+}
+
+public class EmailChangeCode : Entity
+{
+    public Guid UserId { get; set; }
+    public string NewEmail { get; set; } = string.Empty;
+    public string CodeHash { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? UsedAt { get; set; }
+    public int FailedVerifyAttempts { get; set; }
+    public UserAccount User { get; set; } = null!;
+}
+
+public class FriendInvite : Entity
+{
+    public Guid InviterUserId { get; set; }
+    public Guid? InviteeUserId { get; set; }
+    public string InviteeEmail { get; set; } = string.Empty;
+    public FriendInviteStatus Status { get; set; } = FriendInviteStatus.Pending;
+    public UserAccount Inviter { get; set; } = null!;
+    public UserAccount? Invitee { get; set; }
+}
+
 public class Family : Entity
 {
     public string Name { get; set; } = "My Family";
@@ -99,6 +131,7 @@ public class FamilyMember : Entity, IFamilyScoped
     public Generation Generation { get; set; }
     public string? Relationship { get; set; }
     public string? AvatarUrl { get; set; }
+    public string? CityId { get; set; }
     public bool FaceRecognitionEnabled { get; set; } = true;
     public Guid? LinkedUserId { get; set; }
 
