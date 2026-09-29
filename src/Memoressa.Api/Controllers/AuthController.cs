@@ -142,6 +142,16 @@ public class AuthController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpPost("password/verify")]
+    [Authorize]
+    public async Task<IActionResult> VerifyCurrentPassword(
+        [FromBody] VerifyCurrentPasswordRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.VerifyCurrentPasswordAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpPost("email/verification/request")]
     [Authorize]
     public async Task<IActionResult> RequestEmailVerification(CancellationToken cancellationToken)

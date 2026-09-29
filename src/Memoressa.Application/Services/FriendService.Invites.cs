@@ -10,6 +10,40 @@ namespace Memoressa.Application.Services;
 
 public partial class FriendService
 {
+    private async Task<IReadOnlyList<FriendDto>> BuildPendingFriendDtosAsync(
+        Guid userId,
+        string userEmail,
+        CancellationToken cancellationToken)
+    {
+        var invites = await _db.FriendInvites.AsNoTracking()
+            .Include(i => i.Inviter)
+            .Include(i => i.Invitee)
+            .Where(i => i.Status == FriendInviteStatus.Pending
+                        && (i.InviterUserId == userId
+                            || i.InviteeUserId == userId
+                            || i.InviteeEmail == userEmail))
+            .OrderByDescending(i => i.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        return invites.Select(i =>
+        {
+            var outgoing = i.InviterUserId == userId;
+            var counterparty = outgoing ? i.Invitee : i.Inviter;
+            var displayName = counterparty?.Nickname ?? counterparty?.Email ?? i.InviteeEmail;
+            return new FriendDto
+            {
+                Id = i.Id,
+                Name = displayName ?? i.InviteeEmail,
+                Nickname = displayName,
+                Email = outgoing ? i.InviteeEmail : i.Inviter.Email,
+                AvatarUrl = counterparty?.AvatarUrl,
+                Status = outgoing ? "pending_outgoing" : "pending_incoming",
+                SharedActivityCount = 0,
+                SharedMemoryCount = 0
+            };
+        }).ToList();
+    }
+
     public async Task<ServiceResult<IReadOnlyList<FriendInviteDto>>> GetFriendInvitesAsync(
         CancellationToken cancellationToken = default)
     {

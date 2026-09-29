@@ -50,8 +50,7 @@ public class AppProfileFriendsSecurityTests : IClassFixture<WebApplicationFactor
             nickname = "NewNick",
             avatarUrl = "avatars/users/x.jpg",
             birthDate = "1990-01-15T00:00:00Z",
-            profileCityId = "city-1",
-            generation = 0
+            profileCityId = "city-1"
         });
         Assert.Equal(HttpStatusCode.OK, patch.StatusCode);
         var body = await patch.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
@@ -97,6 +96,38 @@ public class AppProfileFriendsSecurityTests : IClassFixture<WebApplicationFactor
         friendsB.EnsureSuccessStatusCode();
         var listB = await friendsB.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         Assert.Equal(1, listB.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task GetFriends_IncludesPendingOutgoingInvite()
+    {
+        var client = _factory.CreateClient();
+        await RegisterAndAuthAsync(client, "inviter");
+
+        var inviteResponse = await client.PostAsJsonAsync("/api/v1/friends/invites", new
+        {
+            email = $"pending-{Guid.NewGuid():N}@memoressa.com"
+        });
+        Assert.Equal(HttpStatusCode.Created, inviteResponse.StatusCode);
+
+        var friendsResponse = await client.GetAsync("/api/v1/friends");
+        friendsResponse.EnsureSuccessStatusCode();
+        var friends = await friendsResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        Assert.Equal(1, friends.GetArrayLength());
+        Assert.Equal("pending_outgoing", friends[0].GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task PasswordVerify_Returns204Or401()
+    {
+        var client = _factory.CreateClient();
+        await RegisterAndAuthAsync(client, "pwd");
+
+        var ok = await client.PostAsJsonAsync("/api/v1/auth/password/verify", new { currentPassword = "Password123!" });
+        Assert.Equal(HttpStatusCode.NoContent, ok.StatusCode);
+
+        var bad = await client.PostAsJsonAsync("/api/v1/auth/password/verify", new { currentPassword = "wrong" });
+        Assert.Equal(HttpStatusCode.Unauthorized, bad.StatusCode);
     }
 
     [Fact]

@@ -48,6 +48,35 @@ public partial class AuthService
         return ServiceResult.NoContent();
     }
 
+    public async Task<ServiceResult> VerifyCurrentPasswordAsync(
+        VerifyCurrentPasswordRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_currentUser.UserId.HasValue)
+        {
+            return ServiceResult.Fail("Unauthorized", 401);
+        }
+
+        var user = await _db.UserAccounts.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == _currentUser.UserId.Value && u.IsActive, cancellationToken);
+        if (user is null)
+        {
+            return ServiceResult.NotFound("User not found");
+        }
+
+        if (string.IsNullOrWhiteSpace(user.PasswordHash))
+        {
+            return ServiceResult.Fail("Current password is incorrect", 401);
+        }
+
+        if (!_passwordHasher.Verify(request.CurrentPassword, user.PasswordHash))
+        {
+            return ServiceResult.Fail("Current password is incorrect", 401);
+        }
+
+        return ServiceResult.NoContent();
+    }
+
     public async Task<ServiceResult> RequestEmailVerificationAsync(CancellationToken cancellationToken = default)
     {
         if (!_currentUser.UserId.HasValue)

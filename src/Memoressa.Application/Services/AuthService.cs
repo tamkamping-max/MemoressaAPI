@@ -330,11 +330,6 @@ public partial class AuthService : IAuthService
             user.ProfileCityId = UploadMetadata.NormalizeOptionalText(request.ProfileCityId);
         }
 
-        if (request.IsSet("generation"))
-        {
-            user.Generation = request.Generation;
-        }
-
         await _db.SaveChangesAsync(cancellationToken);
 
         return ServiceResult<UserDto>.Ok(user.ToDto());

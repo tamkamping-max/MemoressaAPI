@@ -19,6 +19,9 @@ public interface IAuthService
     Task<ServiceResult<UserDto>> GetCurrentUserAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<UserDto>> PatchCurrentUserAsync(PatchMeRequest request, CancellationToken cancellationToken = default);
     Task<ServiceResult> ChangePasswordAsync(ChangePasswordRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult> VerifyCurrentPasswordAsync(
+        VerifyCurrentPasswordRequestDto request,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult> RequestEmailVerificationAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult> RequestEmailChangeAsync(EmailChangeRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult> ConfirmEmailChangeAsync(EmailChangeConfirmRequestDto request, CancellationToken cancellationToken = default);

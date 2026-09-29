@@ -23,6 +23,11 @@ public record ChangePasswordRequestDto
     [JsonPropertyName("confirmPassword")] public string ConfirmPassword { get; init; } = string.Empty;
 }
 
+public record VerifyCurrentPasswordRequestDto
+{
+    [JsonPropertyName("currentPassword")] public string CurrentPassword { get; init; } = string.Empty;
+}
+
 public record EmailChangeRequestDto
 {
     [JsonPropertyName("currentPassword")] public string CurrentPassword { get; init; } = string.Empty;

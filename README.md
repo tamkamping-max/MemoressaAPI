@@ -372,10 +372,10 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 | POST | `/password-reset/code/request` | Public | Send **8-digit OTP** (15 min) via **AWS SES**; `{ "email" }`. Unknown email → **404** `找不到此 email`. Rate limit: 1/min, 5/hour per user. Success **204** (never return code in JSON). |
 | POST | `/password-reset/code/verify` | Public | `{ "email", "code" }` — valid → **204**; wrong/expired → **401** |
 | POST | `/password-reset/code/confirm` | Public | `{ "email", "code", "newPassword", "confirmPassword" }` — updates password, invalidates code → **204** |
-| POST | `/account/deletion/schedule` | JWT | Schedule account deletion |
+| POST | `/account/deletion/schedule` | JWT | Schedule account deletion (**7**-day grace period; `DeletionScheduledAt` = now + 7 days) |
 | POST | `/account/deletion/cancel` | JWT | Cancel scheduled deletion |
 | GET | `/me` | JWT | Current user (`selfFamilyMemberId`: linked family member for face sync, or null) |
-| PATCH | `/me` | JWT | Update profile; body `{ "selfFamilyMemberId": "<uuid>" \| null }` — member must belong to your family (**404** if not) |
+| PATCH | `/me` | JWT | Partial update: `selfFamilyMemberId`, `nickname`, `avatarUrl`, `birthDate`, `profileCityId` (not `generation` — use `PUT /family-members/{id}`) |
 | GET | `/account/deletion/status` | JWT | Get deletion status |
 | POST | `/oauth/google` | Public | Login/register with Google id token |
 | POST | `/oauth/facebook` | Public | Login/register with Facebook access token |
@@ -546,7 +546,8 @@ Requires **`Ai:GrokApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Comple
 
 | Method | Path | Description |
 |--------|------|-------------|
-| PATCH | `/me` | Partial update: `selfFamilyMemberId`, `nickname`, `avatarUrl`, `birthDate`, `profileCityId`, `generation` (App enum index; gen 1 = `0`) |
+| PATCH | `/me` | Partial update: `selfFamilyMemberId`, `nickname`, `avatarUrl`, `birthDate`, `profileCityId` (**generation** → `PUT /family-members/{id}` only) |
+| POST | `/password/verify` | `{ currentPassword }` — email change step 1; **204** or **401** |
 | POST | `/password/change` | `{ currentPassword, newPassword, confirmPassword }` |
 | POST | `/email/verification/request` | Sends OTP to current email |
 | POST | `/email/change/request` | `{ currentPassword, newEmail }` — OTP to new email |
@@ -562,7 +563,7 @@ Requires **`Ai:GrokApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Comple
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | Accepted friends (`status`: `accepted`; `sharedActivityCount` + `sharedMemoryCount` fallback) |
+| GET | `/` | Accepted + **pending** friends (`status`: `accepted` \| `pending_incoming` \| `pending_outgoing`; pending rows use invite id) |
 | GET | `/invites` | Pending invites (`pending_incoming` / `pending_outgoing`) |
 | POST | `/invites` | `{ email }` |
 | POST | `/invites/{id}/accept` | Accept invite (creates reciprocal `friends` rows) |

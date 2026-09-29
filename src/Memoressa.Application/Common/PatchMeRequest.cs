@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Memoressa.Domain.Enums;
 
 namespace Memoressa.Application.Common;
 
@@ -13,7 +12,6 @@ public sealed class PatchMeRequest
     public string? AvatarUrl { get; private set; }
     public DateTime? BirthDate { get; private set; }
     public string? ProfileCityId { get; private set; }
-    public Generation? Generation { get; private set; }
 
     public bool IsSet(string jsonName) => _set.Contains(jsonName);
 
@@ -44,9 +42,6 @@ public sealed class PatchMeRequest
                     break;
                 case "profilecityid":
                     request.ProfileCityId = ReadNullableString(property.Value);
-                    break;
-                case "generation":
-                    request.Generation = ReadNullableGeneration(property.Value);
                     break;
             }
         }
@@ -81,41 +76,6 @@ public sealed class PatchMeRequest
             && DateTime.TryParse(value.GetString(), out var parsed))
         {
             return parsed;
-        }
-
-        return null;
-    }
-
-    private static Generation? ReadNullableGeneration(JsonElement value)
-    {
-        if (value.ValueKind == JsonValueKind.Null)
-        {
-            return null;
-        }
-
-        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var index)
-            && Enum.IsDefined(typeof(Generation), index))
-        {
-            return (Generation)index;
-        }
-
-        if (value.ValueKind == JsonValueKind.String)
-        {
-            var text = value.GetString();
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return null;
-            }
-
-            if (Enum.TryParse<Generation>(text, ignoreCase: true, out var byName))
-            {
-                return byName;
-            }
-
-            if (int.TryParse(text, out var asInt) && Enum.IsDefined(typeof(Generation), asInt))
-            {
-                return (Generation)asInt;
-            }
         }
 
         return null;
