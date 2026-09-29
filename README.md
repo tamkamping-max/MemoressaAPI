@@ -424,6 +424,7 @@ MemoressaApp: upload settings picker, home carousel, create on upload confirm, e
 | GET | `/{activityId}/photos?limit=200` | Full activity gallery for the activity page refresh. **200** `{ data: { items: [Photo...] } }` (same shape as photo APIs). Default **200**, max **500**. Ordered like `active-today` previews. **403** if no access. |
 | POST | `/` | Create activity. Body: `title` (required), `type` or `activityType` (travel \| wedding \| conference \| concert \| gathering \| **other**), `status`, `startDate`, optional `endDate`, `location`, optional **`privacyScope`** (same enum as upload), `familyMemberIds`, `friendIds`, `agenda[]` (`title` required per item). **`creatorUserId`** defaults to JWT user if omitted. Unknown enum strings → **400**. |
 | PUT | `/{activityId}` | Full update (same body as POST). `activityId` = external id (`act_...`). Returns updated DTO including `creatorUserId`, `privacyScope`, and agenda ids. |
+| DELETE | `/{activityId}` | Delete activity (**403** if `creatorUserId` ≠ JWT user). Unlinks `activity_album_photos` only (photos unchanged). **204** on success. **404** if missing or wrong family. |
 | POST | `/{activityId}/photos` | Attach `{ photoIds: [...] }` |
 
 `POST /uploads/start` accepts optional **`activityAlbumId`** (`act_...`) and **`privacyScope`** (photo visibility). Activity must exist, **`inProgress`**, caller **`CanUploadTo`**; **`POST /uploads/complete`** links the new photo to the activity in the same DB transaction (feeds **`GET /active-today`** `photos` and **`GET /{activityId}/photos`**).

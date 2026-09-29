@@ -63,6 +63,13 @@ public class ActivitiesController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpDelete("{activityId}")]
+    public async Task<IActionResult> Delete(string activityId, CancellationToken cancellationToken)
+    {
+        var result = await _activities.DeleteAsync(activityId, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpPost("{activityId}/photos")]
     public async Task<IActionResult> AttachPhotos(
         string activityId,

@@ -237,6 +237,45 @@ public class ActivityService : IActivityService
         return ServiceResult<ActivityAlbumDto>.Ok(ActivityAlbumMapping.ToDto(loaded));
     }
 
+    public async Task<ServiceResult> DeleteAsync(string activityId, CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult.Fail("Unauthorized", 401);
+        }
+
+        var activity = await ActivityAlbumAccess.ResolveForUpdateAsync(
+            _db,
+            ctx.Value.FamilyId,
+            activityId,
+            cancellationToken);
+        if (activity is null)
+        {
+            return ServiceResult.NotFound("Activity not found");
+        }
+
+        if (activity.CreatorUserId != ctx.Value.UserId)
+        {
+            return ServiceResult.Fail("Forbidden", 403);
+        }
+
+        if (_db.Database.IsRelational())
+        {
+            await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+            await DeleteActivityAndLinksAsync(activity, cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        else
+        {
+            await DeleteActivityAndLinksAsync(activity, cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return ServiceResult.NoContent();
+    }
+
     public async Task<ServiceResult<ApiDataResponseDto<ActiveActivityTodayListDataDto>>> GetActiveTodayAsync(
         DateOnly? date,
         int? limit = null,
@@ -608,6 +647,59 @@ public class ActivityService : IActivityService
         }
 
         return await ApplyRelationsAsync(activity, request, creatorUserId, cancellationToken);
+    }
+
+    private async Task DeleteActivityAndLinksAsync(ActivityAlbum activity, CancellationToken cancellationToken)
+    {
+        var albumId = activity.Id;
+        DetachActivityRelationEntries(albumId, includeDeletedState: true);
+        DetachActivityPhotoLinkEntries(albumId);
+
+        if (_db.Database.IsRelational())
+        {
+            await _db.ActivityAlbumPhotos
+                .Where(x => x.ActivityAlbumId == albumId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await _db.ActivityAgendaItems
+                .Where(x => x.ActivityAlbumId == albumId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await _db.ActivityAlbumFamilyMembers
+                .Where(x => x.ActivityAlbumId == albumId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await _db.ActivityAlbumFriends
+                .Where(x => x.ActivityAlbumId == albumId)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+        else
+        {
+            var photoLinks = await _db.ActivityAlbumPhotos
+                .Where(x => x.ActivityAlbumId == albumId)
+                .ToListAsync(cancellationToken);
+            if (photoLinks.Count > 0)
+            {
+                _db.ActivityAlbumPhotos.RemoveRange(photoLinks);
+            }
+
+            await DeleteActivityRelationsViaTrackerAsync(albumId, cancellationToken);
+            DetachActivityRelationEntries(albumId, includeDeletedState: false);
+        }
+
+        _db.ActivityAlbums.Remove(activity);
+    }
+
+    private void DetachActivityPhotoLinkEntries(Guid activityAlbumId)
+    {
+        if (_db is not DbContext context)
+        {
+            return;
+        }
+
+        foreach (var entry in context.ChangeTracker.Entries<ActivityAlbumPhoto>()
+                     .Where(e => e.Entity.ActivityAlbumId == activityAlbumId)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
     }
 
     private async Task DeleteActivityRelationsViaTrackerAsync(Guid albumId, CancellationToken cancellationToken)
