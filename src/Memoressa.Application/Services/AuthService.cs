@@ -23,6 +23,7 @@ public partial class AuthService : IAuthService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly OAuthSettings _oauthSettings;
     private readonly IAppleSignInValidator _appleSignInValidator;
+    private readonly IAvatarUrlResolver _avatarUrls;
 
     public AuthService(
         IMemoressaDbContext db,
@@ -32,7 +33,8 @@ public partial class AuthService : IAuthService
         ICurrentUserService currentUser,
         IHttpClientFactory httpClientFactory,
         IOptions<OAuthSettings> oauthSettings,
-        IAppleSignInValidator appleSignInValidator)
+        IAppleSignInValidator appleSignInValidator,
+        IAvatarUrlResolver avatarUrls)
     {
         _db = db;
         _tokenService = tokenService;
@@ -42,6 +44,7 @@ public partial class AuthService : IAuthService
         _httpClientFactory = httpClientFactory;
         _oauthSettings = oauthSettings.Value;
         _appleSignInValidator = appleSignInValidator;
+        _avatarUrls = avatarUrls;
     }
 
     public async Task<ServiceResult<AuthResponseDto>> RegisterAsync(
@@ -266,7 +269,7 @@ public partial class AuthService : IAuthService
 
         return user is null
             ? ServiceResult<UserDto>.NotFound("User not found")
-            : ServiceResult<UserDto>.Ok(user.ToDto());
+            : ServiceResult<UserDto>.Ok(await _avatarUrls.ToUserDtoAsync(user, cancellationToken));
     }
 
     public async Task<ServiceResult<UserDto>> PatchCurrentUserAsync(
@@ -332,7 +335,7 @@ public partial class AuthService : IAuthService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        return ServiceResult<UserDto>.Ok(user.ToDto());
+        return ServiceResult<UserDto>.Ok(await _avatarUrls.ToUserDtoAsync(user, cancellationToken));
     }
 
     public async Task<ServiceResult<AccountDeletionStatusDto>> GetDeletionStatusAsync(
@@ -678,7 +681,7 @@ public partial class AuthService : IAuthService
 
         return ServiceResult<AuthResponseDto>.Ok(new AuthResponseDto
         {
-            User = user.ToDto(),
+            User = await _avatarUrls.ToUserDtoAsync(user, cancellationToken),
             Tokens = tokens,
             FamilyId = familyId
         });

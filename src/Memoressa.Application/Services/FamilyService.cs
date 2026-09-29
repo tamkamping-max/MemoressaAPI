@@ -11,11 +11,16 @@ public class FamilyService : IFamilyService
 {
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly IAvatarUrlResolver _avatarUrls;
 
-    public FamilyService(IMemoressaDbContext db, ICurrentUserService currentUser)
+    public FamilyService(
+        IMemoressaDbContext db,
+        ICurrentUserService currentUser,
+        IAvatarUrlResolver avatarUrls)
     {
         _db = db;
         _currentUser = currentUser;
+        _avatarUrls = avatarUrls;
     }
 
     public async Task<ServiceResult<IReadOnlyList<FamilyMemberDto>>> GetMembersAsync(CancellationToken cancellationToken = default)
@@ -27,7 +32,7 @@ public class FamilyService : IFamilyService
         }
 
         var members = await QueryMembers(ctx.Value.FamilyId).OrderBy(m => m.Name).ToListAsync(cancellationToken);
-        return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Ok(members.Select(m => m.ToDto()).ToList());
+        return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Ok(await MapMembersAsync(members, cancellationToken));
     }
 
     public async Task<ServiceResult<FamilyMemberDto>> GetMemberByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -41,7 +46,7 @@ public class FamilyService : IFamilyService
         var member = await QueryMembers(ctx.Value.FamilyId).FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
         return member is null
             ? ServiceResult<FamilyMemberDto>.NotFound("Member not found")
-            : ServiceResult<FamilyMemberDto>.Ok(member.ToDto());
+            : ServiceResult<FamilyMemberDto>.Ok(await _avatarUrls.ToFamilyMemberDtoAsync(member, cancellationToken));
     }
 
     public async Task<ServiceResult<FamilyMemberDto>> AddMemberAsync(
@@ -69,7 +74,7 @@ public class FamilyService : IFamilyService
 
         _db.FamilyMembers.Add(member);
         await _db.SaveChangesAsync(cancellationToken);
-        return ServiceResult<FamilyMemberDto>.Ok(member.ToDto());
+        return ServiceResult<FamilyMemberDto>.Ok(await _avatarUrls.ToFamilyMemberDtoAsync(member, cancellationToken));
     }
 
     public async Task<ServiceResult<FamilyMemberDto>> UpdateMemberAsync(
@@ -101,7 +106,7 @@ public class FamilyService : IFamilyService
         member.CityId = request.CityId;
         member.FaceRecognitionEnabled = request.FaceRecognitionEnabled;
         await _db.SaveChangesAsync(cancellationToken);
-        return ServiceResult<FamilyMemberDto>.Ok(member.ToDto());
+        return ServiceResult<FamilyMemberDto>.Ok(await _avatarUrls.ToFamilyMemberDtoAsync(member, cancellationToken));
     }
 
     public async Task<ServiceResult> DeleteMemberAsync(Guid id, CancellationToken cancellationToken = default)
@@ -137,7 +142,20 @@ public class FamilyService : IFamilyService
             .Where(m => m.Generation == generation)
             .ToListAsync(cancellationToken);
 
-        return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Ok(members.Select(m => m.ToDto()).ToList());
+        return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Ok(await MapMembersAsync(members, cancellationToken));
+    }
+
+    private async Task<IReadOnlyList<FamilyMemberDto>> MapMembersAsync(
+        IReadOnlyList<FamilyMember> members,
+        CancellationToken cancellationToken)
+    {
+        var list = new List<FamilyMemberDto>(members.Count);
+        foreach (var member in members)
+        {
+            list.Add(await _avatarUrls.ToFamilyMemberDtoAsync(member, cancellationToken));
+        }
+
+        return list;
     }
 
     private IQueryable<FamilyMember> QueryMembers(Guid familyId) =>

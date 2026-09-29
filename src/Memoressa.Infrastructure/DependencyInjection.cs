@@ -77,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IS3StorageService, S3StorageService>();
         services.AddScoped<IPhotoUrlResolver, PhotoUrlResolver>();
+        services.AddScoped<IAvatarUrlResolver, AvatarUrlResolver>();
         services.AddScoped<IThumbnailGenerationService, ThumbnailGenerationService>();
         services.AddScoped<IGrokAgentService, GrokAgentService>();
         services.AddScoped<IAiOrchestrationService, AiOrchestrationService>();

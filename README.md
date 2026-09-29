@@ -559,6 +559,8 @@ Requires **`Ai:GrokApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Comple
 |--------|------|-------------|
 | POST | `/avatars/upload-start` | `{ contentType: image/jpeg, purpose: user_profile \| family_member, familyMemberId? }` → `{ uploadUrl, avatarUrl }` (S3 key). PUT JPEG to `uploadUrl`, then PATCH `/auth/me` or PUT `/family-members/{id}` with `avatarUrl`. |
 
+**Response avatars:** `GET /auth/me`, auth login/register `user`, and **`GET/POST/PUT /family-members`** return `avatarUrl` as a **presigned HTTPS GET** when the stored value is an S3 object key (same expiry as `AwsS3:PresignedUrlExpiryMinutes`). Already-absolute `http(s)` URLs are unchanged.
+
 ### Friends — `api/v1/friends`
 
 | Method | Path | Description |
