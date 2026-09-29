@@ -39,7 +39,10 @@ public record TodayMemoriesRequestDto
 public record TodayMemoryPhotoItemDto
 {
     [JsonPropertyName("photo")] public PhotoDto Photo { get; init; } = null!;
+    /// <summary>Stable slug for UI logic, e.g. <c>onThisDay</c>, <c>curatedFlashback</c>.</summary>
     [JsonPropertyName("reason")] public string Reason { get; init; } = string.Empty;
+    /// <summary>Human-readable line for MemoressaApp (zh-TW).</summary>
+    [JsonPropertyName("reasonLabel")] public string ReasonLabel { get; init; } = string.Empty;
     [JsonPropertyName("yearsAgo")] public int? YearsAgo { get; init; }
     [JsonPropertyName("occasionKind")] public TodayMemoryOccasionKind? OccasionKind { get; init; }
 }
@@ -47,7 +50,11 @@ public record TodayMemoryPhotoItemDto
 public record TodayMemoriesResponseDto
 {
     [JsonPropertyName("items")] public IReadOnlyList<TodayMemoryPhotoItemDto> Items { get; init; } = [];
-    [JsonPropertyName("strategy")] public TodayMemoriesStrategy Strategy { get; init; }
+    [JsonPropertyName("strategy")]
+    [JsonConverter(typeof(Json.TodayMemoriesStrategyJsonConverter))]
+    public TodayMemoriesStrategy Strategy { get; init; }
+    /// <summary>Human-readable strategy title for MemoressaApp (zh-TW), e.g. 往年今日、精選回顧.</summary>
+    [JsonPropertyName("strategyLabel")] public string StrategyLabel { get; init; } = string.Empty;
     [JsonPropertyName("referenceDate")] public DateOnly ReferenceDate { get; init; }
     /// <summary>True when returning a snapshot created on an earlier call the same calendar day.</summary>
     [JsonPropertyName("fromCache")] public bool FromCache { get; init; }

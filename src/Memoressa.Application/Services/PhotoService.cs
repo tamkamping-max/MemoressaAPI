@@ -499,7 +499,8 @@ public class PhotoService : IPhotoService
                     fromCache: true,
                     cancellationToken);
 
-                return ServiceResult<TodayMemoriesResponseDto>.Ok(fromCache);
+                return ServiceResult<TodayMemoriesResponseDto>.Ok(
+                    TodayMemoriesPresentation.Present(fromCache));
             }
 
             var stale = await _db.TodayMemoriesCaches
@@ -520,7 +521,7 @@ public class PhotoService : IPhotoService
             request,
             cancellationToken);
 
-        return ServiceResult<TodayMemoriesResponseDto>.Ok(built);
+        return ServiceResult<TodayMemoriesResponseDto>.Ok(TodayMemoriesPresentation.Present(built));
     }
 
     private async Task<TodayMemoriesResponseDto> ComposeAndPersistTodayMemoriesAsync(
