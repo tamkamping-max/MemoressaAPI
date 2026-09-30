@@ -196,7 +196,11 @@ After `POST /api/v1/uploads/{sessionId}/complete`, the API:
 
 Configure via `AwsS3:ThumbnailMaxEdgePixels`, `ThumbnailJpegQuality`, `ThumbnailMaxSourceBytes`, `FfmpegPath`.
 
-### AwsSes (password reset OTP via **SMTP**)
+### Outbound email (password reset / verification OTP via **SMTP**)
+
+Configuration lives under **`AwsSes`** for historical reasons; the API uses **generic SMTP** (`System.Net.Mail.SmtpClient`), not the SES HTTP API. You can point it at **AWS SES SMTP** or **Google (Gmail / Google Workspace)** by setting host, port, and credentials.
+
+#### AWS SES SMTP
 
 Create **SMTP credentials** in the AWS SES console (IAM → SMTP user — not the same as S3 access keys).
 
@@ -211,7 +215,35 @@ Create **SMTP credentials** in the AWS SES console (IAM → SMTP user — not th
 | `AwsSes:FromDisplayName` | Display name (default `Memoressa`) |
 | `AwsSes:ConfigurationSetName` | Optional; sent as SMTP header `X-SES-CONFIGURATION-SET` |
 
-**Log says SMTP accepted but no email?** That only means SES SMTP returned success to the API. Common causes: message in **spam/junk**; account still in **SES sandbox** (verify both **From** and recipient **To** in SES console, or request production access); **`FromEmail` / domain not verified** in the same region as `AwsSes:Region`; SMTP credentials created in a **different region** than `SmtpHost`; corporate mailbox delay. Check SES → Account dashboard → Sending statistics / suppression list.
+**Log says SMTP accepted but no email?** Check spam; SES **sandbox** (verify From and To); domain/region mismatch; suppression list.
+
+#### Google Gmail or Google Workspace
+
+Set **`AwsSes:SmtpHost`** (required — do not rely on the SES default host).
+
+| Provider | `SmtpHost` | `SmtpPort` | Credentials |
+|----------|------------|------------|-------------|
+| Gmail (personal) | `smtp.gmail.com` | **587** | `SmtpUsername` = full Gmail address; `SmtpPassword` = [App Password](https://myaccount.google.com/apppasswords) (2FA required; not your normal login password) |
+| Google Workspace | `smtp.gmail.com` or [SMTP relay](https://support.google.com/a/answer/176600) `smtp-relay.gmail.com` | **587** | App Password for a mailbox, or relay with IP allowlist / client auth per Google Admin |
+
+| Key | Gmail / Workspace notes |
+|-----|-------------------------|
+| `AwsSes:FromEmail` | Must match the authenticated mailbox (Gmail) or an allowed alias on that account |
+| `AwsSes:FromDisplayName` | e.g. `Memoressa` |
+| `AwsSes:ConfigurationSetName` | Leave empty (SES-only header) |
+
+Example (environment variables on the server):
+
+```bash
+export AwsSes__SmtpHost=smtp.gmail.com
+export AwsSes__SmtpPort=587
+export AwsSes__SmtpUsername=notifications@yourdomain.com
+export AwsSes__SmtpPassword=your-app-password
+export AwsSes__FromEmail=notifications@yourdomain.com
+export AwsSes__FromDisplayName=Memoressa
+```
+
+**Development:** if SMTP is not configured, OTP codes are logged to the console instead of sent (`ASPNETCORE_ENVIRONMENT=Development`).
 
 Migration **`014_password_reset_codes.sql`**. **Local MySQL:** run `database/mysql/migrations/014_password_reset_codes.sql` — **not** `database/migrations/` (that tree is **PostgreSQL** syntax).
 

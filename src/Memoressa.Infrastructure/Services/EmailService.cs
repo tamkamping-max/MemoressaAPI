@@ -47,13 +47,13 @@ public class EmailService : IEmailService
 
         if (string.IsNullOrWhiteSpace(_sesOptions.FromEmail))
         {
-            _logger.LogWarning("AwsSes:FromEmail is not configured; cannot send OTP to {Email}", email);
+            _logger.LogWarning("Email FromEmail is not configured (AwsSes:FromEmail); cannot send OTP to {Email}", email);
             throw new InvalidOperationException("Email is not configured");
         }
 
         if (!IsSmtpConfigured())
         {
-            _logger.LogWarning("AwsSes SMTP (host/username/password) is not configured");
+            _logger.LogWarning("SMTP is not configured (AwsSes:SmtpHost, SmtpUsername, SmtpPassword)");
             throw new InvalidOperationException("Email SMTP is not configured");
         }
 
@@ -97,9 +97,8 @@ public class EmailService : IEmailService
 
         await client.SendMailAsync(message, cancellationToken);
         _logger.LogInformation(
-            "Password reset OTP accepted by SMTP for {Email} (host={SmtpHost}, from={FromEmail}). " +
-            "If the inbox is empty: check spam; in SES sandbox only verified To/From addresses receive mail; " +
-            "confirm domain/address verification and region match AwsSes:Region.",
+            "OTP email accepted by SMTP for {Email} (host={SmtpHost}, from={FromEmail}). " +
+            "If the inbox is empty: check spam; confirm From matches your provider rules (SES verification, Gmail App Password, Workspace relay allowlist, etc.).",
             email,
             ResolveSmtpHost(),
             _sesOptions.FromEmail.Trim());
@@ -136,13 +135,13 @@ public class EmailService : IEmailService
 
         if (string.IsNullOrWhiteSpace(_sesOptions.FromEmail))
         {
-            _logger.LogWarning("AwsSes:FromEmail is not configured; cannot send OTP to {Email}", email);
+            _logger.LogWarning("Email FromEmail is not configured (AwsSes:FromEmail); cannot send OTP to {Email}", email);
             throw new InvalidOperationException("Email is not configured");
         }
 
         if (!IsSmtpConfigured())
         {
-            _logger.LogWarning("AwsSes SMTP (host/username/password) is not configured");
+            _logger.LogWarning("SMTP is not configured (AwsSes:SmtpHost, SmtpUsername, SmtpPassword)");
             throw new InvalidOperationException("Email SMTP is not configured");
         }
 
@@ -198,6 +197,7 @@ public class EmailService : IEmailService
             return _sesOptions.SmtpHost.Trim();
         }
 
+        // Default host is AWS SES SMTP; Google/Gmail/others must set AwsSes:SmtpHost explicitly.
         var region = string.IsNullOrWhiteSpace(_sesOptions.Region) ? "us-east-1" : _sesOptions.Region.Trim();
         return $"email-smtp.{region}.amazonaws.com";
     }
