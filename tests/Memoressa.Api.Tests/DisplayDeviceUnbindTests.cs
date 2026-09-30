@@ -60,7 +60,8 @@ public class DisplayDeviceUnbindTests
             db,
             new FixedUser(userId, familyId),
             new StubAiOrchestration(),
-            new StubPairingStore());
+            new StubPairingStore(),
+            new NoOpFrameDeviceWebSocketHub());
 
         var result = await service.UnbindDeviceAsync(deviceId);
 

@@ -109,6 +109,10 @@ public interface IDisplayDeviceService
     Task<ServiceResult<IReadOnlyList<DisplayFrameQueueItemDto>>> GetPlaybackQueueAsync(
         Guid deviceId,
         CancellationToken cancellationToken = default);
+    Task<ServiceResult> CancelPlaybackQueueCommandAsync(
+        Guid deviceId,
+        Guid commandId,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult<string>> GenerateQrCodeAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<DisplayDevicePairingStatusDto>> GetPairingStatusAsync(
         string qrCode,

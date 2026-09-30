@@ -1,4 +1,3 @@
-using Memoressa.Application.Abstractions;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Memoressa.Application.Services;
@@ -13,26 +12,15 @@ namespace Memoressa.Api.Tests;
 public class DisplayDevicePlaybackQueueTests
 {
     [Fact]
-    public async Task GetPlaybackQueueAsync_ExcludesPlayNowAndReturnsQueuedItems()
+    public async Task GetPlaybackQueueAsync_IncludesPlayNowAndDedupesByMemoryId()
     {
         var userId = Guid.NewGuid();
         var familyId = Guid.NewGuid();
         var deviceId = Guid.NewGuid();
-        var queuedMemoryId = Guid.NewGuid();
-        var nowMemoryId = Guid.NewGuid();
+        var memoryId = Guid.NewGuid();
 
         await using var db = CreateDb();
-        db.UserAccounts.Add(new UserAccount { Id = userId, Email = "u@test.com", PasswordHash = "x" });
-        db.Families.Add(new Family { Id = familyId, OwnerUserId = userId, Name = "F" });
-        db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = userId, Role = "owner" });
-        db.DisplayDevices.Add(new DisplayDevice
-        {
-            Id = deviceId,
-            FamilyId = familyId,
-            BoundByUserId = userId,
-            Name = "Frame",
-            QrCode = Guid.NewGuid().ToString()
-        });
+        SeedDevice(db, userId, familyId, deviceId);
 
         db.FrameCommands.AddRange(
             new FrameCommand
@@ -42,9 +30,9 @@ public class DisplayDevicePlaybackQueueTests
                 Status = FrameCommandStatus.Pending,
                 PayloadJson = JsonSerializer.Serialize(new
                 {
-                    memoryId = queuedMemoryId,
+                    memoryId,
                     playNow = false,
-                    packageTitle = "Queued album"
+                    packageTitle = "First"
                 }),
                 CreatedAt = DateTime.UtcNow.AddMinutes(-2)
             },
@@ -55,9 +43,9 @@ public class DisplayDevicePlaybackQueueTests
                 Status = FrameCommandStatus.Pending,
                 PayloadJson = JsonSerializer.Serialize(new
                 {
-                    memoryId = nowMemoryId,
+                    memoryId,
                     playNow = true,
-                    packageTitle = "Now playing"
+                    packageTitle = "Duplicate row"
                 }),
                 CreatedAt = DateTime.UtcNow.AddMinutes(-1)
             },
@@ -72,19 +60,152 @@ public class DisplayDevicePlaybackQueueTests
 
         await db.SaveChangesAsync();
 
-        var service = new DisplayDeviceService(
-            db,
-            new FixedUser(userId, familyId),
-            new StubAiOrchestration(),
-            new StubPairingStore());
-
+        var service = CreateService(db, userId, familyId);
         var result = await service.GetPlaybackQueueAsync(deviceId);
 
         Assert.True(result.Success);
         Assert.Single(result.Data!);
-        Assert.Equal(queuedMemoryId, result.Data![0].MemoryId);
-        Assert.Equal("Queued album", result.Data[0].Title);
+        Assert.Equal(memoryId, result.Data![0].MemoryId);
+        Assert.Equal("First", result.Data[0].Title);
         Assert.False(result.Data[0].PlayNow);
+    }
+
+    [Fact]
+    public async Task SendMemoryToDeviceAsync_DoesNotDuplicateWhenAlreadyQueued()
+    {
+        var userId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var memoryId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        SeedDevice(db, userId, familyId, deviceId);
+        db.Memories.Add(new Memory
+        {
+            Id = memoryId,
+            FamilyId = familyId,
+            Title = "Album",
+            CreatedByUserId = userId
+        });
+        db.FrameCommands.Add(new FrameCommand
+        {
+            DisplayDeviceId = deviceId,
+            CommandType = FrameCommandType.PlayMemory,
+            Status = FrameCommandStatus.Pending,
+            PayloadJson = JsonSerializer.Serialize(new { memoryId, playNow = false, packageTitle = "Album" })
+        });
+        await db.SaveChangesAsync();
+
+        var hub = new NoOpFrameDeviceWebSocketHub();
+        var service = CreateService(db, userId, familyId, hub);
+        var result = await service.SendMemoryToDeviceAsync(
+            deviceId,
+            new SendMemoryToDeviceRequestDto { MemoryId = memoryId, PlayNow = false });
+
+        Assert.True(result.Success);
+        Assert.Equal(1, await db.FrameCommands.CountAsync(c => c.DisplayDeviceId == deviceId));
+        Assert.Empty(hub.SentMessages);
+    }
+
+    [Fact]
+    public async Task SendMemoryToDeviceAsync_PlayNowOnExisting_RefreshesPayloadAndPushesWebSocket()
+    {
+        var userId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var memoryId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        SeedDevice(db, userId, familyId, deviceId);
+        db.Memories.Add(new Memory
+        {
+            Id = memoryId,
+            FamilyId = familyId,
+            Title = "Album",
+            CreatedByUserId = userId
+        });
+        var existing = new FrameCommand
+        {
+            DisplayDeviceId = deviceId,
+            CommandType = FrameCommandType.PlayMemory,
+            Status = FrameCommandStatus.Delivered,
+            PayloadJson = JsonSerializer.Serialize(new { memoryId, playNow = false, packageTitle = "Album" })
+        };
+        db.FrameCommands.Add(existing);
+        await db.SaveChangesAsync();
+
+        var hub = new NoOpFrameDeviceWebSocketHub();
+        var service = CreateService(db, userId, familyId, hub);
+        var result = await service.SendMemoryToDeviceAsync(
+            deviceId,
+            new SendMemoryToDeviceRequestDto { MemoryId = memoryId, PlayNow = true });
+
+        Assert.True(result.Success);
+        Assert.Equal(1, await db.FrameCommands.CountAsync(c => c.DisplayDeviceId == deviceId));
+        Assert.Single(hub.SentMessages);
+        Assert.Contains("playNow", hub.SentMessages[0], StringComparison.OrdinalIgnoreCase);
+
+        var reloaded = await db.FrameCommands.SingleAsync(c => c.Id == existing.Id);
+        Assert.Equal(FrameCommandStatus.Delivered, reloaded.Status);
+    }
+
+    [Fact]
+    public async Task CancelPlaybackQueueCommandAsync_RemovesRowAndSendsRemoveFromQueue()
+    {
+        var userId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var memoryId = Guid.NewGuid();
+        var commandId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        SeedDevice(db, userId, familyId, deviceId);
+        db.FrameCommands.Add(new FrameCommand
+        {
+            Id = commandId,
+            DisplayDeviceId = deviceId,
+            CommandType = FrameCommandType.PlayMemory,
+            Status = FrameCommandStatus.Pending,
+            PayloadJson = JsonSerializer.Serialize(new { memoryId, playNow = false, packageTitle = "X" })
+        });
+        await db.SaveChangesAsync();
+
+        var hub = new NoOpFrameDeviceWebSocketHub();
+        var service = CreateService(db, userId, familyId, hub);
+        var result = await service.CancelPlaybackQueueCommandAsync(deviceId, commandId);
+
+        Assert.True(result.Success);
+        Assert.False(await db.FrameCommands.AnyAsync(c => c.Id == commandId));
+        Assert.Single(hub.SentMessages);
+        Assert.Contains("removeFromQueue", hub.SentMessages[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(memoryId.ToString(), hub.SentMessages[0], StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static DisplayDeviceService CreateService(
+        MemoressaDbContext db,
+        Guid userId,
+        Guid familyId,
+        NoOpFrameDeviceWebSocketHub? hub = null) =>
+        new(
+            db,
+            new FixedUser(userId, familyId),
+            new StubAiOrchestration(),
+            new StubPairingStore(),
+            hub ?? new NoOpFrameDeviceWebSocketHub());
+
+    private static void SeedDevice(MemoressaDbContext db, Guid userId, Guid familyId, Guid deviceId)
+    {
+        db.UserAccounts.Add(new UserAccount { Id = userId, Email = "u@test.com", PasswordHash = "x" });
+        db.Families.Add(new Family { Id = familyId, OwnerUserId = userId, Name = "F" });
+        db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = userId, Role = "owner" });
+        db.DisplayDevices.Add(new DisplayDevice
+        {
+            Id = deviceId,
+            FamilyId = familyId,
+            BoundByUserId = userId,
+            Name = "Frame",
+            QrCode = Guid.NewGuid().ToString()
+        });
     }
 
     private static MemoressaDbContext CreateDb()
@@ -102,7 +223,7 @@ public class DisplayDevicePlaybackQueueTests
         public bool IsAuthenticated => true;
     }
 
-    private sealed class StubPairingStore : IDisplayDevicePairingSessionStore
+    private sealed class StubPairingStore : Memoressa.Application.Abstractions.IDisplayDevicePairingSessionStore
     {
         public void Register(string qrCode, TimeSpan ttl) { }
         public bool IsActive(string qrCode) => false;

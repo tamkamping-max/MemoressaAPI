@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Memoressa.Application.Abstractions;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Memoressa.Domain.Enums;
@@ -51,6 +52,9 @@ public static class DeviceWebSocketEndpoints
 
         using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
 
+        var hub = context.RequestServices.GetRequiredService<IFrameDeviceWebSocketHub>();
+        hub.AttachSession(deviceId, (json, ct) => SendTextAsync(webSocket, json, ct));
+
         var logger = loggerFactory.CreateLogger("DeviceWebSocket");
         try
         {
@@ -58,6 +62,7 @@ public static class DeviceWebSocketEndpoints
         }
         finally
         {
+            hub.DetachSession(deviceId);
             await realtime.UpdateDeviceStatusAsync(
                 new UpdateDeviceStatusRequestDto
                 {

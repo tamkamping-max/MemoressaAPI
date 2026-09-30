@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Memoressa.Application.Abstractions;
-using Memoressa.Application.Interfaces;
 using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
@@ -18,17 +17,20 @@ public class DisplayDeviceService : IDisplayDeviceService
     private readonly ICurrentUserService _currentUser;
     private readonly IAiOrchestrationService _aiOrchestrationService;
     private readonly IDisplayDevicePairingSessionStore _pairingSessions;
+    private readonly IFrameDeviceWebSocketHub _webSocketHub;
 
     public DisplayDeviceService(
         IMemoressaDbContext db,
         ICurrentUserService currentUser,
         IAiOrchestrationService aiOrchestrationService,
-        IDisplayDevicePairingSessionStore pairingSessions)
+        IDisplayDevicePairingSessionStore pairingSessions,
+        IFrameDeviceWebSocketHub webSocketHub)
     {
         _db = db;
         _currentUser = currentUser;
         _aiOrchestrationService = aiOrchestrationService;
         _pairingSessions = pairingSessions;
+        _webSocketHub = webSocketHub;
     }
 
     public async Task<ServiceResult<IReadOnlyList<DisplayDeviceDto>>> GetDevicesAsync(CancellationToken cancellationToken = default)
@@ -259,32 +261,44 @@ public class DisplayDeviceService : IDisplayDeviceService
             .Select(mp => mp.PhotoId)
             .ToListAsync(cancellationToken);
 
-        var items = await _aiOrchestrationService.GeneratePlaybackAsync(
-            ctx.Value.FamilyId,
-            new PlaybackRequestDto
-            {
-                PhotoIds = memoryPhotos,
-                AiCurated = false,
-                UrlPurpose = PhotoUrlPurpose.FramePlayback
-            },
+        var existingQueueCommand = await FindActivePlayMemoryCommandAsync(
+            device.Id,
+            request.MemoryId,
             cancellationToken);
 
-        var payload = JsonSerializer.Serialize(new
+        if (existingQueueCommand is not null && !request.PlayNow)
         {
-            memoryId = request.MemoryId,
-            playNow = request.PlayNow,
-            packageTitle = request.PackageTitle ?? memory.Title,
-            items
-        });
+            return ServiceResult.Ok();
+        }
 
-        _db.FrameCommands.Add(new FrameCommand
+        var payloadJson = await BuildPlayMemoryPayloadJsonAsync(
+            ctx.Value.FamilyId,
+            request,
+            memory,
+            memoryPhotos,
+            cancellationToken);
+
+        FrameCommand commandToDeliver;
+        if (existingQueueCommand is not null && request.PlayNow)
         {
-            DisplayDeviceId = device.Id,
-            IssuedByUserId = ctx.Value.UserId,
-            CommandType = FrameCommandType.PlayMemory,
-            Status = FrameCommandStatus.Pending,
-            PayloadJson = payload
-        });
+            existingQueueCommand.PayloadJson = payloadJson;
+            existingQueueCommand.Status = FrameCommandStatus.Pending;
+            existingQueueCommand.DeliveredAt = null;
+            existingQueueCommand.IssuedByUserId = ctx.Value.UserId;
+            commandToDeliver = existingQueueCommand;
+        }
+        else
+        {
+            commandToDeliver = new FrameCommand
+            {
+                DisplayDeviceId = device.Id,
+                IssuedByUserId = ctx.Value.UserId,
+                CommandType = FrameCommandType.PlayMemory,
+                Status = FrameCommandStatus.Pending,
+                PayloadJson = payloadJson
+            };
+            _db.FrameCommands.Add(commandToDeliver);
+        }
 
         if (request.PlayNow)
         {
@@ -294,6 +308,60 @@ public class DisplayDeviceService : IDisplayDeviceService
         device.Status = DisplayDeviceStatus.Online;
         device.LastSeenAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await DeliverPlayMemoryCommandsViaWebSocketAsync(device.Id, [commandToDeliver], cancellationToken);
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> CancelPlaybackQueueCommandAsync(
+        Guid deviceId,
+        Guid commandId,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult.Fail("Unauthorized", 401);
+        }
+
+        var device = await _db.DisplayDevices.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == deviceId && d.FamilyId == ctx.Value.FamilyId, cancellationToken);
+
+        if (device is null)
+        {
+            return ServiceResult.NotFound("Device not found");
+        }
+
+        var command = await _db.FrameCommands
+            .FirstOrDefaultAsync(
+                c => c.Id == commandId
+                     && c.DisplayDeviceId == deviceId
+                     && c.CommandType == FrameCommandType.PlayMemory,
+                cancellationToken);
+
+        if (command is null)
+        {
+            return ServiceResult.NotFound("Queue item not found");
+        }
+
+        if (command.Status is not (FrameCommandStatus.Pending or FrameCommandStatus.Delivered))
+        {
+            return ServiceResult.Fail("Queue item is no longer active", 409);
+        }
+
+        if (!TryParsePlayMemoryPayload(command.PayloadJson, out var memoryId, out _, out _)
+            || !memoryId.HasValue)
+        {
+            return ServiceResult.Fail("Invalid queue command payload", 400);
+        }
+
+        _db.FrameCommands.Remove(command);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _webSocketHub.SendJsonAsync(
+            deviceId,
+            FrameDeviceWebSocketMessages.RemoveFromQueuePayload(commandId, memoryId.Value),
+            cancellationToken);
+
         return ServiceResult.Ok();
     }
 
@@ -323,15 +391,13 @@ public class DisplayDeviceService : IDisplayDeviceService
             .OrderBy(c => c.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        var queue = new List<DisplayFrameQueueItemDto>(commands.Count);
+        var queue = new List<DisplayFrameQueueItemDto>();
+        var seenMemoryIds = new HashSet<Guid>();
         foreach (var command in commands)
         {
-            if (!TryParsePlayMemoryPayload(command.PayloadJson, out var memoryId, out var playNow, out var title))
-            {
-                continue;
-            }
-
-            if (playNow)
+            if (!TryParsePlayMemoryPayload(command.PayloadJson, out var memoryId, out var playNow, out var title)
+                || !memoryId.HasValue
+                || !seenMemoryIds.Add(memoryId.Value))
             {
                 continue;
             }
@@ -453,14 +519,28 @@ public class DisplayDeviceService : IDisplayDeviceService
                 return false;
             }
 
-            if (!root.TryGetProperty("memoryId", out var memoryIdElement)
-                || memoryIdElement.ValueKind != JsonValueKind.String
-                || !Guid.TryParse(memoryIdElement.GetString(), out var parsedMemoryId))
+            if (!root.TryGetProperty("memoryId", out var memoryIdElement))
             {
                 return false;
             }
 
-            memoryId = parsedMemoryId;
+            if (memoryIdElement.ValueKind == JsonValueKind.String)
+            {
+                if (!Guid.TryParse(memoryIdElement.GetString(), out var parsedMemoryId))
+                {
+                    return false;
+                }
+
+                memoryId = parsedMemoryId;
+            }
+            else if (!memoryIdElement.TryGetGuid(out var guidMemoryId))
+            {
+                return false;
+            }
+            else
+            {
+                memoryId = guidMemoryId;
+            }
 
             if (root.TryGetProperty("playNow", out var playNowElement)
                 && (playNowElement.ValueKind == JsonValueKind.True || playNowElement.ValueKind == JsonValueKind.False))
@@ -480,5 +560,80 @@ public class DisplayDeviceService : IDisplayDeviceService
         {
             return false;
         }
+    }
+
+    private async Task<FrameCommand?> FindActivePlayMemoryCommandAsync(
+        Guid deviceId,
+        Guid memoryId,
+        CancellationToken cancellationToken)
+    {
+        var commands = await _db.FrameCommands
+            .Where(c =>
+                c.DisplayDeviceId == deviceId
+                && c.CommandType == FrameCommandType.PlayMemory
+                && (c.Status == FrameCommandStatus.Pending || c.Status == FrameCommandStatus.Delivered))
+            .OrderBy(c => c.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        foreach (var command in commands)
+        {
+            if (TryParsePlayMemoryPayload(command.PayloadJson, out var parsedMemoryId, out _, out _)
+                && parsedMemoryId == memoryId)
+            {
+                return command;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<string> BuildPlayMemoryPayloadJsonAsync(
+        Guid familyId,
+        SendMemoryToDeviceRequestDto request,
+        Memory memory,
+        IReadOnlyList<Guid> memoryPhotos,
+        CancellationToken cancellationToken)
+    {
+        var items = await _aiOrchestrationService.GeneratePlaybackAsync(
+            familyId,
+            new PlaybackRequestDto
+            {
+                PhotoIds = memoryPhotos,
+                AiCurated = false,
+                UrlPurpose = PhotoUrlPurpose.FramePlayback
+            },
+            cancellationToken);
+
+        return JsonSerializer.Serialize(new
+        {
+            memoryId = request.MemoryId,
+            playNow = request.PlayNow,
+            packageTitle = request.PackageTitle ?? memory.Title,
+            items
+        });
+    }
+
+    private async Task DeliverPlayMemoryCommandsViaWebSocketAsync(
+        Guid deviceId,
+        IReadOnlyList<FrameCommand> commands,
+        CancellationToken cancellationToken)
+    {
+        if (commands.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var command in commands)
+        {
+            command.Status = FrameCommandStatus.Delivered;
+            command.DeliveredAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var payload = FrameDeviceWebSocketMessages.CommandsPayload(
+            commands.Select(c => c.ToDto()).ToList());
+
+        await _webSocketHub.SendJsonAsync(deviceId, payload, cancellationToken);
     }
 }

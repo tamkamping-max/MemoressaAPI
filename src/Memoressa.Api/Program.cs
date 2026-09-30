@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoressa.Api.Middleware;
+using Memoressa.Application.Abstractions;
 using Memoressa.Api.WebSockets;
 using Memoressa.Application;
 using Memoressa.Application.Json;
@@ -15,6 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication(builder.Configuration);
+builder.Services.AddSingleton<IFrameDeviceWebSocketHub, FrameDeviceWebSocketHub>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

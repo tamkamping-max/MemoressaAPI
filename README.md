@@ -111,7 +111,7 @@ REST and display-device WebSocket share **one TLS port** on Kestrel:
 | REST | `https://192.168.1.131:7286/api/v1/...` |
 | WSS | `wss://192.168.1.131:7286/ws/devices/{deviceId}` |
 
-`GET /ws/devices/{deviceId}` with a WebSocket upgrade is handled in **Memoressa.Api** (`DeviceWebSocketEndpoints` → `InternalRealtimeService`). On connect the device is marked online; pending frame commands are pushed about every 2s as `{"type":"commands","commands":[...]}`. Client messages: `{"type":"ping"}` → `{"type":"pong"}`, `{"type":"ack","commandId":"<guid>","success":true}`.
+`GET /ws/devices/{deviceId}` with a WebSocket upgrade is handled in **Memoressa.Api** (`DeviceWebSocketEndpoints` → `InternalRealtimeService`). On connect the device is marked online; pending frame commands are pushed about every 2s as `{"type":"commands","commands":[...]}`. **`POST /display-devices/{id}/send-memory`** also pushes immediately when the device is connected. Client messages: `{"type":"ping"}` → `{"type":"pong"}`, `{"type":"ack","commandId":"<guid>","success":true}`. Server may send `{"type":"removeFromQueue","commandId":"...","memoryId":"..."}` after App deletes a queue item. **`PlayMemory`** payloads include `playNow`; when true the frame should interrupt and play immediately.
 
 Optional Go sidecars can still use `api/internal/` with `X-Internal-Api-Key`; they do not receive proxied traffic from the WSS URL above.
 
@@ -463,8 +463,9 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 | POST | `/bind` | Bind device via QR code |
 | PUT | `/{id}/rename` | Rename device |
 | POST | `/{id}/unbind` | Unbind device; queues `ClearFamilySharedContent` for the frame, removes family-shared `frame_playback_packages` (keeps friend packages until device cascade), clears other pending commands |
-| POST | `/{deviceId}/send-memory` | Send memory to frame |
-| GET | `/{deviceId}/playback-queue` | Pending/delivered `PlayMemory` queue (`playNow: false` only) |
+| POST | `/{deviceId}/send-memory` | Queue or play-now (same `memoryId` deduped; play-now refreshes presigned payload + immediate WebSocket) |
+| GET | `/{deviceId}/playback-queue` | Active `PlayMemory` queue (Pending/Delivered), one row per `memoryId`, includes `playNow: true` |
+| DELETE | `/{deviceId}/playback-queue/{commandId}` | Cancel queue item; sends WebSocket `removeFromQueue` |
 | GET | `/qr-code` | Generate binding QR code |
 | GET | `/pairing-status?qrCode=` | **Anonymous.** Whether the frame QR is bound; `canBind` is true only while the frame has an active pairing session (10 min) |
 | POST | `/pairing/register` | **Anonymous.** Frame welcome screen registers `{ "qrCode": "<uuid>" }` to start the pairing session |
