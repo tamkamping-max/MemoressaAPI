@@ -70,7 +70,7 @@ public class ThumbnailGenerationService : IThumbnailGenerationService
         }
         else
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Thumbnail skipped for photo {PhotoId}: unsupported content type {ContentType}.",
                 photoId,
                 photo.ContentType);
@@ -89,7 +89,7 @@ public class ThumbnailGenerationService : IThumbnailGenerationService
         photo.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Stored thumbnail for photo {PhotoId} at key {ThumbnailKey} ({Bytes} bytes).",
             photoId,
             thumbKey,
