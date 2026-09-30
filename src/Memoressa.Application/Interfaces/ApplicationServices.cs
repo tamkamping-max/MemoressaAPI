@@ -270,6 +270,8 @@ public interface IUploadService
         CancellationToken cancellationToken = default);
     Task<ServiceResult<StorageUsageDto>> GetStorageUsageAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<IReadOnlyList<IncompleteUploadSessionDto>>> GetIncompleteUploadsAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult> AbandonUploadAsync(Guid sessionId, CancellationToken cancellationToken = default);
+    Task<int> CleanupExpiredPendingUploadSessionsAsync(CancellationToken cancellationToken = default);
 }
 
 public interface INotificationService

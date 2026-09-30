@@ -20,6 +20,7 @@ public class UploadService : IUploadService
     private readonly MediaStorageSettings _storageSettings;
     private readonly StorageQuotaSettings _quotaSettings;
     private readonly IActivityService _activities;
+    private readonly UploadSessionCleanupOptions _uploadCleanupOptions;
 
     public UploadService(
         IMemoressaDbContext db,
@@ -28,7 +29,8 @@ public class UploadService : IUploadService
         IPhotoUrlResolver photoUrls,
         IOptions<MediaStorageSettings> storageSettings,
         IOptions<StorageQuotaSettings> quotaSettings,
-        IActivityService activities)
+        IActivityService activities,
+        IOptions<UploadSessionCleanupOptions> uploadCleanupOptions)
     {
         _db = db;
         _currentUser = currentUser;
@@ -37,6 +39,7 @@ public class UploadService : IUploadService
         _storageSettings = storageSettings.Value;
         _quotaSettings = quotaSettings.Value;
         _activities = activities;
+        _uploadCleanupOptions = uploadCleanupOptions.Value;
     }
 
     public async Task<ServiceResult<StartUploadResponseDto>> StartUploadAsync(
@@ -466,6 +469,96 @@ public class UploadService : IUploadService
             .ToListAsync(cancellationToken);
 
         return ServiceResult<IReadOnlyList<IncompleteUploadSessionDto>>.Ok(sessions);
+    }
+
+    public async Task<ServiceResult> AbandonUploadAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_currentUser.UserId is null)
+        {
+            return ServiceResult.Fail("Unauthorized", 401);
+        }
+
+        var session = await _db.UploadSessions
+            .FirstOrDefaultAsync(
+                s => s.Id == sessionId && s.UserId == _currentUser.UserId.Value,
+                cancellationToken);
+
+        if (session is null)
+        {
+            return ServiceResult.NotFound("Upload session not found");
+        }
+
+        if (session.Status == UploadSessionStatus.Completed)
+        {
+            return ServiceResult.Fail("Upload session already completed", 409);
+        }
+
+        if (session.Status == UploadSessionStatus.Expired)
+        {
+            return ServiceResult.NoContent();
+        }
+
+        await AbandonSessionCoreAsync(session, cancellationToken);
+        return ServiceResult.NoContent();
+    }
+
+    public async Task<int> CleanupExpiredPendingUploadSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        var graceHours = Math.Max(0, _uploadCleanupOptions.GraceHours);
+        var cutoff = DateTime.UtcNow.AddHours(-graceHours);
+        var sessions = await _db.UploadSessions
+            .Where(s =>
+                s.Status == UploadSessionStatus.Pending
+                && s.ExpiresAt < cutoff)
+            .ToListAsync(cancellationToken);
+
+        foreach (var session in sessions)
+        {
+            await AbandonSessionCoreAsync(session, cancellationToken);
+        }
+
+        return sessions.Count;
+    }
+
+    private async Task AbandonSessionCoreAsync(UploadSession session, CancellationToken cancellationToken)
+    {
+        await DeleteOrphanUploadObjectsAsync(session, cancellationToken);
+        session.Status = UploadSessionStatus.Expired;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task DeleteOrphanUploadObjectsAsync(UploadSession session, CancellationToken cancellationToken)
+    {
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(session.S3Key))
+        {
+            keys.Add(session.S3Key);
+        }
+
+        if (!string.IsNullOrWhiteSpace(session.S3KeyFull))
+        {
+            keys.Add(session.S3KeyFull);
+        }
+
+        if (!string.IsNullOrWhiteSpace(session.S3KeyThumbnail))
+        {
+            keys.Add(session.S3KeyThumbnail);
+        }
+
+        if (!string.IsNullOrWhiteSpace(session.S3KeyLivePhotoVideo))
+        {
+            keys.Add(session.S3KeyLivePhotoVideo);
+        }
+
+        foreach (var key in keys)
+        {
+            if (await _s3.ObjectExistsAsync(key, cancellationToken))
+            {
+                await _s3.DeleteObjectAsync(key, cancellationToken);
+            }
+        }
     }
 
     private async Task<(bool Allowed, string? Error, int StatusCode)> CheckQuotaAsync(

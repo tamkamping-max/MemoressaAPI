@@ -658,6 +658,9 @@ User-scoped reusable labels for the photo tags sheet (not journal tags). See Pho
 | POST | `/start` | Photo upload session (3 presigned PUTs; rejects video) |
 | GET | `/incomplete` | Pending sessions for current user (not expired) |
 | POST | `/{sessionId}/complete` | Verify S3 variants exist, create photo, apply quota. Optional body: `{ "description"?, "location"? }` written on insert. |
+| POST | `/{sessionId}/abandon` | Abandon incomplete session: delete orphan S3 objects, mark **Expired** (no Photo row, no quota change) |
+
+Background job **`UploadSessionCleanup`** (see `UploadSessionCleanup:IntervalHours`, `GraceHours` in config) abandons **Pending** sessions whose `expiresAt` is older than grace (default 24h), using the same S3 + **Expired** logic.
 
 ### Storage — `api/v1/storage`
 

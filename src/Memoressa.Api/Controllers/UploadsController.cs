@@ -41,4 +41,11 @@ public class UploadsController : ControllerBase
         var result = await _uploadService.CompleteUploadAsync(sessionId, request, cancellationToken);
         return result.ToActionResult();
     }
+
+    [HttpPost("{sessionId:guid}/abandon")]
+    public async Task<IActionResult> AbandonUpload(Guid sessionId, CancellationToken cancellationToken)
+    {
+        var result = await _uploadService.AbandonUploadAsync(sessionId, cancellationToken);
+        return result.ToActionResult();
+    }
 }

@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.Configure<OAuthSettings>(configuration.GetSection(OAuthSettings.SectionName));
         services.Configure<MediaStorageSettings>(configuration.GetSection(MediaStorageSettings.SectionName));
         services.Configure<StorageQuotaSettings>(configuration.GetSection(StorageQuotaSettings.SectionName));
+        services.Configure<UploadSessionCleanupOptions>(configuration.GetSection(UploadSessionCleanupOptions.SectionName));
         services.AddHttpClient("GoogleOAuth");
         services.AddHttpClient("FacebookOAuth");
 

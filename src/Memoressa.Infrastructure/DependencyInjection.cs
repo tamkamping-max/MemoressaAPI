@@ -47,6 +47,8 @@ public static class DependencyInjection
         });
         services.Configure<InternalApiOptions>(configuration.GetSection(InternalApiOptions.SectionName));
 
+        services.AddHostedService<UploadSessionCleanupHostedService>();
+
         var connectionString = DatabaseConnection.ResolveConnectionString(configuration);
 
         services.AddDbContext<MemoressaDbContext>(options =>
