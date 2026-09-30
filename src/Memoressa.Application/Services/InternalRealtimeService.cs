@@ -42,18 +42,31 @@ public class InternalRealtimeService : IInternalRealtimeService
         CancellationToken cancellationToken = default)
     {
         var commands = await _db.FrameCommands
-            .Where(c => c.DisplayDeviceId == deviceId && c.Status == FrameCommandStatus.Pending)
+            .Where(c =>
+                c.DisplayDeviceId == deviceId
+                && (c.Status == FrameCommandStatus.Pending || c.Status == FrameCommandStatus.Delivered))
             .OrderBy(c => c.CreatedAt)
             .Take(CommandPollBatchSize)
             .ToListAsync(cancellationToken);
 
+        var deliveredAt = DateTime.UtcNow;
+        var changed = false;
         foreach (var command in commands)
         {
+            if (command.Status != FrameCommandStatus.Pending)
+            {
+                continue;
+            }
+
             command.Status = FrameCommandStatus.Delivered;
-            command.DeliveredAt = DateTime.UtcNow;
+            command.DeliveredAt = deliveredAt;
+            changed = true;
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
+        if (changed)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
         return ServiceResult<IReadOnlyList<FrameCommandDto>>.Ok(commands.Select(c => c.ToDto()).ToList());
     }
 

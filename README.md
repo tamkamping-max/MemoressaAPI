@@ -111,7 +111,7 @@ REST and display-device WebSocket share **one TLS port** on Kestrel:
 | REST | `https://192.168.1.131:7286/api/v1/...` |
 | WSS | `wss://192.168.1.131:7286/ws/devices/{deviceId}` |
 
-`GET /ws/devices/{deviceId}` with a WebSocket upgrade is handled in **Memoressa.Api** (`DeviceWebSocketEndpoints` → `InternalRealtimeService`). On connect the device is marked online; pending frame commands are pushed about every 2s as `{"type":"commands","commands":[...]}`. **`POST /display-devices/{id}/send-memory`** also pushes immediately when the device is connected. Client messages: `{"type":"ping"}` → `{"type":"pong"}`, `{"type":"ack","commandId":"<guid>","success":true}`. After queue or package removal the server may send `{"type":"remove_queue_item","commandId":"...","memoryId":"...","packageId":"..."}`. **`PlayMemory`** payloads include `playNow`; when true the frame should interrupt and play immediately.
+`GET /ws/devices/{deviceId}` with a WebSocket upgrade is handled in **Memoressa.Api** (`DeviceWebSocketEndpoints` → `InternalRealtimeService`). On connect the server sends `{"type":"connected"}`, then immediately pushes undelivered-ack commands as `{"type":"commands","commands":[...]}`, and repeats that push about every **2s** until the frame **acks**. Poll/`GetPendingCommands` returns **`Pending` and `Delivered`** commands (only the first delivery sets `Delivered` / `DeliveredAt`; unacked **`Delivered`** rows are redelivered). **`POST /display-devices/{id}/send-memory`** also pushes immediately when the device is connected. Client messages: `{"type":"ping"}` → `{"type":"pong"}`, `{"type":"ack","commandId":"<guid>","success":true}`. After queue or package removal the server may send `{"type":"remove_queue_item","commandId":"...","memoryId":"...","packageId":"..."}`. **`PlayMemory`** payloads include `playNow`; when true the frame should interrupt and play immediately.
 
 Optional Go sidecars can still use `api/internal/` with `X-Internal-Api-Key`; they do not receive proxied traffic from the WSS URL above.
 
@@ -661,7 +661,7 @@ User-scoped reusable labels for the photo tags sheet (not journal tags). See Pho
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/devices/status` | Update device online status |
-| GET | `/devices/{deviceId}/commands` | Poll pending frame commands |
+| GET | `/devices/{deviceId}/commands` | Poll frame commands (`Pending` + unacked `Delivered`; redelivered until ack) |
 | POST | `/commands/{commandId}/ack` | Acknowledge command execution |
 | GET | `/devices/{deviceId}/playback-packages` | Get device playback packages |
 

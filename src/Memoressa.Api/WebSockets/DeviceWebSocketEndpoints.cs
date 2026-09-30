@@ -82,6 +82,9 @@ public static class DeviceWebSocketEndpoints
     {
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
+        await SendTextAsync(webSocket, """{"type":"connected"}""", linkedCts.Token);
+        await PushPendingCommandsAsync(webSocket, deviceId, realtime, linkedCts.Token);
+
         var receiveTask = ReceiveLoopAsync(webSocket, deviceId, realtime, logger, linkedCts.Token);
         var pushTask = PushCommandsLoopAsync(webSocket, deviceId, realtime, linkedCts.Token);
 
@@ -125,18 +128,27 @@ public static class DeviceWebSocketEndpoints
                && webSocket.State == WebSocketState.Open
                && await timer.WaitForNextTickAsync(cancellationToken))
         {
-            var result = await realtime.GetPendingCommandsAsync(deviceId, cancellationToken);
-            if (!result.Success || result.Data is null || result.Data.Count == 0)
-            {
-                continue;
-            }
-
-            var payload = JsonSerializer.Serialize(
-                new { type = "commands", commands = result.Data },
-                JsonOptions);
-
-            await SendTextAsync(webSocket, payload, cancellationToken);
+            await PushPendingCommandsAsync(webSocket, deviceId, realtime, cancellationToken);
         }
+    }
+
+    private static async Task PushPendingCommandsAsync(
+        WebSocket webSocket,
+        Guid deviceId,
+        IInternalRealtimeService realtime,
+        CancellationToken cancellationToken)
+    {
+        var result = await realtime.GetPendingCommandsAsync(deviceId, cancellationToken);
+        if (!result.Success || result.Data is null || result.Data.Count == 0)
+        {
+            return;
+        }
+
+        var payload = JsonSerializer.Serialize(
+            new { type = "commands", commands = result.Data },
+            JsonOptions);
+
+        await SendTextAsync(webSocket, payload, cancellationToken);
     }
 
     private static async Task ReceiveLoopAsync(
