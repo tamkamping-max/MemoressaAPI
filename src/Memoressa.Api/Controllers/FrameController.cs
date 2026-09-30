@@ -53,6 +53,28 @@ public class FrameController : ControllerBase
         return result.ToActionResult();
     }
 
+    [AllowAnonymous]
+    [HttpDelete("devices/{deviceId:guid}/playback-packages/{packageId:guid}")]
+    public async Task<IActionResult> DeletePlaybackPackage(
+        Guid deviceId,
+        Guid packageId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _frameService.DeletePlaybackPackageAsync(deviceId, packageId, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [AllowAnonymous]
+    [HttpDelete("devices/{deviceId:guid}/playback-packages/by-memory/{memoryId:guid}")]
+    public async Task<IActionResult> DeletePlaybackPackageByMemory(
+        Guid deviceId,
+        Guid memoryId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _frameService.DeletePlaybackPackageByMemoryAsync(deviceId, memoryId, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("playback-packages/{packageId:guid}/comments")]
     public async Task<IActionResult> GetComments(Guid packageId, CancellationToken cancellationToken)
     {

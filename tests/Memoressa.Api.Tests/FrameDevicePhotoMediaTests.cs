@@ -35,7 +35,7 @@ public class FrameDevicePhotoMediaTests
         });
         await db.SaveChangesAsync();
 
-        var service = new FrameService(db, new AnonymousUser(), new StubPhotoUrls());
+        var service = new FrameService(db, new AnonymousUser(), new StubPhotoUrls(), new NoOpFrameDeviceWebSocketHub());
 
         var result = await service.GetDevicePhotoMediaAsync(deviceId, photoId);
 
@@ -72,7 +72,7 @@ public class FrameDevicePhotoMediaTests
         });
         await db.SaveChangesAsync();
 
-        var service = new FrameService(db, new AnonymousUser(), new StubPhotoUrls());
+        var service = new FrameService(db, new AnonymousUser(), new StubPhotoUrls(), new NoOpFrameDeviceWebSocketHub());
         var result = await service.GetDevicePhotoMediaAsync(deviceId, photoId);
 
         Assert.Equal(404, result.StatusCode);

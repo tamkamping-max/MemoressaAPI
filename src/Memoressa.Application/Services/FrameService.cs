@@ -12,15 +12,18 @@ public class FrameService : IFrameService
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IPhotoUrlResolver _photoUrls;
+    private readonly IFrameDeviceWebSocketHub _webSocketHub;
 
     public FrameService(
         IMemoressaDbContext db,
         ICurrentUserService currentUser,
-        IPhotoUrlResolver photoUrls)
+        IPhotoUrlResolver photoUrls,
+        IFrameDeviceWebSocketHub webSocketHub)
     {
         _db = db;
         _currentUser = currentUser;
         _photoUrls = photoUrls;
+        _webSocketHub = webSocketHub;
     }
 
     public async Task<ServiceResult<IReadOnlyList<FramePlaybackPackageDto>>> GetPlaybackPackagesAsync(
@@ -233,5 +236,65 @@ public class FrameService : IFrameService
             RemoteUrl = remoteUrl,
             ThumbnailUrl = thumbnailUrl
         });
+    }
+
+    public async Task<ServiceResult> DeletePlaybackPackageAsync(
+        Guid deviceId,
+        Guid packageId,
+        CancellationToken cancellationToken = default)
+    {
+        var removal = await FramePlaybackQueueSync.RemovePlaybackPackageByIdAsync(
+            _db,
+            deviceId,
+            packageId,
+            cancellationToken);
+
+        return await CompletePackageRemovalAsync(deviceId, removal, cancellationToken);
+    }
+
+    public async Task<ServiceResult> DeletePlaybackPackageByMemoryAsync(
+        Guid deviceId,
+        Guid memoryId,
+        CancellationToken cancellationToken = default)
+    {
+        var deviceExists = await _db.DisplayDevices.AsNoTracking()
+            .AnyAsync(d => d.Id == deviceId, cancellationToken);
+
+        if (!deviceExists)
+        {
+            return ServiceResult.NotFound("Device not found");
+        }
+
+        var removal = await FramePlaybackQueueSync.RemoveFromDeviceQueueAsync(
+            _db,
+            deviceId,
+            commandId: null,
+            memoryId,
+            removePlaybackPackages: true,
+            cancellationToken);
+
+        return await CompletePackageRemovalAsync(deviceId, removal, cancellationToken);
+    }
+
+    private async Task<ServiceResult> CompletePackageRemovalAsync(
+        Guid deviceId,
+        FrameQueueRemovalResult removal,
+        CancellationToken cancellationToken)
+    {
+        if (!removal.Success)
+        {
+            return ServiceResult.NotFound("Playback package not found");
+        }
+
+        if (removal.MemoryId.HasValue)
+        {
+            await FramePlaybackQueueSync.NotifyRemoveQueueItemAsync(
+                _webSocketHub,
+                deviceId,
+                removal,
+                cancellationToken);
+        }
+
+        return ServiceResult.Ok();
     }
 }

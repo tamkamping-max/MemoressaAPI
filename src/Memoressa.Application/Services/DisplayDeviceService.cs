@@ -317,52 +317,80 @@ public class DisplayDeviceService : IDisplayDeviceService
         Guid commandId,
         CancellationToken cancellationToken = default)
     {
+        var (ok, error) = await ResolveOwnedDeviceAsync(deviceId, cancellationToken);
+        if (!ok)
+        {
+            return error!;
+        }
+
+        var removal = await FramePlaybackQueueSync.RemoveFromDeviceQueueAsync(
+            _db,
+            deviceId,
+            commandId,
+            memoryId: null,
+            removePlaybackPackages: true,
+            cancellationToken);
+
+        return await CompleteQueueRemovalAsync(deviceId, removal, cancellationToken);
+    }
+
+    public async Task<ServiceResult> CancelPlaybackQueueByMemoryAsync(
+        Guid deviceId,
+        Guid memoryId,
+        CancellationToken cancellationToken = default)
+    {
+        var (ok, error) = await ResolveOwnedDeviceAsync(deviceId, cancellationToken);
+        if (!ok)
+        {
+            return error!;
+        }
+
+        var removal = await FramePlaybackQueueSync.RemoveFromDeviceQueueAsync(
+            _db,
+            deviceId,
+            commandId: null,
+            memoryId,
+            removePlaybackPackages: true,
+            cancellationToken);
+
+        return await CompleteQueueRemovalAsync(deviceId, removal, cancellationToken);
+    }
+
+    private async Task<ServiceResult> CompleteQueueRemovalAsync(
+        Guid deviceId,
+        FrameQueueRemovalResult removal,
+        CancellationToken cancellationToken)
+    {
+        if (!removal.Success)
+        {
+            return removal.Equals(FrameQueueRemovalResult.Inactive)
+                ? ServiceResult.Fail("Queue item is no longer active", 409)
+                : ServiceResult.NotFound("Queue item not found");
+        }
+
+        await FramePlaybackQueueSync.NotifyRemoveQueueItemAsync(_webSocketHub, deviceId, removal, cancellationToken);
+        return ServiceResult.Ok();
+    }
+
+    private async Task<(bool Ok, ServiceResult? Error)> ResolveOwnedDeviceAsync(
+        Guid deviceId,
+        CancellationToken cancellationToken)
+    {
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
         if (ctx is null)
         {
-            return ServiceResult.Fail("Unauthorized", 401);
+            return (false, ServiceResult.Fail("Unauthorized", 401));
         }
 
-        var device = await _db.DisplayDevices.AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == deviceId && d.FamilyId == ctx.Value.FamilyId, cancellationToken);
+        var exists = await _db.DisplayDevices.AsNoTracking()
+            .AnyAsync(d => d.Id == deviceId && d.FamilyId == ctx.Value.FamilyId, cancellationToken);
 
-        if (device is null)
+        if (!exists)
         {
-            return ServiceResult.NotFound("Device not found");
+            return (false, ServiceResult.NotFound("Device not found"));
         }
 
-        var command = await _db.FrameCommands
-            .FirstOrDefaultAsync(
-                c => c.Id == commandId
-                     && c.DisplayDeviceId == deviceId
-                     && c.CommandType == FrameCommandType.PlayMemory,
-                cancellationToken);
-
-        if (command is null)
-        {
-            return ServiceResult.NotFound("Queue item not found");
-        }
-
-        if (command.Status is not (FrameCommandStatus.Pending or FrameCommandStatus.Delivered))
-        {
-            return ServiceResult.Fail("Queue item is no longer active", 409);
-        }
-
-        if (!TryParsePlayMemoryPayload(command.PayloadJson, out var memoryId, out _, out _)
-            || !memoryId.HasValue)
-        {
-            return ServiceResult.Fail("Invalid queue command payload", 400);
-        }
-
-        _db.FrameCommands.Remove(command);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        await _webSocketHub.SendJsonAsync(
-            deviceId,
-            FrameDeviceWebSocketMessages.RemoveFromQueuePayload(commandId, memoryId.Value),
-            cancellationToken);
-
-        return ServiceResult.Ok();
+        return (true, null);
     }
 
     public async Task<ServiceResult<IReadOnlyList<DisplayFrameQueueItemDto>>> GetPlaybackQueueAsync(
@@ -395,7 +423,7 @@ public class DisplayDeviceService : IDisplayDeviceService
         var seenMemoryIds = new HashSet<Guid>();
         foreach (var command in commands)
         {
-            if (!TryParsePlayMemoryPayload(command.PayloadJson, out var memoryId, out var playNow, out var title)
+            if (!FramePlayMemoryPayload.TryParse(command.PayloadJson, out var memoryId, out var playNow, out var title)
                 || !memoryId.HasValue
                 || !seenMemoryIds.Add(memoryId.Value))
             {
@@ -495,73 +523,6 @@ public class DisplayDeviceService : IDisplayDeviceService
         return true;
     }
 
-    private static bool TryParsePlayMemoryPayload(
-        string payloadJson,
-        out Guid? memoryId,
-        out bool playNow,
-        out string? title)
-    {
-        memoryId = null;
-        playNow = false;
-        title = null;
-
-        if (string.IsNullOrWhiteSpace(payloadJson))
-        {
-            return false;
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(payloadJson);
-            var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object)
-            {
-                return false;
-            }
-
-            if (!root.TryGetProperty("memoryId", out var memoryIdElement))
-            {
-                return false;
-            }
-
-            if (memoryIdElement.ValueKind == JsonValueKind.String)
-            {
-                if (!Guid.TryParse(memoryIdElement.GetString(), out var parsedMemoryId))
-                {
-                    return false;
-                }
-
-                memoryId = parsedMemoryId;
-            }
-            else if (!memoryIdElement.TryGetGuid(out var guidMemoryId))
-            {
-                return false;
-            }
-            else
-            {
-                memoryId = guidMemoryId;
-            }
-
-            if (root.TryGetProperty("playNow", out var playNowElement)
-                && (playNowElement.ValueKind == JsonValueKind.True || playNowElement.ValueKind == JsonValueKind.False))
-            {
-                playNow = playNowElement.GetBoolean();
-            }
-
-            if (root.TryGetProperty("packageTitle", out var titleElement)
-                && titleElement.ValueKind == JsonValueKind.String)
-            {
-                title = titleElement.GetString();
-            }
-
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
-
     private async Task<FrameCommand?> FindActivePlayMemoryCommandAsync(
         Guid deviceId,
         Guid memoryId,
@@ -577,7 +538,7 @@ public class DisplayDeviceService : IDisplayDeviceService
 
         foreach (var command in commands)
         {
-            if (TryParsePlayMemoryPayload(command.PayloadJson, out var parsedMemoryId, out _, out _)
+            if (FramePlayMemoryPayload.TryParse(command.PayloadJson, out var parsedMemoryId, out _, out _)
                 && parsedMemoryId == memoryId)
             {
                 return command;

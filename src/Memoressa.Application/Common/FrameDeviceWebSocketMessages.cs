@@ -15,8 +15,14 @@ public static class FrameDeviceWebSocketMessages
     public static string CommandsPayload(IReadOnlyList<FrameCommandDto> commands) =>
         JsonSerializer.Serialize(new { type = "commands", commands }, JsonOptions);
 
-    public static string RemoveFromQueuePayload(Guid commandId, Guid memoryId) =>
+    public static string RemoveQueueItemPayload(Guid? commandId, Guid memoryId, Guid? packageId) =>
         JsonSerializer.Serialize(
-            new { type = "removeFromQueue", commandId, memoryId },
+            new
+            {
+                type = "remove_queue_item",
+                commandId,
+                memoryId,
+                packageId
+            },
             JsonOptions);
 }

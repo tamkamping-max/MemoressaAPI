@@ -111,7 +111,7 @@ REST and display-device WebSocket share **one TLS port** on Kestrel:
 | REST | `https://192.168.1.131:7286/api/v1/...` |
 | WSS | `wss://192.168.1.131:7286/ws/devices/{deviceId}` |
 
-`GET /ws/devices/{deviceId}` with a WebSocket upgrade is handled in **Memoressa.Api** (`DeviceWebSocketEndpoints` → `InternalRealtimeService`). On connect the device is marked online; pending frame commands are pushed about every 2s as `{"type":"commands","commands":[...]}`. **`POST /display-devices/{id}/send-memory`** also pushes immediately when the device is connected. Client messages: `{"type":"ping"}` → `{"type":"pong"}`, `{"type":"ack","commandId":"<guid>","success":true}`. Server may send `{"type":"removeFromQueue","commandId":"...","memoryId":"..."}` after App deletes a queue item. **`PlayMemory`** payloads include `playNow`; when true the frame should interrupt and play immediately.
+`GET /ws/devices/{deviceId}` with a WebSocket upgrade is handled in **Memoressa.Api** (`DeviceWebSocketEndpoints` → `InternalRealtimeService`). On connect the device is marked online; pending frame commands are pushed about every 2s as `{"type":"commands","commands":[...]}`. **`POST /display-devices/{id}/send-memory`** also pushes immediately when the device is connected. Client messages: `{"type":"ping"}` → `{"type":"pong"}`, `{"type":"ack","commandId":"<guid>","success":true}`. After queue or package removal the server may send `{"type":"remove_queue_item","commandId":"...","memoryId":"...","packageId":"..."}`. **`PlayMemory`** payloads include `playNow`; when true the frame should interrupt and play immediately.
 
 Optional Go sidecars can still use `api/internal/` with `X-Internal-Api-Key`; they do not receive proxied traffic from the WSS URL above.
 
@@ -465,7 +465,8 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 | POST | `/{id}/unbind` | Unbind device; queues `ClearFamilySharedContent` for the frame, removes family-shared `frame_playback_packages` (keeps friend packages until device cascade), clears other pending commands |
 | POST | `/{deviceId}/send-memory` | Queue or play-now (same `memoryId` deduped; play-now refreshes presigned payload + immediate WebSocket) |
 | GET | `/{deviceId}/playback-queue` | Active `PlayMemory` queue (Pending/Delivered), one row per `memoryId`, includes `playNow: true` |
-| DELETE | `/{deviceId}/playback-queue/{commandId}` | Cancel queue item; sends WebSocket `removeFromQueue` |
+| DELETE | `/{deviceId}/playback-queue/{commandId}` | Cancel queue item (removes matching `PlayMemory` + optional `frame_playback_packages`); WebSocket `remove_queue_item` |
+| DELETE | `/{deviceId}/playback-queue/by-memory/{memoryId}` | Cancel by memory id (same cleanup + WebSocket) |
 | GET | `/qr-code` | Generate binding QR code |
 | GET | `/pairing-status?qrCode=` | **Anonymous.** Whether the frame QR is bound; `canBind` is true only while the frame has an active pairing session (10 min) |
 | POST | `/pairing/register` | **Anonymous.** Frame welcome screen registers `{ "qrCode": "<uuid>" }` to start the pairing session |
@@ -648,6 +649,8 @@ User-scoped reusable labels for the photo tags sheet (not journal tags). See Pho
 | POST | `/devices/{deviceId}/playback-packages` | Create playback package |
 | POST | `/devices/{deviceId}/playback-packages/ensure` | Upsert package by `externalId` (maps client ids like `remote_pkg_*` to server GUID) |
 | GET | `/devices/{deviceId}/photos/{photoId}/media` | **Anonymous.** Presigned `remoteUrl` / `thumbnailUrl` for a family photo (`PhotoUrlPurpose.FramePlayback`, same expiry as download URLs) |
+| DELETE | `/devices/{deviceId}/playback-packages/{packageId}` | **Anonymous.** Remove package; cancels pending `PlayMemory` for that memory; WebSocket `remove_queue_item` |
+| DELETE | `/devices/{deviceId}/playback-packages/by-memory/{memoryId}` | **Anonymous.** Remove `remote_pkg_{memoryId}` (or JSON `memoryId`) packages + cancel queue; WebSocket `remove_queue_item` |
 | GET | `/playback-packages/{packageId}/comments` | List frame comments (requires server package GUID) |
 | POST | `/playback-packages/{packageId}/comments` | Add frame comment |
 

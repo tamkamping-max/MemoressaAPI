@@ -113,6 +113,10 @@ public interface IDisplayDeviceService
         Guid deviceId,
         Guid commandId,
         CancellationToken cancellationToken = default);
+    Task<ServiceResult> CancelPlaybackQueueByMemoryAsync(
+        Guid deviceId,
+        Guid memoryId,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult<string>> GenerateQrCodeAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<DisplayDevicePairingStatusDto>> GetPairingStatusAsync(
         string qrCode,
@@ -285,6 +289,14 @@ public interface IFrameService
     Task<ServiceResult<FrameDevicePhotoMediaDto>> GetDevicePhotoMediaAsync(
         Guid deviceId,
         Guid photoId,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult> DeletePlaybackPackageAsync(
+        Guid deviceId,
+        Guid packageId,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult> DeletePlaybackPackageByMemoryAsync(
+        Guid deviceId,
+        Guid memoryId,
         CancellationToken cancellationToken = default);
 }
 

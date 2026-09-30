@@ -150,7 +150,7 @@ public class DisplayDevicePlaybackQueueTests
     }
 
     [Fact]
-    public async Task CancelPlaybackQueueCommandAsync_RemovesRowAndSendsRemoveFromQueue()
+    public async Task CancelPlaybackQueueCommandAsync_RemovesRowAndSendsRemoveQueueItem()
     {
         var userId = Guid.NewGuid();
         var familyId = Guid.NewGuid();
@@ -177,8 +177,36 @@ public class DisplayDevicePlaybackQueueTests
         Assert.True(result.Success);
         Assert.False(await db.FrameCommands.AnyAsync(c => c.Id == commandId));
         Assert.Single(hub.SentMessages);
-        Assert.Contains("removeFromQueue", hub.SentMessages[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("remove_queue_item", hub.SentMessages[0], StringComparison.OrdinalIgnoreCase);
         Assert.Contains(memoryId.ToString(), hub.SentMessages[0], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelPlaybackQueueByMemoryAsync_RemovesMatchingCommands()
+    {
+        var userId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var memoryId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        SeedDevice(db, userId, familyId, deviceId);
+        db.FrameCommands.Add(new FrameCommand
+        {
+            DisplayDeviceId = deviceId,
+            CommandType = FrameCommandType.PlayMemory,
+            Status = FrameCommandStatus.Pending,
+            PayloadJson = JsonSerializer.Serialize(new { memoryId, playNow = false, packageTitle = "X" })
+        });
+        await db.SaveChangesAsync();
+
+        var hub = new NoOpFrameDeviceWebSocketHub();
+        var service = CreateService(db, userId, familyId, hub);
+        var result = await service.CancelPlaybackQueueByMemoryAsync(deviceId, memoryId);
+
+        Assert.True(result.Success);
+        Assert.False(await db.FrameCommands.AnyAsync(c => c.DisplayDeviceId == deviceId));
+        Assert.Single(hub.SentMessages);
     }
 
     private static DisplayDeviceService CreateService(
