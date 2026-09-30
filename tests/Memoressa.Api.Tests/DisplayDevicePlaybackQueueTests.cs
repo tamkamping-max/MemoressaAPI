@@ -108,7 +108,7 @@ public class DisplayDevicePlaybackQueueTests
     }
 
     [Fact]
-    public async Task SendMemoryToDeviceAsync_PlayNowOnExisting_RefreshesPayloadAndPushesWebSocket()
+    public async Task SendMemoryToDeviceAsync_PlayNowOnExisting_PushesWebSocketWithoutChangingQueueRow()
     {
         var userId = Guid.NewGuid();
         var familyId = Guid.NewGuid();
@@ -129,6 +129,7 @@ public class DisplayDevicePlaybackQueueTests
             DisplayDeviceId = deviceId,
             CommandType = FrameCommandType.PlayMemory,
             Status = FrameCommandStatus.Delivered,
+            DeliveredAt = DateTime.UtcNow.AddMinutes(-1),
             PayloadJson = JsonSerializer.Serialize(new { memoryId, playNow = false, packageTitle = "Album" })
         };
         db.FrameCommands.Add(existing);
@@ -147,6 +148,46 @@ public class DisplayDevicePlaybackQueueTests
 
         var reloaded = await db.FrameCommands.SingleAsync(c => c.Id == existing.Id);
         Assert.Equal(FrameCommandStatus.Delivered, reloaded.Status);
+        Assert.Contains("\"playNow\":false", reloaded.PayloadJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SendMemoryToDeviceAsync_PlayNowWhenOnlyPackageQueued_DoesNotInsertFrameCommand()
+    {
+        var userId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var memoryId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        SeedDevice(db, userId, familyId, deviceId);
+        db.Memories.Add(new Memory
+        {
+            Id = memoryId,
+            FamilyId = familyId,
+            Title = "Album",
+            CreatedByUserId = userId
+        });
+        db.FramePlaybackPackages.Add(new FramePlaybackPackage
+        {
+            DisplayDeviceId = deviceId,
+            FamilyId = familyId,
+            ExternalId = $"remote_pkg_{memoryId}",
+            Title = "Album",
+            PackageJson = JsonSerializer.Serialize(new { memoryId }),
+            IsActive = true
+        });
+        await db.SaveChangesAsync();
+
+        var hub = new NoOpFrameDeviceWebSocketHub();
+        var service = CreateService(db, userId, familyId, hub);
+        var result = await service.SendMemoryToDeviceAsync(
+            deviceId,
+            new SendMemoryToDeviceRequestDto { MemoryId = memoryId, PlayNow = true });
+
+        Assert.True(result.Success);
+        Assert.Equal(0, await db.FrameCommands.CountAsync());
+        Assert.Single(hub.SentMessages);
     }
 
     [Fact]

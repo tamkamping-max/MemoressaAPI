@@ -463,7 +463,7 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 | POST | `/bind` | Bind device via QR code |
 | PUT | `/{id}/rename` | Rename device |
 | POST | `/{id}/unbind` | Unbind device; queues `ClearFamilySharedContent` for the frame, removes family-shared `frame_playback_packages` (keeps friend packages until device cascade), clears other pending commands |
-| POST | `/{deviceId}/send-memory` | Queue or play-now (same `memoryId` deduped; play-now refreshes presigned payload + immediate WebSocket) |
+| POST | `/{deviceId}/send-memory` | Queue or play-now (same `memoryId` / active `remote_pkg_*` package deduped; **play now** on an existing queue item only pushes WebSocket `PlayMemory`, no new or updated `FrameCommands` row) |
 | GET | `/{deviceId}/playback-queue` | Active `PlayMemory` queue (Pending/Delivered), one row per `memoryId`, includes `playNow: true` |
 | DELETE | `/{deviceId}/playback-queue/{commandId}` | Cancel queue item (removes matching `PlayMemory` + optional `frame_playback_packages`); WebSocket `remove_queue_item` |
 | DELETE | `/{deviceId}/playback-queue/by-memory/{memoryId}` | Cancel by memory id (same cleanup + WebSocket) |
