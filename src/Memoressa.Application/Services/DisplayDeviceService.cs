@@ -281,21 +281,7 @@ public class DisplayDeviceService : IDisplayDeviceService
             memoryPhotos,
             cancellationToken);
 
-        if (alreadyInQueue && request.PlayNow)
-        {
-            device.CurrentMemoryId = request.MemoryId;
-            device.Status = DisplayDeviceStatus.Online;
-            device.LastSeenAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
-            await PushPlayMemoryImmediateViaWebSocketAsync(
-                device.Id,
-                existingQueueCommand,
-                payloadJson,
-                cancellationToken);
-            return ServiceResult.Ok();
-        }
-
-        FrameCommand commandToDeliver = new FrameCommand
+        var commandToDeliver = new FrameCommand
         {
             DisplayDeviceId = device.Id,
             IssuedByUserId = ctx.Value.UserId,
@@ -567,36 +553,6 @@ public class DisplayDeviceService : IDisplayDeviceService
         return packages.Exists(p =>
             p.ExternalId == externalId
             || FramePlayMemoryPayload.PackageJsonContainsMemoryId(p.PackageJson, memoryId));
-    }
-
-    private async Task PushPlayMemoryImmediateViaWebSocketAsync(
-        Guid deviceId,
-        FrameCommand? queueCommand,
-        string payloadJson,
-        CancellationToken cancellationToken)
-    {
-        var commandDto = queueCommand is not null
-            ? new FrameCommandDto
-            {
-                Id = queueCommand.Id,
-                DisplayDeviceId = queueCommand.DisplayDeviceId,
-                CommandType = queueCommand.CommandType,
-                Status = queueCommand.Status,
-                PayloadJson = payloadJson,
-                CreatedAt = queueCommand.CreatedAt
-            }
-            : new FrameCommandDto
-            {
-                Id = Guid.NewGuid(),
-                DisplayDeviceId = deviceId,
-                CommandType = FrameCommandType.PlayMemory,
-                Status = FrameCommandStatus.Pending,
-                PayloadJson = payloadJson,
-                CreatedAt = DateTime.UtcNow
-            };
-
-        var payload = FrameDeviceWebSocketMessages.CommandsPayload([commandDto]);
-        await _webSocketHub.SendJsonAsync(deviceId, payload, cancellationToken);
     }
 
     private async Task<string> BuildPlayMemoryPayloadJsonAsync(

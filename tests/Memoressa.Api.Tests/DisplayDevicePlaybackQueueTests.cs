@@ -108,7 +108,7 @@ public class DisplayDevicePlaybackQueueTests
     }
 
     [Fact]
-    public async Task SendMemoryToDeviceAsync_PlayNowOnExisting_PushesWebSocketWithoutChangingQueueRow()
+    public async Task SendMemoryToDeviceAsync_PlayNowOnExisting_InsertsNewCommandAndPushesWebSocket()
     {
         var userId = Guid.NewGuid();
         var familyId = Guid.NewGuid();
@@ -142,17 +142,22 @@ public class DisplayDevicePlaybackQueueTests
             new SendMemoryToDeviceRequestDto { MemoryId = memoryId, PlayNow = true });
 
         Assert.True(result.Success);
-        Assert.Equal(1, await db.FrameCommands.CountAsync(c => c.DisplayDeviceId == deviceId));
+        Assert.Equal(2, await db.FrameCommands.CountAsync(c => c.DisplayDeviceId == deviceId));
         Assert.Single(hub.SentMessages);
+        Assert.Contains("commands", hub.SentMessages[0], StringComparison.OrdinalIgnoreCase);
         Assert.Contains("playNow", hub.SentMessages[0], StringComparison.OrdinalIgnoreCase);
 
         var reloaded = await db.FrameCommands.SingleAsync(c => c.Id == existing.Id);
         Assert.Equal(FrameCommandStatus.Delivered, reloaded.Status);
         Assert.Contains("\"playNow\":false", reloaded.PayloadJson, StringComparison.OrdinalIgnoreCase);
+
+        var playNowCommand = await db.FrameCommands.SingleAsync(c => c.Id != existing.Id);
+        Assert.Equal(FrameCommandStatus.Delivered, playNowCommand.Status);
+        Assert.Contains("\"playNow\":true", playNowCommand.PayloadJson, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task SendMemoryToDeviceAsync_PlayNowWhenOnlyPackageQueued_DoesNotInsertFrameCommand()
+    public async Task SendMemoryToDeviceAsync_PlayNowWhenOnlyPackageQueued_InsertsPlayNowCommandAndPushesWebSocket()
     {
         var userId = Guid.NewGuid();
         var familyId = Guid.NewGuid();
@@ -186,8 +191,13 @@ public class DisplayDevicePlaybackQueueTests
             new SendMemoryToDeviceRequestDto { MemoryId = memoryId, PlayNow = true });
 
         Assert.True(result.Success);
-        Assert.Equal(0, await db.FrameCommands.CountAsync());
+        Assert.Equal(1, await db.FrameCommands.CountAsync());
         Assert.Single(hub.SentMessages);
+        Assert.Contains("commands", hub.SentMessages[0], StringComparison.OrdinalIgnoreCase);
+
+        var command = await db.FrameCommands.SingleAsync();
+        Assert.Contains("\"playNow\":true", command.PayloadJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(FrameCommandStatus.Delivered, command.Status);
     }
 
     [Fact]
