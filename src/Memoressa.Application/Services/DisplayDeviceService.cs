@@ -11,6 +11,8 @@ namespace Memoressa.Application.Services;
 
 public class DisplayDeviceService : IDisplayDeviceService
 {
+    private const int SendActivityPhotosLimit = 500;
+
     private static readonly TimeSpan PairingSessionTtl = TimeSpan.FromMinutes(10);
 
     private readonly IMemoressaDbContext _db;
@@ -299,7 +301,88 @@ public class DisplayDeviceService : IDisplayDeviceService
         device.Status = DisplayDeviceStatus.Online;
         device.LastSeenAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
-        await DeliverPlayMemoryCommandsViaWebSocketAsync(device.Id, [commandToDeliver], cancellationToken);
+        await DeliverFrameCommandsViaWebSocketAsync(device.Id, [commandToDeliver], cancellationToken);
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> SendActivityToDeviceAsync(
+        Guid deviceId,
+        SendActivityToDeviceRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult.Fail("Unauthorized", 401);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ActivityId))
+        {
+            return ServiceResult.Fail("activityId is required", 400);
+        }
+
+        var device = await _db.DisplayDevices
+            .FirstOrDefaultAsync(d => d.Id == deviceId && d.FamilyId == ctx.Value.FamilyId, cancellationToken);
+
+        if (device is null)
+        {
+            return ServiceResult.NotFound("Device not found");
+        }
+
+        var activity = await ActivityAlbumAccess.ResolveAsync(
+            _db,
+            ctx.Value.FamilyId,
+            request.ActivityId,
+            cancellationToken);
+
+        if (activity is null)
+        {
+            return ServiceResult.NotFound("Activity not found");
+        }
+
+        if (!await ActivityAlbumAccess.CanAccessAsync(_db, activity, ctx.Value.UserId, cancellationToken))
+        {
+            return ServiceResult.Fail("Forbidden", 403);
+        }
+
+        var activityExternalId = activity.ExternalId;
+        var photoIds = await LoadActivityAlbumPhotoIdsAsync(activity.Id, cancellationToken);
+        if (photoIds.Count == 0)
+        {
+            return ServiceResult.Fail("Activity has no photos", 400);
+        }
+
+        var existingQueueCommand = await FindActivePlayActivityCommandAsync(
+            device.Id,
+            activityExternalId,
+            cancellationToken);
+
+        if (existingQueueCommand is not null && !request.PlayNow)
+        {
+            return ServiceResult.Ok();
+        }
+
+        var payloadJson = await BuildPlayActivityPayloadJsonAsync(
+            ctx.Value.FamilyId,
+            request,
+            activity,
+            photoIds,
+            cancellationToken);
+
+        var commandToDeliver = new FrameCommand
+        {
+            DisplayDeviceId = device.Id,
+            IssuedByUserId = ctx.Value.UserId,
+            CommandType = FrameCommandType.PlayActivity,
+            Status = FrameCommandStatus.Pending,
+            PayloadJson = payloadJson
+        };
+        _db.FrameCommands.Add(commandToDeliver);
+
+        device.Status = DisplayDeviceStatus.Online;
+        device.LastSeenAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+        await DeliverFrameCommandsViaWebSocketAsync(device.Id, [commandToDeliver], cancellationToken);
         return ServiceResult.Ok();
     }
 
@@ -345,6 +428,31 @@ public class DisplayDeviceService : IDisplayDeviceService
             cancellationToken);
 
         return await CompleteQueueRemovalAsync(deviceId, removal, cancellationToken);
+    }
+
+    public async Task<ServiceResult> CancelPlaybackQueueByActivityAsync(
+        Guid deviceId,
+        string activityId,
+        CancellationToken cancellationToken = default)
+    {
+        var (ok, error) = await ResolveOwnedDeviceAsync(deviceId, cancellationToken);
+        if (!ok)
+        {
+            return error!;
+        }
+
+        var removal = await FramePlaybackQueueSync.RemoveFromDeviceQueueByActivityAsync(
+            _db,
+            deviceId,
+            activityId,
+            cancellationToken);
+
+        if (!removal.Success)
+        {
+            return ServiceResult.NotFound("Queue item not found");
+        }
+
+        return ServiceResult.Ok();
     }
 
     private async Task<ServiceResult> CompleteQueueRemovalAsync(
@@ -405,18 +513,47 @@ public class DisplayDeviceService : IDisplayDeviceService
         var commands = await _db.FrameCommands.AsNoTracking()
             .Where(c =>
                 c.DisplayDeviceId == deviceId
-                && c.CommandType == FrameCommandType.PlayMemory
+                && (c.CommandType == FrameCommandType.PlayMemory
+                    || c.CommandType == FrameCommandType.PlayActivity)
                 && (c.Status == FrameCommandStatus.Pending || c.Status == FrameCommandStatus.Delivered))
             .OrderBy(c => c.CreatedAt)
             .ToListAsync(cancellationToken);
 
         var queue = new List<DisplayFrameQueueItemDto>();
         var seenMemoryIds = new HashSet<Guid>();
+        var seenActivityIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var command in commands)
         {
-            if (!FramePlayMemoryPayload.TryParse(command.PayloadJson, out var memoryId, out var playNow, out var title)
-                || !memoryId.HasValue
-                || !seenMemoryIds.Add(memoryId.Value))
+            if (command.CommandType == FrameCommandType.PlayMemory)
+            {
+                if (!FramePlayMemoryPayload.TryParse(command.PayloadJson, out var memoryId, out var playNow, out var title)
+                    || !memoryId.HasValue
+                    || !seenMemoryIds.Add(memoryId.Value))
+                {
+                    continue;
+                }
+
+                queue.Add(new DisplayFrameQueueItemDto
+                {
+                    Id = command.Id,
+                    Title = title ?? string.Empty,
+                    MemoryId = memoryId,
+                    CommandType = command.CommandType,
+                    Status = command.Status,
+                    PlayNow = playNow,
+                    CreatedAt = command.CreatedAt
+                });
+                continue;
+            }
+
+            if (command.CommandType != FrameCommandType.PlayActivity)
+            {
+                continue;
+            }
+
+            if (!FramePlayActivityPayload.TryParse(command.PayloadJson, out var activityId, out var activityPlayNow, out var activityTitle)
+                || string.IsNullOrEmpty(activityId)
+                || !seenActivityIds.Add(activityId))
             {
                 continue;
             }
@@ -424,10 +561,11 @@ public class DisplayDeviceService : IDisplayDeviceService
             queue.Add(new DisplayFrameQueueItemDto
             {
                 Id = command.Id,
-                Title = title ?? string.Empty,
-                MemoryId = memoryId,
+                Title = activityTitle ?? string.Empty,
+                ActivityId = activityId,
+                CommandType = command.CommandType,
                 Status = command.Status,
-                PlayNow = playNow,
+                PlayNow = activityPlayNow,
                 CreatedAt = command.CreatedAt
             });
         }
@@ -555,6 +693,87 @@ public class DisplayDeviceService : IDisplayDeviceService
             || FramePlayMemoryPayload.PackageJsonContainsMemoryId(p.PackageJson, memoryId));
     }
 
+    private async Task<List<Guid>> LoadActivityAlbumPhotoIdsAsync(
+        Guid activityAlbumId,
+        CancellationToken cancellationToken)
+    {
+        return await _db.ActivityAlbumPhotos.AsNoTracking()
+            .Where(ap => ap.ActivityAlbumId == activityAlbumId)
+            .OrderByDescending(ap => ap.SortOrder)
+            .ThenByDescending(ap => ap.CreatedAt)
+            .Take(SendActivityPhotosLimit)
+            .Select(ap => ap.PhotoId)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<FrameCommand?> FindActivePlayActivityCommandAsync(
+        Guid deviceId,
+        string activityExternalId,
+        CancellationToken cancellationToken)
+    {
+        var commands = await _db.FrameCommands
+            .Where(c =>
+                c.DisplayDeviceId == deviceId
+                && c.CommandType == FrameCommandType.PlayActivity
+                && (c.Status == FrameCommandStatus.Pending || c.Status == FrameCommandStatus.Delivered))
+            .OrderBy(c => c.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        foreach (var command in commands)
+        {
+            if (FramePlayActivityPayload.TryParse(command.PayloadJson, out var parsedId, out _, out _)
+                && string.Equals(parsedId, activityExternalId, StringComparison.Ordinal))
+            {
+                return command;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<string> BuildPlayActivityPayloadJsonAsync(
+        Guid familyId,
+        SendActivityToDeviceRequestDto request,
+        ActivityAlbum activity,
+        IReadOnlyList<Guid> photoIds,
+        CancellationToken cancellationToken)
+    {
+        var items = await _aiOrchestrationService.GeneratePlaybackAsync(
+            familyId,
+            new PlaybackRequestDto
+            {
+                PhotoIds = photoIds,
+                AiCurated = false,
+                UrlPurpose = PhotoUrlPurpose.FramePlayback
+            },
+            cancellationToken);
+
+        var memberIds = activity.FamilyMembers.Select(m => m.FamilyMemberId).ToList();
+        var memberNames = memberIds.Count == 0
+            ? []
+            : await _db.FamilyMembers.AsNoTracking()
+                .Where(m => memberIds.Contains(m.Id))
+                .Select(m => m.Name)
+                .ToListAsync(cancellationToken);
+
+        var typeApi = ActivityAlbumMapping.TypeToApiString(activity.Type);
+
+        return JsonSerializer.Serialize(new
+        {
+            activityId = activity.ExternalId,
+            playNow = request.PlayNow,
+            packageTitle = request.PackageTitle ?? activity.Title,
+            activityAlbumType = typeApi,
+            activityType = typeApi,
+            activityLocation = activity.Location,
+            startDate = activity.StartDate,
+            endDate = activity.EndDate,
+            familyMemberIds = memberIds.Select(id => id.ToString()).ToList(),
+            memberNames,
+            items
+        });
+    }
+
     private async Task<string> BuildPlayMemoryPayloadJsonAsync(
         Guid familyId,
         SendMemoryToDeviceRequestDto request,
@@ -581,7 +800,7 @@ public class DisplayDeviceService : IDisplayDeviceService
         });
     }
 
-    private async Task DeliverPlayMemoryCommandsViaWebSocketAsync(
+    private async Task DeliverFrameCommandsViaWebSocketAsync(
         Guid deviceId,
         IReadOnlyList<FrameCommand> commands,
         CancellationToken cancellationToken)

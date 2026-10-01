@@ -80,6 +80,16 @@ public class DisplayDevicesController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpPost("{deviceId:guid}/send-activity")]
+    public async Task<IActionResult> SendActivityToDevice(
+        Guid deviceId,
+        [FromBody] SendActivityToDeviceRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _displayDeviceService.SendActivityToDeviceAsync(deviceId, request, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("{deviceId:guid}/playback-queue")]
     public async Task<IActionResult> GetPlaybackQueue(Guid deviceId, CancellationToken cancellationToken)
     {
@@ -104,6 +114,16 @@ public class DisplayDevicesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _displayDeviceService.CancelPlaybackQueueByMemoryAsync(deviceId, memoryId, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpDelete("{deviceId:guid}/playback-queue/by-activity/{activityId}")]
+    public async Task<IActionResult> CancelPlaybackQueueByActivity(
+        Guid deviceId,
+        string activityId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _displayDeviceService.CancelPlaybackQueueByActivityAsync(deviceId, activityId, cancellationToken);
         return result.ToActionResult();
     }
 

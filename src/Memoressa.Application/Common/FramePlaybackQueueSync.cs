@@ -39,7 +39,8 @@ public static class FramePlaybackQueueSync
             var byId = await db.FrameCommands.FirstOrDefaultAsync(
                 c => c.Id == commandId.Value
                      && c.DisplayDeviceId == deviceId
-                     && c.CommandType == FrameCommandType.PlayMemory,
+                     && (c.CommandType == FrameCommandType.PlayMemory
+                         || c.CommandType == FrameCommandType.PlayActivity),
                 cancellationToken);
 
             if (byId is null)
@@ -118,6 +119,57 @@ public static class FramePlaybackQueueSync
             resolvedCommandId,
             resolvedMemoryId,
             packageId);
+    }
+
+    public static async Task<FrameQueueRemovalResult> RemoveFromDeviceQueueByActivityAsync(
+        IMemoressaDbContext db,
+        Guid deviceId,
+        string activityId,
+        CancellationToken cancellationToken)
+    {
+        var trimmed = activityId.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return FrameQueueRemovalResult.NotFound;
+        }
+
+        var device = await db.DisplayDevices.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
+
+        if (device is null)
+        {
+            return FrameQueueRemovalResult.NotFound;
+        }
+
+        var activeCommands = await db.FrameCommands
+            .Where(c =>
+                c.DisplayDeviceId == deviceId
+                && c.CommandType == FrameCommandType.PlayActivity
+                && (c.Status == FrameCommandStatus.Pending || c.Status == FrameCommandStatus.Delivered))
+            .ToListAsync(cancellationToken);
+
+        Guid? commandId = null;
+        var removed = false;
+        foreach (var command in activeCommands)
+        {
+            if (!FramePlayActivityPayload.TryParse(command.PayloadJson, out var parsedId, out _, out _)
+                || !string.Equals(parsedId, trimmed, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            commandId ??= command.Id;
+            db.FrameCommands.Remove(command);
+            removed = true;
+        }
+
+        if (!removed)
+        {
+            return FrameQueueRemovalResult.NotFound;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return new FrameQueueRemovalResult(true, commandId, null, null);
     }
 
     public static async Task<FrameQueueRemovalResult> RemovePlaybackPackageByIdAsync(

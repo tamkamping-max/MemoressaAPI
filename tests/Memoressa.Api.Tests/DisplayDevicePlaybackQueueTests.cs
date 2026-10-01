@@ -71,6 +71,116 @@ public class DisplayDevicePlaybackQueueTests
     }
 
     [Fact]
+    public async Task SendActivityToDeviceAsync_WritesPlayActivityCommandWithPayload()
+    {
+        var userId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var activityId = Guid.NewGuid();
+        var externalId = "act_test_send";
+        var photoId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        SeedDevice(db, userId, familyId, deviceId);
+        db.ActivityAlbums.Add(new ActivityAlbum
+        {
+            Id = activityId,
+            FamilyId = familyId,
+            ExternalId = externalId,
+            Title = "Trip",
+            Type = ActivityAlbumType.Travel,
+            Status = ActivityAlbumStatus.InProgress,
+            StartDate = new DateOnly(2026, 3, 1),
+            Location = "Tokyo",
+            CreatorUserId = userId
+        });
+        db.Photos.Add(new Photo
+        {
+            Id = photoId,
+            FamilyId = familyId,
+            UploadedByUserId = userId,
+            S3Key = "photos/test.jpg"
+        });
+        db.ActivityAlbumPhotos.Add(new ActivityAlbumPhoto
+        {
+            ActivityAlbumId = activityId,
+            PhotoId = photoId,
+            SortOrder = 1
+        });
+        await db.SaveChangesAsync();
+
+        var hub = new NoOpFrameDeviceWebSocketHub();
+        var service = CreateService(db, userId, familyId, hub);
+        var result = await service.SendActivityToDeviceAsync(
+            deviceId,
+            new SendActivityToDeviceRequestDto
+            {
+                ActivityId = externalId,
+                PlayNow = true,
+                PackageTitle = "Our trip"
+            });
+
+        Assert.True(result.Success);
+        var command = await db.FrameCommands.SingleAsync(c => c.DisplayDeviceId == deviceId);
+        Assert.Equal(FrameCommandType.PlayActivity, command.CommandType);
+        Assert.Contains(externalId, command.PayloadJson, StringComparison.Ordinal);
+        Assert.Contains("activityAlbumType", command.PayloadJson, StringComparison.Ordinal);
+        Assert.Contains("travel", command.PayloadJson, StringComparison.Ordinal);
+        Assert.Contains("Tokyo", command.PayloadJson, StringComparison.Ordinal);
+        Assert.Single(hub.SentMessages);
+    }
+
+    [Fact]
+    public async Task GetPlaybackQueueAsync_IncludesPlayActivityDedupedByActivityId()
+    {
+        var userId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        const string activityId = "act_queue";
+
+        await using var db = CreateDb();
+        SeedDevice(db, userId, familyId, deviceId);
+        db.FrameCommands.AddRange(
+            new FrameCommand
+            {
+                DisplayDeviceId = deviceId,
+                CommandType = FrameCommandType.PlayActivity,
+                Status = FrameCommandStatus.Pending,
+                PayloadJson = JsonSerializer.Serialize(new
+                {
+                    activityId,
+                    playNow = false,
+                    packageTitle = "First"
+                }),
+                CreatedAt = DateTime.UtcNow.AddMinutes(-2)
+            },
+            new FrameCommand
+            {
+                DisplayDeviceId = deviceId,
+                CommandType = FrameCommandType.PlayActivity,
+                Status = FrameCommandStatus.Pending,
+                PayloadJson = JsonSerializer.Serialize(new
+                {
+                    activityId,
+                    playNow = true,
+                    packageTitle = "Duplicate"
+                }),
+                CreatedAt = DateTime.UtcNow.AddMinutes(-1)
+            });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, userId, familyId);
+        var result = await service.GetPlaybackQueueAsync(deviceId);
+
+        Assert.True(result.Success);
+        Assert.Single(result.Data!);
+        Assert.Equal(activityId, result.Data![0].ActivityId);
+        Assert.Equal(FrameCommandType.PlayActivity, result.Data[0].CommandType);
+        Assert.Equal("First", result.Data[0].Title);
+        Assert.False(result.Data[0].PlayNow);
+    }
+
+    [Fact]
     public async Task SendMemoryToDeviceAsync_DoesNotDuplicateWhenAlreadyQueued()
     {
         var userId = Guid.NewGuid();

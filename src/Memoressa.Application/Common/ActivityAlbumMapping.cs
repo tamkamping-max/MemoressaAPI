@@ -6,6 +6,17 @@ namespace Memoressa.Application.Common;
 
 public static class ActivityAlbumMapping
 {
+    public static string TypeToApiString(ActivityAlbumType type) => type switch
+    {
+        ActivityAlbumType.Travel => "travel",
+        ActivityAlbumType.Wedding => "wedding",
+        ActivityAlbumType.Conference => "conference",
+        ActivityAlbumType.Concert => "concert",
+        ActivityAlbumType.Gathering => "gathering",
+        ActivityAlbumType.Other => "other",
+        _ => "other"
+    };
+
     public static ActivityAlbumDto ToDto(ActivityAlbum activity) => new()
     {
         Id = activity.ExternalId,
