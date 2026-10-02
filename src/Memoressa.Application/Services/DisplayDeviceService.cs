@@ -329,18 +329,19 @@ public class DisplayDeviceService : IDisplayDeviceService
             return ServiceResult.NotFound("Device not found");
         }
 
-        var activity = await ActivityAlbumAccess.ResolveAsync(
+        var resolved = await ActivityAlbumAccess.ResolveAsync(
             _db,
             ctx.Value.FamilyId,
             ctx.Value.UserId,
             request.ActivityId,
             cancellationToken);
 
-        if (activity is null)
+        if (resolved.Activity is null)
         {
-            return ServiceResult.NotFound("Activity not found");
+            return ServiceResult.Fail(resolved.Error ?? "Activity not found", resolved.StatusCode);
         }
 
+        var activity = resolved.Activity;
         if (!await ActivityAlbumAccess.CanAccessAsync(_db, activity, ctx.Value.UserId, cancellationToken))
         {
             return ServiceResult.Fail("Forbidden", 403);

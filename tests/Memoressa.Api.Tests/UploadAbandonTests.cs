@@ -281,6 +281,7 @@ public class UploadAbandonTests
         public Task<ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>> GetActivityPhotosAsync(
             string activityId,
             int? limit = null,
+            Guid? creatorUserId = null,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 

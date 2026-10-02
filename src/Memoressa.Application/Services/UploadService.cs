@@ -96,17 +96,20 @@ public class UploadService : IUploadService
         Guid? activityAlbumId = null;
         if (!string.IsNullOrWhiteSpace(request.ActivityAlbumId))
         {
-            var activity = await ActivityAlbumAccess.ResolveAsync(
+            var resolved = await ActivityAlbumAccess.ResolveAsync(
                 _db,
                 ctx.Value.FamilyId,
                 ctx.Value.UserId,
                 request.ActivityAlbumId,
                 cancellationToken);
-            if (activity is null)
+            if (resolved.Activity is null)
             {
-                return ServiceResult<StartUploadResponseDto>.NotFound("Activity not found");
+                return ServiceResult<StartUploadResponseDto>.Fail(
+                    resolved.Error ?? "Activity not found",
+                    resolved.StatusCode);
             }
 
+            var activity = resolved.Activity;
             if (!await ActivityAlbumAccess.CanUploadToAsync(_db, activity, ctx.Value.UserId, cancellationToken))
             {
                 return ServiceResult<StartUploadResponseDto>.Fail(

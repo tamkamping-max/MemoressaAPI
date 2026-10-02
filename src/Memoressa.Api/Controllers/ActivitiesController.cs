@@ -52,9 +52,10 @@ public class ActivitiesController : ControllerBase
     public async Task<IActionResult> GetPhotos(
         string activityId,
         [FromQuery] int? limit,
+        [FromQuery] Guid? creatorUserId,
         CancellationToken cancellationToken)
     {
-        var result = await _activities.GetActivityPhotosAsync(activityId, limit, cancellationToken);
+        var result = await _activities.GetActivityPhotosAsync(activityId, limit, creatorUserId, cancellationToken);
         return result.ToActionResult();
     }
 

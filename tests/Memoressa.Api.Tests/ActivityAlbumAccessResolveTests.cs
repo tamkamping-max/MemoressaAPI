@@ -60,8 +60,8 @@ public class ActivityAlbumAccessResolveTests
             sharedExternalId,
             CancellationToken.None);
 
-        Assert.NotNull(resolved);
-        Assert.Equal(activityB.Id, resolved!.Id);
+        Assert.NotNull(resolved.Activity);
+        Assert.Equal(activityB.Id, resolved.Activity!.Id);
     }
 
     [Fact]
@@ -112,8 +112,8 @@ public class ActivityAlbumAccessResolveTests
             sharedExternalId,
             CancellationToken.None);
 
-        Assert.NotNull(resolved);
-        Assert.Equal(owned.Id, resolved!.Id);
+        Assert.NotNull(resolved.Activity);
+        Assert.Equal(owned.Id, resolved.Activity!.Id);
     }
 
     [Fact]
@@ -145,8 +145,8 @@ public class ActivityAlbumAccessResolveTests
             activity.Id.ToString(),
             CancellationToken.None);
 
-        Assert.NotNull(resolved);
-        Assert.Equal(activity.Id, resolved!.Id);
+        Assert.NotNull(resolved.Activity);
+        Assert.Equal(activity.Id, resolved.Activity!.Id);
     }
 
     private static MemoressaDbContext CreateDb()

@@ -225,16 +225,20 @@ public class ActivityService : IActivityService
             return ServiceResult<ActivityAlbumDto>.Fail("Unauthorized", 401);
         }
 
-        var activity = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
+        var resolved = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
             _db,
             ctx.Value.UserId,
             activityId,
-            cancellationToken);
-        if (activity is null)
+            cancellationToken,
+            creatorUserId: request.CreatorUserId);
+        if (resolved.Activity is null)
         {
-            return ServiceResult<ActivityAlbumDto>.NotFound("Activity not found");
+            return ServiceResult<ActivityAlbumDto>.Fail(
+                resolved.Error ?? "Activity not found",
+                resolved.StatusCode);
         }
 
+        var activity = resolved.Activity;
         if (activity.CreatorUserId != ctx.Value.UserId)
         {
             return ServiceResult<ActivityAlbumDto>.Fail("Forbidden", 403);
@@ -337,16 +341,17 @@ public class ActivityService : IActivityService
             return ServiceResult.Fail("Unauthorized", 401);
         }
 
-        var activity = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
+        var resolved = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
             _db,
             ctx.Value.UserId,
             activityId,
             cancellationToken);
-        if (activity is null)
+        if (resolved.Activity is null)
         {
-            return ServiceResult.NotFound("Activity not found");
+            return ServiceResult.Fail(resolved.Error ?? "Activity not found", resolved.StatusCode);
         }
 
+        var activity = resolved.Activity;
         if (activity.CreatorUserId != ctx.Value.UserId)
         {
             return ServiceResult.Fail("Forbidden", 403);
@@ -482,6 +487,7 @@ public class ActivityService : IActivityService
     public async Task<ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>> GetActivityPhotosAsync(
         string activityId,
         int? limit = null,
+        Guid? creatorUserId = null,
         CancellationToken cancellationToken = default)
     {
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
@@ -490,15 +496,21 @@ public class ActivityService : IActivityService
             return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Fail("Unauthorized", 401);
         }
 
-        var activity = await ActivityAlbumAccess.ResolveAccessibleAsync(
+        var resolved = await ActivityAlbumAccess.ResolveAccessibleAsync(
             _db,
             ctx.Value.UserId,
             activityId,
-            cancellationToken);
-        if (activity is null)
+            cancellationToken,
+            creatorUserId,
+            ActivityAlbumAmbiguityPolicy.FailIfAmbiguous);
+        if (resolved.Activity is null)
         {
-            return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.NotFound("Activity not found");
+            return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Fail(
+                resolved.Error ?? "Activity not found",
+                resolved.StatusCode);
         }
+
+        var activity = resolved.Activity;
 
         var take = limit ?? ActivityPhotosDefaultLimit;
         if (take < 1)
@@ -532,15 +544,17 @@ public class ActivityService : IActivityService
             return ServiceResult.Fail("Unauthorized", 401);
         }
 
-        var activity = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
+        var resolved = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
             _db,
             ctx.Value.UserId,
             activityId,
             cancellationToken);
-        if (activity is null)
+        if (resolved.Activity is null)
         {
-            return ServiceResult.NotFound("Activity not found");
+            return ServiceResult.Fail(resolved.Error ?? "Activity not found", resolved.StatusCode);
         }
+
+        var activity = resolved.Activity;
 
         var (photoIds, parseError) = PhotoReferenceIds.ParseDistinctOrdered(request.PhotoIds);
         if (parseError is not null)
@@ -588,16 +602,19 @@ public class ActivityService : IActivityService
                 400);
         }
 
-        var activity = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
+        var resolved = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
             _db,
             ctx.Value.UserId,
             activityId,
             cancellationToken);
-        if (activity is null)
+        if (resolved.Activity is null)
         {
-            return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.NotFound("Activity not found");
+            return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.Fail(
+                resolved.Error ?? "Activity not found",
+                resolved.StatusCode);
         }
 
+        var activity = resolved.Activity;
         if (activity.CreatorUserId != ctx.Value.UserId)
         {
             return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.Fail("Forbidden", 403);

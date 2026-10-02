@@ -7,102 +7,106 @@ namespace Memoressa.Application.Common;
 
 public static class ActivityAlbumAccess
 {
-    public static async Task<ActivityAlbum?> ResolveAccessibleAsync(
+    public static Task<ActivityAlbumResolveResult> ResolveAccessibleAsync(
         IMemoressaDbContext db,
         Guid userId,
         string activityId,
-        CancellationToken cancellationToken)
-    {
-        var activity = await FindActivityGraphAsync(db, userId, activityId, forUpdate: false, cancellationToken);
-        if (activity is null)
-        {
-            return null;
-        }
+        CancellationToken cancellationToken,
+        Guid? creatorUserId = null,
+        ActivityAlbumAmbiguityPolicy ambiguityPolicy = ActivityAlbumAmbiguityPolicy.PreferViewerAsCreator) =>
+        ResolveForViewerAsync(
+            db,
+            userId,
+            new ActivityAlbumResolveRequest(
+                activityId,
+                creatorUserId,
+                HomeFamilyId: null,
+                ForUpdate: false,
+                ambiguityPolicy),
+            cancellationToken);
 
-        if (!await CanAccessAsync(db, activity, userId, cancellationToken))
-        {
-            return null;
-        }
-
-        return activity;
-    }
-
-    public static async Task<ActivityAlbum?> ResolveForUpdateAccessibleAsync(
+    public static Task<ActivityAlbumResolveResult> ResolveForUpdateAccessibleAsync(
         IMemoressaDbContext db,
         Guid userId,
         string activityId,
-        CancellationToken cancellationToken)
-    {
-        var activity = await FindActivityGraphAsync(db, userId, activityId, forUpdate: true, cancellationToken);
-        if (activity is null)
-        {
-            return null;
-        }
+        CancellationToken cancellationToken,
+        Guid? creatorUserId = null,
+        ActivityAlbumAmbiguityPolicy ambiguityPolicy = ActivityAlbumAmbiguityPolicy.PreferViewerAsCreator) =>
+        ResolveForViewerAsync(
+            db,
+            userId,
+            new ActivityAlbumResolveRequest(
+                activityId,
+                creatorUserId,
+                HomeFamilyId: null,
+                ForUpdate: true,
+                ambiguityPolicy),
+            cancellationToken);
 
-        if (!await CanAccessAsync(db, activity, userId, cancellationToken))
-        {
-            return null;
-        }
-
-        return activity;
-    }
-
-    public static async Task<ActivityAlbum?> ResolveAsync(
+    public static Task<ActivityAlbumResolveResult> ResolveAsync(
         IMemoressaDbContext db,
         Guid familyId,
         Guid userId,
         string activityId,
-        CancellationToken cancellationToken)
-    {
-        var trimmed = activityId.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return null;
-        }
-
-        var localCandidates = await LoadMatchingActivitiesAsync(
+        CancellationToken cancellationToken,
+        Guid? creatorUserId = null,
+        ActivityAlbumAmbiguityPolicy ambiguityPolicy = ActivityAlbumAmbiguityPolicy.PreferViewerAsCreator) =>
+        ResolveForViewerAsync(
             db,
-            trimmed,
-            forUpdate: false,
-            familyId,
+            userId,
+            new ActivityAlbumResolveRequest(
+                activityId,
+                creatorUserId,
+                familyId,
+                ForUpdate: false,
+                ambiguityPolicy),
             cancellationToken);
 
-        var local = await ResolveFromCandidatesAsync(db, userId, localCandidates, cancellationToken);
-        if (local is not null)
-        {
-            return local;
-        }
-
-        return await ResolveAccessibleAsync(db, userId, activityId, cancellationToken);
-    }
-
-    public static async Task<ActivityAlbum?> ResolveForUpdateAsync(
+    public static Task<ActivityAlbumResolveResult> ResolveForUpdateAsync(
         IMemoressaDbContext db,
         Guid familyId,
         Guid userId,
         string activityId,
-        CancellationToken cancellationToken)
-    {
-        var trimmed = activityId.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return null;
-        }
-
-        var localCandidates = await LoadMatchingActivitiesAsync(
+        CancellationToken cancellationToken,
+        Guid? creatorUserId = null,
+        ActivityAlbumAmbiguityPolicy ambiguityPolicy = ActivityAlbumAmbiguityPolicy.PreferViewerAsCreator) =>
+        ResolveForViewerAsync(
             db,
-            trimmed,
-            forUpdate: true,
-            familyId,
+            userId,
+            new ActivityAlbumResolveRequest(
+                activityId,
+                creatorUserId,
+                familyId,
+                ForUpdate: true,
+                ambiguityPolicy),
             cancellationToken);
 
-        var local = await ResolveFromCandidatesAsync(db, userId, localCandidates, cancellationToken);
-        if (local is not null)
+    public static async Task<ActivityAlbumResolveResult> ResolveForViewerAsync(
+        IMemoressaDbContext db,
+        Guid userId,
+        ActivityAlbumResolveRequest request,
+        CancellationToken cancellationToken)
+    {
+        var trimmed = request.ActivityId.Trim();
+        if (string.IsNullOrEmpty(trimmed))
         {
-            return local;
+            return ActivityAlbumResolveResult.NotFound();
         }
 
-        return await ResolveForUpdateAccessibleAsync(db, userId, activityId, cancellationToken);
+        var candidates = await LoadMatchingActivitiesAsync(
+            db,
+            trimmed,
+            request.ForUpdate,
+            familyId: null,
+            cancellationToken);
+
+        return await PickAccessibleActivityAsync(
+            db,
+            userId,
+            candidates,
+            request.CreatorUserId,
+            request.AmbiguityPolicy,
+            cancellationToken);
     }
 
     public static async Task<bool> CanAccessAsync(
@@ -202,57 +206,17 @@ public static class ActivityAlbumAccess
 
     public static string NewExternalId() => $"act_{Guid.NewGuid():N}"[..20];
 
-    private static async Task<ActivityAlbum?> FindActivityGraphAsync(
-        IMemoressaDbContext db,
-        Guid userId,
-        string activityId,
-        bool forUpdate,
-        CancellationToken cancellationToken)
-    {
-        var trimmed = activityId.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return null;
-        }
-
-        var candidates = await LoadMatchingActivitiesAsync(
-            db,
-            trimmed,
-            forUpdate,
-            familyId: null,
-            cancellationToken);
-
-        return await PickAccessibleActivityAsync(db, userId, candidates, cancellationToken);
-    }
-
-    private static async Task<ActivityAlbum?> ResolveFromCandidatesAsync(
+    private static async Task<ActivityAlbumResolveResult> PickAccessibleActivityAsync(
         IMemoressaDbContext db,
         Guid userId,
         IReadOnlyList<ActivityAlbum> candidates,
+        Guid? creatorUserId,
+        ActivityAlbumAmbiguityPolicy ambiguityPolicy,
         CancellationToken cancellationToken)
     {
         if (candidates.Count == 0)
         {
-            return null;
-        }
-
-        if (candidates.Count == 1)
-        {
-            return candidates[0];
-        }
-
-        return await PickAccessibleActivityAsync(db, userId, candidates, cancellationToken);
-    }
-
-    private static async Task<ActivityAlbum?> PickAccessibleActivityAsync(
-        IMemoressaDbContext db,
-        Guid userId,
-        IReadOnlyList<ActivityAlbum> candidates,
-        CancellationToken cancellationToken)
-    {
-        if (candidates.Count == 0)
-        {
-            return null;
+            return ActivityAlbumResolveResult.NotFound();
         }
 
         var accessible = new List<ActivityAlbum>(candidates.Count);
@@ -266,14 +230,66 @@ public static class ActivityAlbumAccess
 
         if (accessible.Count == 0)
         {
-            return null;
+            return ActivityAlbumResolveResult.NotFound();
         }
 
-        return accessible
-            .OrderByDescending(a => a.CreatorUserId == userId)
-            .ThenByDescending(a => a.CreatedAt)
+        if (creatorUserId.HasValue)
+        {
+            accessible = accessible.Where(a => a.CreatorUserId == creatorUserId.Value).ToList();
+            if (accessible.Count == 0)
+            {
+                return ActivityAlbumResolveResult.NotFound();
+            }
+
+            if (accessible.Count == 1)
+            {
+                return ActivityAlbumResolveResult.Found(accessible[0]);
+            }
+
+            return ActivityAlbumResolveResult.Ambiguous();
+        }
+
+        if (accessible.Count == 1)
+        {
+            return ActivityAlbumResolveResult.Found(accessible[0]);
+        }
+
+        var viewerOwned = accessible.Where(a => a.CreatorUserId == userId).ToList();
+        if (viewerOwned.Count == 1)
+        {
+            return ActivityAlbumResolveResult.Found(viewerOwned[0]);
+        }
+
+        if (viewerOwned.Count > 1)
+        {
+            var picked = viewerOwned
+                .OrderByDescending(a => a.CreatedAt)
+                .ThenByDescending(a => a.Id)
+                .First();
+            if (ambiguityPolicy == ActivityAlbumAmbiguityPolicy.FailIfAmbiguous)
+            {
+                var second = viewerOwned.Count(a =>
+                    a.Id != picked.Id
+                    && a.CreatedAt == picked.CreatedAt);
+                if (second > 0)
+                {
+                    return ActivityAlbumResolveResult.Ambiguous();
+                }
+            }
+
+            return ActivityAlbumResolveResult.Found(picked);
+        }
+
+        if (ambiguityPolicy == ActivityAlbumAmbiguityPolicy.FailIfAmbiguous)
+        {
+            return ActivityAlbumResolveResult.Ambiguous();
+        }
+
+        var fallback = accessible
+            .OrderByDescending(a => a.CreatedAt)
             .ThenByDescending(a => a.Id)
             .First();
+        return ActivityAlbumResolveResult.Found(fallback);
     }
 
     private static async Task<List<ActivityAlbum>> LoadMatchingActivitiesAsync(
