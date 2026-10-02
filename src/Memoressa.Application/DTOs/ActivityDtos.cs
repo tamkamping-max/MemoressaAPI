@@ -23,7 +23,10 @@ public record ActivityAgendaItemRequestDto
 
 public record ActivityAlbumDto
 {
+    /// <summary>Global activity album row id (GUID string).</summary>
     [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    [JsonPropertyName("externalId")] public string ExternalId { get; init; } = string.Empty;
+    [JsonPropertyName("familyId")] public Guid FamilyId { get; init; }
     [JsonPropertyName("title")] public string Title { get; init; } = string.Empty;
     [JsonPropertyName("type")] public ActivityAlbumType Type { get; init; }
     [JsonPropertyName("activityType")] public ActivityAlbumType ActivityType => Type;

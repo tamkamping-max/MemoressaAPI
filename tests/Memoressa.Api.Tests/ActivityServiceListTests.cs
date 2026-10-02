@@ -50,7 +50,7 @@ public class ActivityServiceListTests
 
         Assert.True(result.Success);
         Assert.Single(result.Data!.Data.Items);
-        Assert.Equal("act_done", result.Data.Data.Items[0].Id);
+        Assert.Equal("act_done", result.Data.Data.Items[0].ExternalId);
         Assert.True(result.Data.Data.Items[0].CreatedAt <= DateTime.UtcNow);
     }
 
@@ -239,8 +239,7 @@ public class ActivityServiceListTests
         });
 
         Assert.True(created.Success);
-        var activityId = await db.ActivityAlbums.Where(a => a.ExternalId == created.Data!.Id).Select(a => a.Id)
-            .FirstAsync();
+        var activityId = Guid.Parse(created.Data!.Id);
         Assert.True(await db.ActivityAlbumPhotos.AnyAsync(ap =>
             ap.ActivityAlbumId == activityId && ap.PhotoId == photoId));
     }

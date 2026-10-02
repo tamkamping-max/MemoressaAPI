@@ -38,7 +38,9 @@ public static class ActivityAlbumMapping
 
         return new ActivityAlbumDto
         {
-            Id = activity.ExternalId,
+            Id = activity.Id.ToString(),
+            ExternalId = activity.ExternalId,
+            FamilyId = activity.FamilyId,
             Title = activity.Title,
             Type = activity.Type,
             Status = activity.Status,

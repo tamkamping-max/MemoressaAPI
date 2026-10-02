@@ -79,18 +79,20 @@ public class ActivityCrossFamilyParticipantTests
 
         var inProgress = await serviceB.GetInProgressAsync();
         Assert.True(inProgress.Success);
-        var inProgressItem = Assert.Single(inProgress.Data!.Data.Items, i => i.Id == activity.ExternalId);
+        var inProgressItem = Assert.Single(inProgress.Data!.Data.Items, i => i.Id == activity.Id.ToString());
+        Assert.Equal(activity.ExternalId, inProgressItem.ExternalId);
+        Assert.Equal(familyA, inProgressItem.FamilyId);
         Assert.True(inProgressItem.ViewerIsParticipant);
         Assert.False(inProgressItem.ViewerIsCreator);
         Assert.Contains(userB, inProgressItem.ParticipantUserIds);
 
         var activeToday = await serviceB.GetActiveTodayAsync(today);
         Assert.True(activeToday.Success);
-        Assert.Contains(activeToday.Data!.Data.Items, i => i.Activity.Id == activity.ExternalId);
+        Assert.Contains(activeToday.Data!.Data.Items, i => i.Activity.Id == activity.Id.ToString());
 
         var list = await serviceB.ListAsync(excludeStatus: "completed,cancelled");
         Assert.True(list.Success);
-        Assert.Contains(list.Data!.Data.Items, i => i.Id == activity.ExternalId);
+        Assert.Contains(list.Data!.Data.Items, i => i.Id == activity.Id.ToString());
 
         var photos = await serviceB.GetActivityPhotosAsync(activity.ExternalId);
         Assert.True(photos.Success);

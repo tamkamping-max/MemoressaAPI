@@ -13,7 +13,7 @@ public static class ActivityAlbumAccess
         string activityId,
         CancellationToken cancellationToken)
     {
-        var activity = await FindActivityGraphAsync(db, activityId, forUpdate: false, cancellationToken);
+        var activity = await FindActivityGraphAsync(db, userId, activityId, forUpdate: false, cancellationToken);
         if (activity is null)
         {
             return null;
@@ -33,7 +33,7 @@ public static class ActivityAlbumAccess
         string activityId,
         CancellationToken cancellationToken)
     {
-        var activity = await FindActivityGraphAsync(db, activityId, forUpdate: true, cancellationToken);
+        var activity = await FindActivityGraphAsync(db, userId, activityId, forUpdate: true, cancellationToken);
         if (activity is null)
         {
             return null;
@@ -55,14 +55,19 @@ public static class ActivityAlbumAccess
         CancellationToken cancellationToken)
     {
         var trimmed = activityId.Trim();
-        var local = await ApplyActivityGraphIncludes(
-                db.ActivityAlbums.AsNoTracking(),
-                forUpdate: false)
-            .FirstOrDefaultAsync(
-                a => a.FamilyId == familyId
-                     && (a.ExternalId == trimmed || a.Id.ToString() == trimmed),
-                cancellationToken);
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
 
+        var localCandidates = await LoadMatchingActivitiesAsync(
+            db,
+            trimmed,
+            forUpdate: false,
+            familyId,
+            cancellationToken);
+
+        var local = await ResolveFromCandidatesAsync(db, userId, localCandidates, cancellationToken);
         if (local is not null)
         {
             return local;
@@ -79,12 +84,19 @@ public static class ActivityAlbumAccess
         CancellationToken cancellationToken)
     {
         var trimmed = activityId.Trim();
-        var local = await ApplyActivityGraphIncludes(db.ActivityAlbums, forUpdate: true)
-            .FirstOrDefaultAsync(
-                a => a.FamilyId == familyId
-                     && (a.ExternalId == trimmed || a.Id.ToString() == trimmed),
-                cancellationToken);
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
 
+        var localCandidates = await LoadMatchingActivitiesAsync(
+            db,
+            trimmed,
+            forUpdate: true,
+            familyId,
+            cancellationToken);
+
+        var local = await ResolveFromCandidatesAsync(db, userId, localCandidates, cancellationToken);
         if (local is not null)
         {
             return local;
@@ -192,6 +204,7 @@ public static class ActivityAlbumAccess
 
     private static async Task<ActivityAlbum?> FindActivityGraphAsync(
         IMemoressaDbContext db,
+        Guid userId,
         string activityId,
         bool forUpdate,
         CancellationToken cancellationToken)
@@ -202,12 +215,88 @@ public static class ActivityAlbumAccess
             return null;
         }
 
-        return await ApplyActivityGraphIncludes(
-                forUpdate ? db.ActivityAlbums : db.ActivityAlbums.AsNoTracking(),
-                forUpdate)
-            .FirstOrDefaultAsync(
-                a => a.ExternalId == trimmed || a.Id.ToString() == trimmed,
-                cancellationToken);
+        var candidates = await LoadMatchingActivitiesAsync(
+            db,
+            trimmed,
+            forUpdate,
+            familyId: null,
+            cancellationToken);
+
+        return await PickAccessibleActivityAsync(db, userId, candidates, cancellationToken);
+    }
+
+    private static async Task<ActivityAlbum?> ResolveFromCandidatesAsync(
+        IMemoressaDbContext db,
+        Guid userId,
+        IReadOnlyList<ActivityAlbum> candidates,
+        CancellationToken cancellationToken)
+    {
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        if (candidates.Count == 1)
+        {
+            return candidates[0];
+        }
+
+        return await PickAccessibleActivityAsync(db, userId, candidates, cancellationToken);
+    }
+
+    private static async Task<ActivityAlbum?> PickAccessibleActivityAsync(
+        IMemoressaDbContext db,
+        Guid userId,
+        IReadOnlyList<ActivityAlbum> candidates,
+        CancellationToken cancellationToken)
+    {
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        var accessible = new List<ActivityAlbum>(candidates.Count);
+        foreach (var candidate in candidates)
+        {
+            if (await CanAccessAsync(db, candidate, userId, cancellationToken))
+            {
+                accessible.Add(candidate);
+            }
+        }
+
+        if (accessible.Count == 0)
+        {
+            return null;
+        }
+
+        return accessible
+            .OrderByDescending(a => a.CreatorUserId == userId)
+            .ThenByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
+            .First();
+    }
+
+    private static async Task<List<ActivityAlbum>> LoadMatchingActivitiesAsync(
+        IMemoressaDbContext db,
+        string trimmedActivityId,
+        bool forUpdate,
+        Guid? familyId,
+        CancellationToken cancellationToken)
+    {
+        var baseQuery = forUpdate ? db.ActivityAlbums : db.ActivityAlbums.AsNoTracking();
+        var query = ApplyActivityGraphIncludes(baseQuery, forUpdate);
+
+        if (familyId.HasValue)
+        {
+            query = query.Where(a => a.FamilyId == familyId.Value);
+        }
+
+        if (Guid.TryParse(trimmedActivityId, out var internalId))
+        {
+            return await query.Where(a => a.Id == internalId).ToListAsync(cancellationToken);
+        }
+
+        return await query.Where(a => a.ExternalId == trimmedActivityId).ToListAsync(cancellationToken);
     }
 
     private static IQueryable<ActivityAlbum> ApplyActivityGraphIncludes(
