@@ -290,6 +290,12 @@ public class UploadAbandonTests
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
+        public Task<ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>> ReplaceActivityPhotosAsync(
+            string activityId,
+            ActivityAlbumPhotosRequestDto request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task LinkPhotoAfterUploadAsync(
             Guid activityAlbumId,
             Guid photoId,

@@ -569,20 +569,108 @@ public class ActivityService : IActivityService
             return ServiceResult.NotFound("Activity not found");
         }
 
+        var (photoIds, parseError) = PhotoReferenceIds.ParseDistinctOrdered(request.PhotoIds);
+        if (parseError is not null)
+        {
+            return ServiceResult.Fail(parseError, 400);
+        }
+
         if (!await ActivityAlbumAccess.CanLinkPhotosAsync(
                 _db,
                 activity,
                 ctx.Value.UserId,
-                request.PhotoIds,
+                photoIds,
                 cancellationToken))
         {
             return ServiceResult.Fail("Forbidden", 403);
         }
 
-        await LinkPhotosInternalAsync(activity, request.PhotoIds, ctx.Value.FamilyId, cancellationToken);
+        await LinkPhotosInternalAsync(activity, photoIds, ctx.Value.FamilyId, cancellationToken);
         activity.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
         return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>> ReplaceActivityPhotosAsync(
+        string activityId,
+        ActivityAlbumPhotosRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.Fail("Unauthorized", 401);
+        }
+
+        var (photoIds, parseError) = PhotoReferenceIds.ParseDistinctOrdered(request.PhotoIds);
+        if (parseError is not null)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.Fail(parseError, 400);
+        }
+
+        var activity = await ActivityAlbumAccess.ResolveForUpdateAsync(
+            _db,
+            ctx.Value.FamilyId,
+            activityId,
+            cancellationToken);
+        if (activity is null)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.NotFound("Activity not found");
+        }
+
+        if (activity.CreatorUserId != ctx.Value.UserId)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.Fail("Forbidden", 403);
+        }
+
+        var accessible = await ResolveAccessiblePhotoIdsAsync(
+            ctx.Value.FamilyId,
+            ctx.Value.UserId,
+            photoIds,
+            cancellationToken);
+        if (accessible.Error is not null)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.Fail(accessible.Error, 400);
+        }
+
+        var desired = accessible.Ids;
+        var existingLinks = await _db.ActivityAlbumPhotos
+            .Where(ap => ap.ActivityAlbumId == activity.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var link in existingLinks.Where(l => !desired.Contains(l.PhotoId)))
+        {
+            _db.ActivityAlbumPhotos.Remove(link);
+        }
+
+        var linked = existingLinks.Select(l => l.PhotoId).ToHashSet();
+        for (var i = 0; i < desired.Count; i++)
+        {
+            var photoId = desired[i];
+            var row = existingLinks.FirstOrDefault(l => l.PhotoId == photoId);
+            if (row is null)
+            {
+                _db.ActivityAlbumPhotos.Add(new ActivityAlbumPhoto
+                {
+                    ActivityAlbumId = activity.Id,
+                    PhotoId = photoId,
+                    SortOrder = i
+                });
+            }
+            else
+            {
+                row.SortOrder = i;
+            }
+        }
+
+        activity.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.Ok(
+            new ApiDataResponseDto<ActivityPhotoIdsDataDto>
+            {
+                Data = new ActivityPhotoIdsDataDto { PhotoIds = desired }
+            });
     }
 
     public async Task LinkPhotoAfterUploadAsync(
@@ -610,6 +698,29 @@ public class ActivityService : IActivityService
 
         await LinkPhotosInternalAsync(activity, [photoId], familyId, cancellationToken);
         activity.UpdatedAt = DateTime.UtcNow;
+    }
+
+    private async Task<(List<Guid> Ids, string? Error)> ResolveAccessiblePhotoIdsAsync(
+        Guid familyId,
+        Guid viewerUserId,
+        IReadOnlyList<Guid> photoIds,
+        CancellationToken cancellationToken)
+    {
+        var photos = await PhotoViewerAccess.ApplyViewerFilter(
+                _db.Photos.AsNoTracking()
+                    .Where(p => p.FamilyId == familyId && photoIds.Contains(p.Id) && !p.IsHidden),
+                viewerUserId)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        if (photos.Count != photoIds.Count)
+        {
+            return ([], "One or more photoIds are unknown or inaccessible");
+        }
+
+        var order = photoIds.Select((id, index) => (id, index)).ToDictionary(x => x.id, x => x.index);
+        var ordered = photos.OrderBy(id => order[id]).ToList();
+        return (ordered, null);
     }
 
     private async Task LinkPhotosInternalAsync(

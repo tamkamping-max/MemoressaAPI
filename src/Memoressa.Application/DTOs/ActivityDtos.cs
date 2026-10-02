@@ -61,6 +61,12 @@ public record UpsertActivityAlbumRequestDto
 
 public record ActivityAlbumPhotosRequestDto
 {
+    /// <summary>GUID or App-style <c>photo_{guid}</c> strings.</summary>
+    [JsonPropertyName("photoIds")] public IReadOnlyList<string> PhotoIds { get; init; } = [];
+}
+
+public record ActivityPhotoIdsDataDto
+{
     [JsonPropertyName("photoIds")] public IReadOnlyList<Guid> PhotoIds { get; init; } = [];
 }
 

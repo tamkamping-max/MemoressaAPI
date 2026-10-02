@@ -458,8 +458,9 @@ MemoressaApp: upload settings picker, home carousel, create on upload confirm, e
 | POST | `/` | Create activity. Body: `title` (required), `type` or `activityType`, `status`, `startDate`, optional `endDate`, `location`, optional **`privacyScope`**, `familyMemberIds`, `friendIds`, `agenda[]`, optional **`createdAt`** (ISO8601; stored as album created time), optional **`photoIds[]`** (link existing photos on create). **`creatorUserId`** defaults to JWT user if omitted. Unknown enum strings → **400**. |
 | PUT | `/{activityId}` | Full update (same body as POST). `activityId` = external id (`act_...`). Returns updated DTO including `creatorUserId`, `privacyScope`, and agenda ids. |
 | DELETE | `/{activityId}` | Delete activity (**403** if `creatorUserId` ≠ JWT user). Unlinks `activity_album_photos` only (photos unchanged). **204** on success. **404** if missing or wrong family. |
-| POST | `/{activityId}/photos` | Attach `{ photoIds: [...] }` (**403** unless activity creator or caller uploaded all listed photos; activity must be **`inProgress`**) |
-| POST | `/{activityId}/photos/link` | Same as **`/photos`** (App alias for linking uploaded photos after create) |
+| POST | `/{activityId}/photos` | Append link `{ photoIds: [...] }` — GUID or `photo_{guid}` strings (**403** unless activity creator or caller uploaded all listed photos; activity must be **`inProgress`**) |
+| POST | `/{activityId}/photos/link` | Same as **`POST .../photos`** (append; upload save settings) |
+| PUT | `/{activityId}/photos` | **Full replace** linked photos with `{ photoIds: [...] }` (≥1 id, same id formats). **403** unless **activity creator**. Removes links not in body; does **not** delete `Photo` rows. **200** `{ data: { photoIds: [Guid...] } }` in request order. |
 
 `POST /uploads/start` accepts optional **`activityAlbumId`** (`act_...`) and **`privacyScope`** (photo visibility). Activity must exist, **`inProgress`**, caller **`CanUploadTo`**; **`POST /uploads/complete`** links the new photo to the activity in the same DB transaction (feeds **`GET /active-today`** `photos` and **`GET /{activityId}/photos`**).
 

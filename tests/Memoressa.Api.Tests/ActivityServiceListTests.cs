@@ -55,6 +55,82 @@ public class ActivityServiceListTests
     }
 
     [Fact]
+    public async Task ReplaceActivityPhotosAsync_ReplacesLinksAndPreservesOrder()
+    {
+        var userId = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var photoA = Guid.NewGuid();
+        var photoB = Guid.NewGuid();
+        var photoC = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        db.UserAccounts.Add(new UserAccount { Id = userId, Email = "u@test.com", PasswordHash = "x", IsActive = true });
+        db.Families.Add(new Family { Id = familyId, OwnerUserId = userId, Name = "F" });
+        db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = userId, Role = "owner" });
+        var activity = new ActivityAlbum
+        {
+            FamilyId = familyId,
+            ExternalId = "act_replace",
+            Title = "Trip",
+            Type = ActivityAlbumType.Travel,
+            Status = ActivityAlbumStatus.InProgress,
+            StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            CreatorUserId = userId
+        };
+        db.ActivityAlbums.Add(activity);
+        foreach (var id in new[] { photoA, photoB, photoC })
+        {
+            db.Photos.Add(new Photo
+            {
+                Id = id,
+                FamilyId = familyId,
+                UploadedByUserId = userId,
+                S3Key = $"{id}.jpg"
+            });
+        }
+
+        db.ActivityAlbumPhotos.AddRange(
+            new ActivityAlbumPhoto { ActivityAlbumId = activity.Id, PhotoId = photoA, SortOrder = 0 },
+            new ActivityAlbumPhoto { ActivityAlbumId = activity.Id, PhotoId = photoB, SortOrder = 1 });
+        await db.SaveChangesAsync();
+
+        var service = new ActivityService(db, new FixedUser(userId, familyId), new StubPhotoUrlResolver());
+        var result = await service.ReplaceActivityPhotosAsync(
+            activity.ExternalId,
+            new ActivityAlbumPhotosRequestDto
+            {
+                PhotoIds =
+                [
+                    $"photo_{photoC:D}",
+                    photoB.ToString()
+                ]
+            });
+
+        Assert.True(result.Success);
+        Assert.Equal([photoC, photoB], result.Data!.Data.PhotoIds);
+
+        var links = await db.ActivityAlbumPhotos
+            .Where(ap => ap.ActivityAlbumId == activity.Id)
+            .OrderBy(ap => ap.SortOrder)
+            .Select(ap => ap.PhotoId)
+            .ToListAsync();
+        Assert.Equal([photoC, photoB], links);
+        Assert.DoesNotContain(photoA, links);
+
+        db.UserAccounts.Add(new UserAccount { Id = otherId, Email = "o@test.com", PasswordHash = "x", IsActive = true });
+        db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = otherId, Role = "member" });
+        await db.SaveChangesAsync();
+
+        db.ChangeTracker.Clear();
+        var asOther = new ActivityService(db, new FixedUser(otherId, familyId), new StubPhotoUrlResolver());
+        var denied = await asOther.ReplaceActivityPhotosAsync(
+            activity.ExternalId,
+            new ActivityAlbumPhotosRequestDto { PhotoIds = [photoB.ToString()] });
+        Assert.Equal(403, denied.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateAsync_WithPhotoIds_LinksPhotos()
     {
         var userId = Guid.NewGuid();

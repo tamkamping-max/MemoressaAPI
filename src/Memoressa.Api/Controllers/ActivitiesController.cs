@@ -58,6 +58,16 @@ public class ActivitiesController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpPut("{activityId}/photos")]
+    public async Task<IActionResult> ReplacePhotos(
+        string activityId,
+        [FromBody] ActivityAlbumPhotosRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _activities.ReplaceActivityPhotosAsync(activityId, request, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] UpsertActivityAlbumRequestDto request, CancellationToken cancellationToken)
     {

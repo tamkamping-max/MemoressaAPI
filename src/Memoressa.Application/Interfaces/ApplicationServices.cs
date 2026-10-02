@@ -260,6 +260,10 @@ public interface IActivityService
         int? limit = null,
         CancellationToken cancellationToken = default);
     Task<ServiceResult> AttachPhotosAsync(string activityId, ActivityAlbumPhotosRequestDto request, CancellationToken cancellationToken = default);
+    Task<ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>> ReplaceActivityPhotosAsync(
+        string activityId,
+        ActivityAlbumPhotosRequestDto request,
+        CancellationToken cancellationToken = default);
     Task LinkPhotoAfterUploadAsync(Guid activityAlbumId, Guid photoId, Guid familyId, CancellationToken cancellationToken = default);
     Task StageActivityPhotoLinkAsync(
         Guid activityAlbumId,
