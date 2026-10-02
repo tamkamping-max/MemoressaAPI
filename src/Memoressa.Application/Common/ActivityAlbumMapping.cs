@@ -31,6 +31,7 @@ public static class ActivityAlbumMapping
         PrivacyScope = activity.PrivacyScope,
         FamilyMemberIds = activity.FamilyMembers.Select(m => m.FamilyMemberId).ToList(),
         FriendIds = activity.Friends.Select(f => f.FriendReference).ToList(),
+        CreatedAt = activity.CreatedAt,
         Agenda = activity.AgendaItems
             .OrderBy(a => a.SortOrder)
             .Select(a => new ActivityAgendaItemDto

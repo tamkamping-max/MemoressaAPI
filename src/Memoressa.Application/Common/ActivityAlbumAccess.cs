@@ -95,5 +95,46 @@ public static class ActivityAlbumAccess
         return await CanAccessAsync(db, activity, userId, cancellationToken);
     }
 
+    /// <summary>
+    /// Link existing photos: activity creator, or caller who uploaded every photo in the batch.
+    /// </summary>
+    public static async Task<bool> CanLinkPhotosAsync(
+        IMemoressaDbContext db,
+        ActivityAlbum activity,
+        Guid userId,
+        IReadOnlyList<Guid> photoIds,
+        CancellationToken cancellationToken)
+    {
+        if (activity.Status != ActivityAlbumStatus.InProgress)
+        {
+            return false;
+        }
+
+        if (!await CanAccessAsync(db, activity, userId, cancellationToken))
+        {
+            return false;
+        }
+
+        if (activity.CreatorUserId == userId)
+        {
+            return true;
+        }
+
+        if (photoIds.Count == 0)
+        {
+            return false;
+        }
+
+        var ownedCount = await db.Photos.AsNoTracking()
+            .CountAsync(
+                p => photoIds.Contains(p.Id)
+                     && p.FamilyId == activity.FamilyId
+                     && !p.IsHidden
+                     && p.UploadedByUserId == userId,
+                cancellationToken);
+
+        return ownedCount == photoIds.Distinct().Count();
+    }
+
     public static string NewExternalId() => $"act_{Guid.NewGuid():N}"[..20];
 }

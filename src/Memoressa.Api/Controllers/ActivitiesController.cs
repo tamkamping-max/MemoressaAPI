@@ -18,6 +18,18 @@ public class ActivitiesController : ControllerBase
         _activities = activities;
     }
 
+    [HttpGet]
+    public async Task<IActionResult> List(
+        [FromQuery] string? status,
+        [FromQuery] string? excludeStatus,
+        [FromQuery] int? limit,
+        [FromQuery] string? cursor,
+        CancellationToken cancellationToken)
+    {
+        var result = await _activities.ListAsync(status, excludeStatus, limit, cursor, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("in-progress")]
     public async Task<IActionResult> GetInProgress(CancellationToken cancellationToken)
     {
@@ -72,6 +84,16 @@ public class ActivitiesController : ControllerBase
 
     [HttpPost("{activityId}/photos")]
     public async Task<IActionResult> AttachPhotos(
+        string activityId,
+        [FromBody] ActivityAlbumPhotosRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _activities.AttachPhotosAsync(activityId, request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("{activityId}/photos/link")]
+    public async Task<IActionResult> LinkPhotos(
         string activityId,
         [FromBody] ActivityAlbumPhotosRequestDto request,
         CancellationToken cancellationToken)

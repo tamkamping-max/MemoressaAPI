@@ -31,6 +31,116 @@ public class ActivityService : IActivityService
         _photoUrls = photoUrls;
     }
 
+    public async Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListPageDataDto>>> ListAsync(
+        string? status = null,
+        string? excludeStatus = null,
+        int? limit = null,
+        string? cursor = null,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityAlbumListPageDataDto>>.Fail("Unauthorized", 401);
+        }
+
+        var includeStatuses = ActivityAlbumListFilters.ParseStatusInclude(status);
+        var excludeStatuses = ActivityAlbumListFilters.ParseStatusExclude(excludeStatus);
+        var pageSize = ActivityListPagination.NormalizeLimit(limit);
+
+        TimelineCursor? decodedCursor = null;
+        if (!string.IsNullOrWhiteSpace(cursor))
+        {
+            decodedCursor = TimelineCursor.TryDecode(cursor);
+            if (decodedCursor is null)
+            {
+                return ServiceResult<ApiDataResponseDto<ActivityAlbumListPageDataDto>>.Fail("Invalid cursor", 400);
+            }
+        }
+
+        var query = QueryActivities(ctx.Value.FamilyId)
+            .OrderByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
+            .AsQueryable();
+
+        if (includeStatuses.Count > 0)
+        {
+            query = query.Where(a => includeStatuses.Contains(a.Status));
+        }
+
+        if (excludeStatuses.Count > 0)
+        {
+            query = query.Where(a => !excludeStatuses.Contains(a.Status));
+        }
+
+        if (decodedCursor is not null)
+        {
+            var cursorDate = decodedCursor.SortAtUtc;
+            var cursorId = decodedCursor.PhotoId;
+            query = query.Where(a =>
+                a.CreatedAt < cursorDate
+                || (a.CreatedAt == cursorDate && a.Id.CompareTo(cursorId) < 0));
+        }
+
+        var page = new List<ActivityAlbumDto>();
+        var batchSize = Math.Max(pageSize + 1, 20);
+        var skip = 0;
+
+        while (page.Count < pageSize + 1)
+        {
+            var batch = await query.Skip(skip).Take(batchSize).ToListAsync(cancellationToken);
+            if (batch.Count == 0)
+            {
+                break;
+            }
+
+            skip += batch.Count;
+            foreach (var activity in batch)
+            {
+                if (!await ActivityAlbumAccess.CanAccessAsync(_db, activity, ctx.Value.UserId, cancellationToken))
+                {
+                    continue;
+                }
+
+                page.Add(ActivityAlbumMapping.ToDto(activity));
+                if (page.Count >= pageSize + 1)
+                {
+                    break;
+                }
+            }
+
+            if (batch.Count < batchSize)
+            {
+                break;
+            }
+        }
+
+        var hasMore = page.Count > pageSize;
+        if (hasMore)
+        {
+            page.RemoveAt(page.Count - 1);
+        }
+
+        string? nextCursor = null;
+        if (hasMore && page.Count > 0)
+        {
+            var tailExternalId = page[^1].Id;
+            var tail = await QueryActivities(ctx.Value.FamilyId)
+                .FirstAsync(a => a.ExternalId == tailExternalId, cancellationToken);
+            nextCursor = new TimelineCursor(tail.CreatedAt, tail.Id).Encode();
+        }
+
+        return ServiceResult<ApiDataResponseDto<ActivityAlbumListPageDataDto>>.Ok(
+            new ApiDataResponseDto<ActivityAlbumListPageDataDto>
+            {
+                Data = new ActivityAlbumListPageDataDto
+                {
+                    Items = page,
+                    NextCursor = nextCursor
+                }
+            });
+    }
+
     public async Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>> GetInProgressAsync(
         CancellationToken cancellationToken = default)
     {
@@ -114,11 +224,22 @@ public class ActivityService : IActivityService
             PrivacyScope = request.PrivacyScope ?? UploadPrivacyScope.Family
         };
 
+        if (request.CreatedAt.HasValue)
+        {
+            activity.CreatedAt = NormalizeClientCreatedAt(request.CreatedAt.Value);
+            activity.UpdatedAt = activity.CreatedAt;
+        }
+
         _db.ActivityAlbums.Add(activity);
         var relationError = await ApplyRelationsAsync(activity, request, ctx.Value.UserId, cancellationToken);
         if (relationError is not null)
         {
             return ServiceResult<ActivityAlbumDto>.Fail(relationError, 400);
+        }
+
+        if (request.PhotoIds.Count > 0)
+        {
+            await LinkPhotosInternalAsync(activity, request.PhotoIds, ctx.Value.FamilyId, cancellationToken);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -448,12 +569,18 @@ public class ActivityService : IActivityService
             return ServiceResult.NotFound("Activity not found");
         }
 
-        if (!await ActivityAlbumAccess.CanUploadToAsync(_db, activity, ctx.Value.UserId, cancellationToken))
+        if (!await ActivityAlbumAccess.CanLinkPhotosAsync(
+                _db,
+                activity,
+                ctx.Value.UserId,
+                request.PhotoIds,
+                cancellationToken))
         {
-            return ServiceResult.Fail("Activity is not available for photo uploads", 403);
+            return ServiceResult.Fail("Forbidden", 403);
         }
 
         await LinkPhotosInternalAsync(activity, request.PhotoIds, ctx.Value.FamilyId, cancellationToken);
+        activity.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
         return ServiceResult.Ok();
     }
@@ -870,4 +997,22 @@ public class ActivityService : IActivityService
         {
             Data = new ActivityAlbumListDataDto { Items = items }
         };
+
+    private static DateTime NormalizeClientCreatedAt(DateTime value)
+    {
+        var utc = value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+
+        var now = DateTime.UtcNow;
+        if (utc > now.AddMinutes(5))
+        {
+            return now;
+        }
+
+        return utc;
+    }
 }

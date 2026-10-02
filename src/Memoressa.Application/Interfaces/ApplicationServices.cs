@@ -240,6 +240,12 @@ public interface IPhotoAlbumService
 
 public interface IActivityService
 {
+    Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListPageDataDto>>> ListAsync(
+        string? status = null,
+        string? excludeStatus = null,
+        int? limit = null,
+        string? cursor = null,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>> GetInProgressAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<ActivityAlbumDto>> CreateAsync(UpsertActivityAlbumRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<ActivityAlbumDto>> UpdateAsync(string activityId, UpsertActivityAlbumRequestDto request, CancellationToken cancellationToken = default);

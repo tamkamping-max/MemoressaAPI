@@ -245,6 +245,14 @@ public class UploadAbandonTests
 
     private sealed class StubActivityService : IActivityService
     {
+        public Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListPageDataDto>>> ListAsync(
+            string? status = null,
+            string? excludeStatus = null,
+            int? limit = null,
+            string? cursor = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>> GetInProgressAsync(
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();

@@ -36,6 +36,7 @@ public record ActivityAlbumDto
     [JsonPropertyName("friendIds")] public IReadOnlyList<string> FriendIds { get; init; } = [];
     [JsonPropertyName("coverPhotoId")] public Guid? CoverPhotoId { get; init; }
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope PrivacyScope { get; init; } = UploadPrivacyScope.Family;
+    [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
     [JsonPropertyName("agenda")] public IReadOnlyList<ActivityAgendaItemDto> Agenda { get; init; } = [];
 }
 
@@ -54,6 +55,8 @@ public record UpsertActivityAlbumRequestDto
     [JsonPropertyName("coverPhotoId")] public Guid? CoverPhotoId { get; init; }
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope? PrivacyScope { get; init; }
     [JsonPropertyName("agenda")] public IReadOnlyList<ActivityAgendaItemRequestDto> Agenda { get; init; } = [];
+    [JsonPropertyName("createdAt")] public DateTime? CreatedAt { get; init; }
+    [JsonPropertyName("photoIds")] public IReadOnlyList<Guid> PhotoIds { get; init; } = [];
 }
 
 public record ActivityAlbumPhotosRequestDto
@@ -91,6 +94,12 @@ public record ApiDataResponseDto<T>
 public record ActivityAlbumListDataDto
 {
     [JsonPropertyName("items")] public IReadOnlyList<ActivityAlbumDto> Items { get; init; } = [];
+}
+
+public record ActivityAlbumListPageDataDto
+{
+    [JsonPropertyName("items")] public IReadOnlyList<ActivityAlbumDto> Items { get; init; } = [];
+    [JsonPropertyName("nextCursor")] public string? NextCursor { get; init; }
 }
 
 public record ActiveActivityTodayListDataDto
