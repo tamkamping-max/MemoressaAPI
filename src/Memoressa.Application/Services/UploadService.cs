@@ -99,6 +99,7 @@ public class UploadService : IUploadService
             var activity = await ActivityAlbumAccess.ResolveAsync(
                 _db,
                 ctx.Value.FamilyId,
+                ctx.Value.UserId,
                 request.ActivityAlbumId,
                 cancellationToken);
             if (activity is null)

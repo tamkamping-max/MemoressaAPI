@@ -58,75 +58,43 @@ public class ActivityService : IActivityService
             }
         }
 
-        var query = QueryActivities(ctx.Value.FamilyId)
+        var accessible = await LoadAccessibleActivitiesAsync(
+            ctx.Value.UserId,
+            ctx.Value.FamilyId,
+            includeStatuses,
+            excludeStatuses,
+            requireActiveCreator: true,
+            cancellationToken);
+
+        var ordered = accessible
             .OrderByDescending(a => a.CreatedAt)
             .ThenByDescending(a => a.Id)
-            .AsQueryable();
-
-        if (includeStatuses.Count > 0)
-        {
-            query = query.Where(a => includeStatuses.Contains(a.Status));
-        }
-
-        if (excludeStatuses.Count > 0)
-        {
-            query = query.Where(a => !excludeStatuses.Contains(a.Status));
-        }
+            .ToList();
 
         if (decodedCursor is not null)
         {
             var cursorDate = decodedCursor.SortAtUtc;
             var cursorId = decodedCursor.PhotoId;
-            query = query.Where(a =>
-                a.CreatedAt < cursorDate
-                || (a.CreatedAt == cursorDate && a.Id.CompareTo(cursorId) < 0));
+            ordered = ordered
+                .Where(a =>
+                    a.CreatedAt < cursorDate
+                    || (a.CreatedAt == cursorDate && a.Id.CompareTo(cursorId) < 0))
+                .ToList();
         }
 
-        var page = new List<ActivityAlbumDto>();
-        var batchSize = Math.Max(pageSize + 1, 20);
-        var skip = 0;
-
-        while (page.Count < pageSize + 1)
-        {
-            var batch = await query.Skip(skip).Take(batchSize).ToListAsync(cancellationToken);
-            if (batch.Count == 0)
-            {
-                break;
-            }
-
-            skip += batch.Count;
-            foreach (var activity in batch)
-            {
-                if (!await ActivityAlbumAccess.CanAccessAsync(_db, activity, ctx.Value.UserId, cancellationToken))
-                {
-                    continue;
-                }
-
-                page.Add(ActivityAlbumMapping.ToDto(activity));
-                if (page.Count >= pageSize + 1)
-                {
-                    break;
-                }
-            }
-
-            if (batch.Count < batchSize)
-            {
-                break;
-            }
-        }
-
-        var hasMore = page.Count > pageSize;
+        var slice = ordered.Take(pageSize + 1).ToList();
+        var hasMore = slice.Count > pageSize;
         if (hasMore)
         {
-            page.RemoveAt(page.Count - 1);
+            slice.RemoveAt(slice.Count - 1);
         }
 
+        var page = slice.Select(ActivityAlbumMapping.ToDto).ToList();
+
         string? nextCursor = null;
-        if (hasMore && page.Count > 0)
+        if (hasMore && slice.Count > 0)
         {
-            var tailExternalId = page[^1].Id;
-            var tail = await QueryActivities(ctx.Value.FamilyId)
-                .FirstAsync(a => a.ExternalId == tailExternalId, cancellationToken);
+            var tail = slice[^1];
             nextCursor = new TimelineCursor(tail.CreatedAt, tail.Id).Encode();
         }
 
@@ -150,28 +118,18 @@ public class ActivityService : IActivityService
             return ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>.Fail("Unauthorized", 401);
         }
 
-        var activities = await QueryActivities(ctx.Value.FamilyId)
-            .Where(a => a.Status == ActivityAlbumStatus.InProgress)
+        var activities = await LoadAccessibleActivitiesAsync(
+            ctx.Value.UserId,
+            ctx.Value.FamilyId,
+            includeStatuses: [ActivityAlbumStatus.InProgress],
+            excludeStatuses: [],
+            requireActiveCreator: true,
+            cancellationToken);
+
+        var items = activities
             .OrderByDescending(a => a.StartDate)
-            .ToListAsync(cancellationToken);
-
-        var items = new List<ActivityAlbumDto>();
-        foreach (var activity in activities)
-        {
-            if (!await ActivityAlbumAccess.CanAccessAsync(_db, activity, ctx.Value.UserId, cancellationToken))
-            {
-                continue;
-            }
-
-            var creatorActive = await _db.UserAccounts.AsNoTracking()
-                .AnyAsync(u => u.Id == activity.CreatorUserId && u.IsActive, cancellationToken);
-            if (!creatorActive)
-            {
-                continue;
-            }
-
-            items.Add(ActivityAlbumMapping.ToDto(activity));
-        }
+            .Select(ActivityAlbumMapping.ToDto)
+            .ToList();
 
         return ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>.Ok(Wrap(items));
     }
@@ -239,7 +197,7 @@ public class ActivityService : IActivityService
 
         if (request.PhotoIds.Count > 0)
         {
-            await LinkPhotosInternalAsync(activity, request.PhotoIds, ctx.Value.FamilyId, cancellationToken);
+            await LinkPhotosInternalAsync(activity, request.PhotoIds, ctx.Value.UserId, cancellationToken);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -259,13 +217,17 @@ public class ActivityService : IActivityService
             return ServiceResult<ActivityAlbumDto>.Fail("Unauthorized", 401);
         }
 
-        var activity = await ActivityAlbumAccess.ResolveForUpdateAsync(_db, ctx.Value.FamilyId, activityId, cancellationToken);
+        var activity = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
+            _db,
+            ctx.Value.UserId,
+            activityId,
+            cancellationToken);
         if (activity is null)
         {
             return ServiceResult<ActivityAlbumDto>.NotFound("Activity not found");
         }
 
-        if (!await ActivityAlbumAccess.CanAccessAsync(_db, activity, ctx.Value.UserId, cancellationToken))
+        if (activity.CreatorUserId != ctx.Value.UserId)
         {
             return ServiceResult<ActivityAlbumDto>.Fail("Forbidden", 403);
         }
@@ -354,7 +316,7 @@ public class ActivityService : IActivityService
             }
         }
 
-        var loaded = await QueryActivities(ctx.Value.FamilyId).FirstAsync(a => a.Id == activity.Id, cancellationToken);
+        var loaded = await QueryActivitiesGraph().FirstAsync(a => a.Id == activity.Id, cancellationToken);
         return ServiceResult<ActivityAlbumDto>.Ok(ActivityAlbumMapping.ToDto(loaded));
     }
 
@@ -366,9 +328,9 @@ public class ActivityService : IActivityService
             return ServiceResult.Fail("Unauthorized", 401);
         }
 
-        var activity = await ActivityAlbumAccess.ResolveForUpdateAsync(
+        var activity = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
             _db,
-            ctx.Value.FamilyId,
+            ctx.Value.UserId,
             activityId,
             cancellationToken);
         if (activity is null)
@@ -432,29 +394,24 @@ public class ActivityService : IActivityService
             previewTake = PreviewMaxPhotos;
         }
 
-        var activities = await QueryActivities(ctx.Value.FamilyId)
-            .Where(a => a.Status == ActivityAlbumStatus.InProgress)
+        var activities = await LoadAccessibleActivitiesAsync(
+            ctx.Value.UserId,
+            ctx.Value.FamilyId,
+            includeStatuses: [ActivityAlbumStatus.InProgress],
+            excludeStatuses: [],
+            requireActiveCreator: true,
+            cancellationToken);
+
+        activities = activities
             .Where(a => a.StartDate <= referenceDate && (a.EndDate == null || a.EndDate >= referenceDate))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         var ranked = new List<(ActivityAlbum Activity, int Tier, int StartProximity)>();
 
         foreach (var activity in activities)
         {
-            var creator = await _db.UserAccounts.AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == activity.CreatorUserId, cancellationToken);
-            if (creator is null || !creator.IsActive)
-            {
-                continue;
-            }
-
-            SanitizeParticipants(activity, ctx.Value.FamilyId);
+            SanitizeParticipants(activity, activity.FamilyId);
             if (!HasValidParticipant(activity))
-            {
-                continue;
-            }
-
-            if (!await ActivityAlbumAccess.CanAccessAsync(_db, activity, ctx.Value.UserId, cancellationToken))
             {
                 continue;
             }
@@ -520,15 +477,14 @@ public class ActivityService : IActivityService
             return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Fail("Unauthorized", 401);
         }
 
-        var activity = await ActivityAlbumAccess.ResolveAsync(_db, ctx.Value.FamilyId, activityId, cancellationToken);
+        var activity = await ActivityAlbumAccess.ResolveAccessibleAsync(
+            _db,
+            ctx.Value.UserId,
+            activityId,
+            cancellationToken);
         if (activity is null)
         {
             return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.NotFound("Activity not found");
-        }
-
-        if (!await ActivityAlbumAccess.CanAccessAsync(_db, activity, ctx.Value.UserId, cancellationToken))
-        {
-            return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Fail("Forbidden", 403);
         }
 
         var take = limit ?? ActivityPhotosDefaultLimit;
@@ -563,7 +519,11 @@ public class ActivityService : IActivityService
             return ServiceResult.Fail("Unauthorized", 401);
         }
 
-        var activity = await ActivityAlbumAccess.ResolveAsync(_db, ctx.Value.FamilyId, activityId, cancellationToken);
+        var activity = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
+            _db,
+            ctx.Value.UserId,
+            activityId,
+            cancellationToken);
         if (activity is null)
         {
             return ServiceResult.NotFound("Activity not found");
@@ -585,7 +545,7 @@ public class ActivityService : IActivityService
             return ServiceResult.Fail("Forbidden", 403);
         }
 
-        await LinkPhotosInternalAsync(activity, photoIds, ctx.Value.FamilyId, cancellationToken);
+        await LinkPhotosInternalAsync(activity, photoIds, ctx.Value.UserId, cancellationToken);
         activity.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
         return ServiceResult.Ok();
@@ -615,9 +575,9 @@ public class ActivityService : IActivityService
                 400);
         }
 
-        var activity = await ActivityAlbumAccess.ResolveForUpdateAsync(
+        var activity = await ActivityAlbumAccess.ResolveForUpdateAccessibleAsync(
             _db,
-            ctx.Value.FamilyId,
+            ctx.Value.UserId,
             activityId,
             cancellationToken);
         if (activity is null)
@@ -631,7 +591,7 @@ public class ActivityService : IActivityService
         }
 
         var accessible = await ResolveAccessiblePhotoIdsAsync(
-            ctx.Value.FamilyId,
+            activity.FamilyId,
             ctx.Value.UserId,
             photoIds,
             cancellationToken);
@@ -697,13 +657,20 @@ public class ActivityService : IActivityService
         CancellationToken cancellationToken = default)
     {
         var activity = await _db.ActivityAlbums
-            .FirstOrDefaultAsync(a => a.Id == activityAlbumId && a.FamilyId == familyId, cancellationToken);
+            .FirstOrDefaultAsync(a => a.Id == activityAlbumId, cancellationToken);
         if (activity is null || activity.Status != ActivityAlbumStatus.InProgress)
         {
             return;
         }
 
-        await LinkPhotosInternalAsync(activity, [photoId], familyId, cancellationToken);
+        var photo = await _db.Photos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
+        if (photo is null)
+        {
+            return;
+        }
+
+        await LinkPhotosInternalAsync(activity, [photoId], photo.UploadedByUserId, cancellationToken);
         activity.UpdatedAt = DateTime.UtcNow;
     }
 
@@ -733,7 +700,7 @@ public class ActivityService : IActivityService
     private async Task LinkPhotosInternalAsync(
         ActivityAlbum activity,
         IReadOnlyList<Guid> photoIds,
-        Guid familyId,
+        Guid viewerUserId,
         CancellationToken cancellationToken)
     {
         if (photoIds.Count == 0)
@@ -741,8 +708,10 @@ public class ActivityService : IActivityService
             return;
         }
 
-        var validPhotoIds = await _db.Photos.AsNoTracking()
-            .Where(p => p.FamilyId == familyId && photoIds.Contains(p.Id) && !p.IsHidden)
+        var validPhotoIds = await PhotoViewerAccess.ApplyViewerFilter(
+                _db.Photos.AsNoTracking()
+                    .Where(p => photoIds.Contains(p.Id) && !p.IsHidden),
+                viewerUserId)
             .Select(p => p.Id)
             .ToListAsync(cancellationToken);
 
@@ -1092,14 +1061,93 @@ public class ActivityService : IActivityService
         return null;
     }
 
-    private IQueryable<ActivityAlbum> QueryActivities(Guid familyId) =>
+    private async Task<List<ActivityAlbum>> LoadAccessibleActivitiesAsync(
+        Guid userId,
+        Guid homeFamilyId,
+        HashSet<ActivityAlbumStatus> includeStatuses,
+        HashSet<ActivityAlbumStatus> excludeStatuses,
+        bool requireActiveCreator,
+        CancellationToken cancellationToken)
+    {
+        var home = await QueryActivities(homeFamilyId).ToListAsync(cancellationToken);
+        home = home
+            .Where(a => ActivityAlbumListFilters.Matches(a.Status, includeStatuses, excludeStatuses))
+            .ToList();
+
+        var homeIds = home.Select(a => a.Id).ToHashSet();
+        var crossFamilyIds = await QueryCrossFamilyParticipantActivityIdsAsync(userId, homeFamilyId, cancellationToken);
+        crossFamilyIds.RemoveWhere(homeIds.Contains);
+
+        var crossFamily = crossFamilyIds.Count == 0
+            ? []
+            : await QueryActivitiesGraph()
+                .Where(a => crossFamilyIds.Contains(a.Id))
+                .ToListAsync(cancellationToken);
+
+        crossFamily = crossFamily
+            .Where(a => ActivityAlbumListFilters.Matches(a.Status, includeStatuses, excludeStatuses))
+            .ToList();
+
+        var merged = home.Concat(crossFamily).GroupBy(a => a.Id).Select(g => g.First()).ToList();
+        var result = new List<ActivityAlbum>(merged.Count);
+
+        foreach (var activity in merged)
+        {
+            if (!await ActivityAlbumAccess.CanAccessAsync(_db, activity, userId, cancellationToken))
+            {
+                continue;
+            }
+
+            if (requireActiveCreator)
+            {
+                var creatorActive = await _db.UserAccounts.AsNoTracking()
+                    .AnyAsync(u => u.Id == activity.CreatorUserId && u.IsActive, cancellationToken);
+                if (!creatorActive)
+                {
+                    continue;
+                }
+            }
+
+            result.Add(activity);
+        }
+
+        return result;
+    }
+
+    private async Task<HashSet<Guid>> QueryCrossFamilyParticipantActivityIdsAsync(
+        Guid userId,
+        Guid homeFamilyId,
+        CancellationToken cancellationToken)
+    {
+        var friendActivityIds = await (
+            from af in _db.ActivityAlbumFriends.AsNoTracking()
+            join f in _db.Friends.AsNoTracking() on af.FriendId equals f.Id
+            join a in _db.ActivityAlbums.AsNoTracking() on af.ActivityAlbumId equals a.Id
+            where f.FriendUserId == userId && a.FamilyId != homeFamilyId
+            select a.Id).Distinct().ToListAsync(cancellationToken);
+
+        var linkedMemberActivityIds = await (
+            from afm in _db.ActivityAlbumFamilyMembers.AsNoTracking()
+            join fm in _db.FamilyMembers.AsNoTracking() on afm.FamilyMemberId equals fm.Id
+            join a in _db.ActivityAlbums.AsNoTracking() on afm.ActivityAlbumId equals a.Id
+            where fm.LinkedUserId == userId && a.FamilyId != homeFamilyId
+            select a.Id).Distinct().ToListAsync(cancellationToken);
+
+        var set = new HashSet<Guid>(friendActivityIds);
+        set.UnionWith(linkedMemberActivityIds);
+        return set;
+    }
+
+    private IQueryable<ActivityAlbum> QueryActivitiesGraph() =>
         _db.ActivityAlbums.AsNoTracking()
-            .Where(a => a.FamilyId == familyId)
             .Include(a => a.AgendaItems)
             .Include(a => a.FamilyMembers)
             .ThenInclude(fm => fm.FamilyMember)
             .Include(a => a.Friends)
             .ThenInclude(f => f.Friend);
+
+    private IQueryable<ActivityAlbum> QueryActivities(Guid familyId) =>
+        QueryActivitiesGraph().Where(a => a.FamilyId == familyId);
 
     private async Task ReloadActivityGraphAsync(Guid activityId, CancellationToken cancellationToken)
     {

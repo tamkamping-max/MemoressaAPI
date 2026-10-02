@@ -332,6 +332,7 @@ public class DisplayDeviceService : IDisplayDeviceService
         var activity = await ActivityAlbumAccess.ResolveAsync(
             _db,
             ctx.Value.FamilyId,
+            ctx.Value.UserId,
             request.ActivityId,
             cancellationToken);
 

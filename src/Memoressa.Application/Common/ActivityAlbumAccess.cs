@@ -1,5 +1,4 @@
 using Memoressa.Application.Abstractions;
-using Memoressa.Application.DTOs;
 using Memoressa.Domain.Entities;
 using Memoressa.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -8,37 +7,90 @@ namespace Memoressa.Application.Common;
 
 public static class ActivityAlbumAccess
 {
-    public static async Task<ActivityAlbum?> ResolveForUpdateAsync(
+    public static async Task<ActivityAlbum?> ResolveAccessibleAsync(
         IMemoressaDbContext db,
-        Guid familyId,
+        Guid userId,
         string activityId,
         CancellationToken cancellationToken)
     {
-        var trimmed = activityId.Trim();
-        return await db.ActivityAlbums
-            .Include(a => a.FamilyMembers)
-            .Include(a => a.Friends)
-            .FirstOrDefaultAsync(
-                a => a.FamilyId == familyId
-                     && (a.ExternalId == trimmed || a.Id.ToString() == trimmed),
-                cancellationToken);
+        var activity = await FindActivityGraphAsync(db, activityId, forUpdate: false, cancellationToken);
+        if (activity is null)
+        {
+            return null;
+        }
+
+        if (!await CanAccessAsync(db, activity, userId, cancellationToken))
+        {
+            return null;
+        }
+
+        return activity;
+    }
+
+    public static async Task<ActivityAlbum?> ResolveForUpdateAccessibleAsync(
+        IMemoressaDbContext db,
+        Guid userId,
+        string activityId,
+        CancellationToken cancellationToken)
+    {
+        var activity = await FindActivityGraphAsync(db, activityId, forUpdate: true, cancellationToken);
+        if (activity is null)
+        {
+            return null;
+        }
+
+        if (!await CanAccessAsync(db, activity, userId, cancellationToken))
+        {
+            return null;
+        }
+
+        return activity;
     }
 
     public static async Task<ActivityAlbum?> ResolveAsync(
         IMemoressaDbContext db,
         Guid familyId,
+        Guid userId,
         string activityId,
         CancellationToken cancellationToken)
     {
         var trimmed = activityId.Trim();
-        return await db.ActivityAlbums
-            .Include(a => a.FamilyMembers)
-            .Include(a => a.Friends)
-            .Include(a => a.AgendaItems)
+        var local = await ApplyActivityGraphIncludes(
+                db.ActivityAlbums.AsNoTracking(),
+                forUpdate: false)
             .FirstOrDefaultAsync(
                 a => a.FamilyId == familyId
                      && (a.ExternalId == trimmed || a.Id.ToString() == trimmed),
                 cancellationToken);
+
+        if (local is not null)
+        {
+            return local;
+        }
+
+        return await ResolveAccessibleAsync(db, userId, activityId, cancellationToken);
+    }
+
+    public static async Task<ActivityAlbum?> ResolveForUpdateAsync(
+        IMemoressaDbContext db,
+        Guid familyId,
+        Guid userId,
+        string activityId,
+        CancellationToken cancellationToken)
+    {
+        var trimmed = activityId.Trim();
+        var local = await ApplyActivityGraphIncludes(db.ActivityAlbums, forUpdate: true)
+            .FirstOrDefaultAsync(
+                a => a.FamilyId == familyId
+                     && (a.ExternalId == trimmed || a.Id.ToString() == trimmed),
+                cancellationToken);
+
+        if (local is not null)
+        {
+            return local;
+        }
+
+        return await ResolveForUpdateAccessibleAsync(db, userId, activityId, cancellationToken);
     }
 
     public static async Task<bool> CanAccessAsync(
@@ -125,16 +177,50 @@ public static class ActivityAlbumAccess
             return false;
         }
 
+        var distinct = photoIds.Distinct().ToList();
         var ownedCount = await db.Photos.AsNoTracking()
             .CountAsync(
-                p => photoIds.Contains(p.Id)
-                     && p.FamilyId == activity.FamilyId
+                p => distinct.Contains(p.Id)
                      && !p.IsHidden
                      && p.UploadedByUserId == userId,
                 cancellationToken);
 
-        return ownedCount == photoIds.Distinct().Count();
+        return ownedCount == distinct.Count;
     }
 
     public static string NewExternalId() => $"act_{Guid.NewGuid():N}"[..20];
+
+    private static async Task<ActivityAlbum?> FindActivityGraphAsync(
+        IMemoressaDbContext db,
+        string activityId,
+        bool forUpdate,
+        CancellationToken cancellationToken)
+    {
+        var trimmed = activityId.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
+
+        return await ApplyActivityGraphIncludes(
+                forUpdate ? db.ActivityAlbums : db.ActivityAlbums.AsNoTracking(),
+                forUpdate)
+            .FirstOrDefaultAsync(
+                a => a.ExternalId == trimmed || a.Id.ToString() == trimmed,
+                cancellationToken);
+    }
+
+    private static IQueryable<ActivityAlbum> ApplyActivityGraphIncludes(
+        IQueryable<ActivityAlbum> query,
+        bool forUpdate)
+    {
+        query = query
+            .Include(a => a.AgendaItems)
+            .Include(a => a.FamilyMembers)
+            .ThenInclude(fm => fm.FamilyMember)
+            .Include(a => a.Friends)
+            .ThenInclude(f => f.Friend);
+
+        return query;
+    }
 }
