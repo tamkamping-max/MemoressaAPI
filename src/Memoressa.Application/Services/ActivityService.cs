@@ -758,6 +758,7 @@ public class ActivityService : IActivityService
                 PhotoId = photos[i].Id,
                 RemoteUrl = dtos[i].RemoteUrl,
                 ThumbnailUrl = dtos[i].ThumbnailUrl,
+                FullUrl = dtos[i].FullUrl,
                 TakenAt = photos[i].TakenAt ?? photos[i].CreatedAt,
                 UploadedBy = dtos[i].UploadedBy
             });
@@ -1037,6 +1038,11 @@ public class ActivityService : IActivityService
             else
             {
                 friendId = ownerFriends.FirstOrDefault(f => f.Id.ToString() == trimmed || f.Name == trimmed)?.Id;
+            }
+
+            if (!friendId.HasValue)
+            {
+                return "One or more friendIds are invalid for this user";
             }
 
             _db.ActivityAlbumFriends.Add(new ActivityAlbumFriend

@@ -131,6 +131,83 @@ public class ActivityServiceListTests
     }
 
     [Fact]
+    public async Task CreateAsync_WithInvalidFriendId_Returns400()
+    {
+        var userId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        db.UserAccounts.Add(new UserAccount { Id = userId, Email = "u@test.com", PasswordHash = "x", IsActive = true });
+        db.Families.Add(new Family { Id = familyId, OwnerUserId = userId, Name = "F" });
+        db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = userId, Role = "owner" });
+        await db.SaveChangesAsync();
+
+        var service = new ActivityService(db, new FixedUser(userId, familyId), new StubPhotoUrlResolver());
+        var result = await service.CreateAsync(new UpsertActivityAlbumRequestDto
+        {
+            Title = "Trip",
+            Type = ActivityAlbumType.Travel,
+            Status = ActivityAlbumStatus.InProgress,
+            StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            FriendIds = ["not-a-real-friend"]
+        });
+
+        Assert.Equal(400, result.StatusCode);
+        Assert.Contains("friendIds", result.Error!, StringComparison.OrdinalIgnoreCase);
+        Assert.False(await db.ActivityAlbums.AnyAsync());
+    }
+
+    [Fact]
+    public async Task GetActiveTodayAsync_PhotoPreviewsIncludeFullUrl()
+    {
+        var userId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var photoId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        db.UserAccounts.Add(new UserAccount { Id = userId, Email = "u@test.com", PasswordHash = "x", IsActive = true });
+        db.Families.Add(new Family { Id = familyId, OwnerUserId = userId, Name = "F" });
+        db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = userId, Role = "owner" });
+        var activity = new ActivityAlbum
+        {
+            FamilyId = familyId,
+            ExternalId = "act_fullurl",
+            Title = "Today",
+            Type = ActivityAlbumType.Travel,
+            Status = ActivityAlbumStatus.InProgress,
+            StartDate = today,
+            CreatorUserId = userId
+        };
+        db.ActivityAlbums.Add(activity);
+        db.Photos.Add(new Photo
+        {
+            Id = photoId,
+            FamilyId = familyId,
+            UploadedByUserId = userId,
+            S3Key = "big.jpg"
+        });
+        db.ActivityAlbumPhotos.Add(new ActivityAlbumPhoto
+        {
+            ActivityAlbumId = activity.Id,
+            PhotoId = photoId,
+            SortOrder = 0
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ActivityService(
+            db,
+            new FixedUser(userId, familyId),
+            new FullUrlPhotoUrlResolver("https://cdn/full.jpg"));
+
+        var result = await service.GetActiveTodayAsync(today);
+        Assert.True(result.Success);
+        var card = Assert.Single(result.Data!.Data.Items);
+        var preview = Assert.Single(card.Photos);
+        Assert.Equal("https://cdn/full.jpg", preview.FullUrl);
+    }
+
+    [Fact]
     public async Task CreateAsync_WithPhotoIds_LinksPhotos()
     {
         var userId = Guid.NewGuid();
@@ -202,5 +279,32 @@ public class ActivityServiceListTests
             PhotoUrlPurpose purpose = PhotoUrlPurpose.ApiResponse,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
+    }
+
+    private sealed class FullUrlPhotoUrlResolver(string fullUrl) : IPhotoUrlResolver
+    {
+        public Task<PhotoDto> ToDtoAsync(
+            Photo photo,
+            PhotoUrlPurpose purpose = PhotoUrlPurpose.ApiResponse,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PhotoDto { Id = photo.Id, FullUrl = fullUrl, UploadedBy = photo.UploadedByUserId });
+
+        public Task<IReadOnlyList<PhotoDto>> ToDtosAsync(
+            IEnumerable<Photo> photos,
+            PhotoUrlPurpose purpose = PhotoUrlPurpose.ApiResponse,
+            CancellationToken cancellationToken = default)
+        {
+            var list = photos
+                .Select(p => new PhotoDto { Id = p.Id, FullUrl = fullUrl, UploadedBy = p.UploadedByUserId })
+                .ToList();
+            return Task.FromResult<IReadOnlyList<PhotoDto>>(list);
+        }
+
+        public Task<string?> GetPresignedUrlAsync(
+            Photo photo,
+            bool thumbnail = false,
+            PhotoUrlPurpose purpose = PhotoUrlPurpose.ApiResponse,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(fullUrl);
     }
 }
