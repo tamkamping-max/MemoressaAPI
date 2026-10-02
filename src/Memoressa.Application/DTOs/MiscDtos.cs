@@ -83,6 +83,8 @@ public record FriendDto
     [JsonPropertyName("email")] public string? Email { get; init; }
     [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
     [JsonPropertyName("friendUserId")] public Guid? FriendUserId { get; init; }
+    /// <summary>App alias for <see cref="FriendUserId"/>.</summary>
+    [JsonPropertyName("accountId")] public Guid? AccountId => FriendUserId;
     [JsonPropertyName("friendUser")] public FriendUserSummaryDto? FriendUser { get; init; }
     [JsonPropertyName("frameLinked")] public bool FrameLinked { get; init; }
     [JsonPropertyName("status")] public string Status { get; init; } = "accepted";

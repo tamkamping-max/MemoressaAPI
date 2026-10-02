@@ -45,7 +45,7 @@ public class ActivityServiceListTests
             });
         await db.SaveChangesAsync();
 
-        var service = new ActivityService(db, new FixedUser(userId, familyId), new StubPhotoUrlResolver());
+        var service = new ActivityService(db, new FixedUser(userId, familyId), new StubPhotoUrlResolver(), new StubAvatarUrlResolver());
         var result = await service.ListAsync(excludeStatus: "inProgress");
 
         Assert.True(result.Success);
@@ -95,7 +95,7 @@ public class ActivityServiceListTests
             new ActivityAlbumPhoto { ActivityAlbumId = activity.Id, PhotoId = photoB, SortOrder = 1 });
         await db.SaveChangesAsync();
 
-        var service = new ActivityService(db, new FixedUser(userId, familyId), new StubPhotoUrlResolver());
+        var service = new ActivityService(db, new FixedUser(userId, familyId), new StubPhotoUrlResolver(), new StubAvatarUrlResolver());
         var result = await service.ReplaceActivityPhotosAsync(
             activity.ExternalId,
             new ActivityAlbumPhotosRequestDto
@@ -123,7 +123,7 @@ public class ActivityServiceListTests
         await db.SaveChangesAsync();
 
         db.ChangeTracker.Clear();
-        var asOther = new ActivityService(db, new FixedUser(otherId, familyId), new StubPhotoUrlResolver());
+        var asOther = new ActivityService(db, new FixedUser(otherId, familyId), new StubPhotoUrlResolver(), new StubAvatarUrlResolver());
         var denied = await asOther.ReplaceActivityPhotosAsync(
             activity.ExternalId,
             new ActivityAlbumPhotosRequestDto { PhotoIds = [photoB.ToString()] });
@@ -142,7 +142,7 @@ public class ActivityServiceListTests
         db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = userId, Role = "owner" });
         await db.SaveChangesAsync();
 
-        var service = new ActivityService(db, new FixedUser(userId, familyId), new StubPhotoUrlResolver());
+        var service = new ActivityService(db, new FixedUser(userId, familyId), new StubPhotoUrlResolver(), new StubAvatarUrlResolver());
         var result = await service.CreateAsync(new UpsertActivityAlbumRequestDto
         {
             Title = "Trip",
@@ -198,7 +198,8 @@ public class ActivityServiceListTests
         var service = new ActivityService(
             db,
             new FixedUser(userId, familyId),
-            new FullUrlPhotoUrlResolver("https://cdn/full.jpg"));
+            new FullUrlPhotoUrlResolver("https://cdn/full.jpg"),
+            new StubAvatarUrlResolver());
 
         var result = await service.GetActiveTodayAsync(today);
         Assert.True(result.Success);
@@ -227,7 +228,7 @@ public class ActivityServiceListTests
         });
         await db.SaveChangesAsync();
 
-        var service = new ActivityService(db, new FixedUser(userId, familyId), new StubPhotoUrlResolver());
+        var service = new ActivityService(db, new FixedUser(userId, familyId), new StubPhotoUrlResolver(), new StubAvatarUrlResolver());
         var created = await service.CreateAsync(new UpsertActivityAlbumRequestDto
         {
             Title = "Trip",

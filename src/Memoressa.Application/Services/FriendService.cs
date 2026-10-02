@@ -98,7 +98,16 @@ public partial class FriendService : IFriendService
 
         _db.Friends.Add(friend);
         await _db.SaveChangesAsync(cancellationToken);
-        return ServiceResult<FriendDto>.Ok(friend.ToDto());
+
+        UserAccount? linkedUser = null;
+        if (friend.FriendUserId.HasValue)
+        {
+            linkedUser = await _db.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == friend.FriendUserId.Value, cancellationToken);
+        }
+
+        return ServiceResult<FriendDto>.Ok(
+            await MapAcceptedFriendDtoAsync(friend, linkedUser, activityCount: 0, cancellationToken));
     }
 
     public async Task<ServiceResult<FriendDto>> UpdateFriendAsync(

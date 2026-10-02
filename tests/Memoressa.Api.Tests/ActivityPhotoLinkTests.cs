@@ -47,7 +47,7 @@ public class ActivityPhotoLinkTests
         db.Photos.Add(photo);
         await db.SaveChangesAsync();
 
-        var service = new ActivityService(db, new StubCurrentUser(), new StubPhotoUrlResolver());
+        var service = new ActivityService(db, new StubCurrentUser(), new StubPhotoUrlResolver(), new StubAvatarUrlResolver());
 
         await service.StageActivityPhotoLinkAsync(activityId, photo.Id, familyId, CancellationToken.None);
         await db.SaveChangesAsync();

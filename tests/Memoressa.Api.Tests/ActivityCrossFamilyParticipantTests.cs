@@ -75,11 +75,14 @@ public class ActivityCrossFamilyParticipantTests
         });
         await db.SaveChangesAsync();
 
-        var serviceB = new ActivityService(db, new FixedUser(userB, familyB), new StubPhotoUrlResolver());
+        var serviceB = new ActivityService(db, new FixedUser(userB, familyB), new StubPhotoUrlResolver(), new StubAvatarUrlResolver());
 
         var inProgress = await serviceB.GetInProgressAsync();
         Assert.True(inProgress.Success);
-        Assert.Contains(inProgress.Data!.Data.Items, i => i.Id == activity.ExternalId);
+        var inProgressItem = Assert.Single(inProgress.Data!.Data.Items, i => i.Id == activity.ExternalId);
+        Assert.True(inProgressItem.ViewerIsParticipant);
+        Assert.False(inProgressItem.ViewerIsCreator);
+        Assert.Contains(userB, inProgressItem.ParticipantUserIds);
 
         var activeToday = await serviceB.GetActiveTodayAsync(today);
         Assert.True(activeToday.Success);
@@ -163,7 +166,7 @@ public class ActivityCrossFamilyParticipantTests
         });
         await db.SaveChangesAsync();
 
-        var serviceB = new ActivityService(db, new FixedUser(userB, familyB), new StubPhotoUrlResolver());
+        var serviceB = new ActivityService(db, new FixedUser(userB, familyB), new StubPhotoUrlResolver(), new StubAvatarUrlResolver());
         var link = await serviceB.AttachPhotosAsync(
             activity.ExternalId,
             new ActivityAlbumPhotosRequestDto { PhotoIds = [$"photo_{bPhoto:D}"] });

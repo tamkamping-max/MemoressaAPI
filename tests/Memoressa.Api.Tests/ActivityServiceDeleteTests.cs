@@ -21,7 +21,7 @@ public class ActivityServiceDeleteTests
         await using var db = CreateDb();
         SeedFamilyWithActivity(db, familyId, creatorId, otherId, out var externalId);
 
-        var service = new ActivityService(db, new FixedUser(otherId, familyId), new StubPhotoUrlResolver());
+        var service = new ActivityService(db, new FixedUser(otherId, familyId), new StubPhotoUrlResolver(), new StubAvatarUrlResolver());
 
         var result = await service.DeleteAsync(externalId);
 
@@ -55,7 +55,7 @@ public class ActivityServiceDeleteTests
         });
         await db.SaveChangesAsync();
 
-        var service = new ActivityService(db, new FixedUser(creatorId, familyId), new StubPhotoUrlResolver());
+        var service = new ActivityService(db, new FixedUser(creatorId, familyId), new StubPhotoUrlResolver(), new StubAvatarUrlResolver());
         var result = await service.DeleteAsync(externalId);
 
         Assert.Equal(204, result.StatusCode);

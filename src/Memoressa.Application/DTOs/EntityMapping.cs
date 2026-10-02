@@ -145,6 +145,7 @@ public static class EntityMapping
         Name = friend.Name,
         Nickname = friend.Name,
         AvatarUrl = friend.AvatarUrl,
+        FriendUserId = friend.FriendUserId,
         FrameLinked = friend.FrameLinked,
         Status = "accepted",
         SharedActivityCount = friend.SharedMemoryCount,

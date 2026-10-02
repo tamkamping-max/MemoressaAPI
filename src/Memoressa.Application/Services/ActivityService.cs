@@ -20,15 +20,18 @@ public class ActivityService : IActivityService
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IPhotoUrlResolver _photoUrls;
+    private readonly IAvatarUrlResolver _avatarUrls;
 
     public ActivityService(
         IMemoressaDbContext db,
         ICurrentUserService currentUser,
-        IPhotoUrlResolver photoUrls)
+        IPhotoUrlResolver photoUrls,
+        IAvatarUrlResolver avatarUrls)
     {
         _db = db;
         _currentUser = currentUser;
         _photoUrls = photoUrls;
+        _avatarUrls = avatarUrls;
     }
 
     public async Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListPageDataDto>>> ListAsync(
@@ -89,7 +92,10 @@ public class ActivityService : IActivityService
             slice.RemoveAt(slice.Count - 1);
         }
 
-        var page = slice.Select(ActivityAlbumMapping.ToDto).ToList();
+        var creatorSummaries = await LoadCreatorSummariesAsync(slice, cancellationToken);
+        var page = slice
+            .Select(a => MapActivityDto(a, ctx.Value.UserId, creatorSummaries))
+            .ToList();
 
         string? nextCursor = null;
         if (hasMore && slice.Count > 0)
@@ -126,9 +132,10 @@ public class ActivityService : IActivityService
             requireActiveCreator: true,
             cancellationToken);
 
-        var items = activities
-            .OrderByDescending(a => a.StartDate)
-            .Select(ActivityAlbumMapping.ToDto)
+        var orderedActivities = activities.OrderByDescending(a => a.StartDate).ToList();
+        var creatorSummaries = await LoadCreatorSummariesAsync(orderedActivities, cancellationToken);
+        var items = orderedActivities
+            .Select(a => MapActivityDto(a, ctx.Value.UserId, creatorSummaries))
             .ToList();
 
         return ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>.Ok(Wrap(items));
@@ -203,7 +210,8 @@ public class ActivityService : IActivityService
         await _db.SaveChangesAsync(cancellationToken);
         await ReloadActivityGraphAsync(activity.Id, cancellationToken);
         var loaded = await QueryActivities(ctx.Value.FamilyId).FirstAsync(a => a.Id == activity.Id, cancellationToken);
-        return ServiceResult<ActivityAlbumDto>.Created(ActivityAlbumMapping.ToDto(loaded));
+        return ServiceResult<ActivityAlbumDto>.Created(
+            await MapActivityDtoAsync(loaded, ctx.Value.UserId, includeCreatorSummary: true, cancellationToken));
     }
 
     public async Task<ServiceResult<ActivityAlbumDto>> UpdateAsync(
@@ -317,7 +325,8 @@ public class ActivityService : IActivityService
         }
 
         var loaded = await QueryActivitiesGraph().FirstAsync(a => a.Id == activity.Id, cancellationToken);
-        return ServiceResult<ActivityAlbumDto>.Ok(ActivityAlbumMapping.ToDto(loaded));
+        return ServiceResult<ActivityAlbumDto>.Ok(
+            await MapActivityDtoAsync(loaded, ctx.Value.UserId, includeCreatorSummary: true, cancellationToken));
     }
 
     public async Task<ServiceResult> DeleteAsync(string activityId, CancellationToken cancellationToken = default)
@@ -430,6 +439,10 @@ public class ActivityService : IActivityService
             .Take(take)
             .ToList();
 
+        var creatorSummaries = await LoadCreatorSummariesAsync(
+            ordered.Select(x => x.Activity).ToList(),
+            cancellationToken);
+
         var cards = new List<ActiveActivityTodayCardDto>(ordered.Count);
         var rank = 1;
         foreach (var entry in ordered)
@@ -443,7 +456,7 @@ public class ActivityService : IActivityService
             {
                 SortRank = rank++,
                 Subtitle = ActivityAlbumMapping.BuildSubtitle(entry.Activity, referenceDate),
-                Activity = ActivityAlbumMapping.ToDto(entry.Activity),
+                Activity = MapActivityDto(entry.Activity, ctx.Value.UserId, creatorSummaries),
                 Photos = previews
             });
         }
@@ -1142,6 +1155,64 @@ public class ActivityService : IActivityService
         var set = new HashSet<Guid>(friendActivityIds);
         set.UnionWith(linkedMemberActivityIds);
         return set;
+    }
+
+    private static ActivityAlbumDto MapActivityDto(
+        ActivityAlbum activity,
+        Guid viewerUserId,
+        IReadOnlyDictionary<Guid, ActivityAlbumCreatorSummary> creatorSummaries)
+    {
+        ActivityAlbumCreatorSummary? creator = null;
+        if (creatorSummaries.TryGetValue(activity.CreatorUserId, out var summary))
+        {
+            creator = summary;
+        }
+
+        return ActivityAlbumMapping.ToDto(activity, viewerUserId, creator);
+    }
+
+    private async Task<ActivityAlbumDto> MapActivityDtoAsync(
+        ActivityAlbum activity,
+        Guid viewerUserId,
+        bool includeCreatorSummary,
+        CancellationToken cancellationToken)
+    {
+        ActivityAlbumCreatorSummary? creator = null;
+        if (includeCreatorSummary)
+        {
+            var map = await LoadCreatorSummariesAsync([activity], cancellationToken);
+            if (map.TryGetValue(activity.CreatorUserId, out var summary))
+            {
+                creator = summary;
+            }
+        }
+
+        return ActivityAlbumMapping.ToDto(activity, viewerUserId, creator);
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, ActivityAlbumCreatorSummary>> LoadCreatorSummariesAsync(
+        IReadOnlyList<ActivityAlbum> activities,
+        CancellationToken cancellationToken)
+    {
+        if (activities.Count == 0)
+        {
+            return new Dictionary<Guid, ActivityAlbumCreatorSummary>();
+        }
+
+        var creatorIds = activities.Select(a => a.CreatorUserId).Distinct().ToList();
+        var users = await _db.UserAccounts.AsNoTracking()
+            .Where(u => creatorIds.Contains(u.Id))
+            .ToListAsync(cancellationToken);
+
+        var result = new Dictionary<Guid, ActivityAlbumCreatorSummary>(users.Count);
+        foreach (var user in users)
+        {
+            var displayName = user.Nickname ?? user.Email ?? string.Empty;
+            var avatarUrl = await _avatarUrls.ResolveForResponseAsync(user.AvatarUrl, cancellationToken);
+            result[user.Id] = new ActivityAlbumCreatorSummary(displayName, avatarUrl);
+        }
+
+        return result;
     }
 
     private IQueryable<ActivityAlbum> QueryActivitiesGraph() =>

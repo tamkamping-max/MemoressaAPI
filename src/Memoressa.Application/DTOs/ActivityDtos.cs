@@ -32,6 +32,11 @@ public record ActivityAlbumDto
     [JsonPropertyName("endDate")] public DateOnly? EndDate { get; init; }
     [JsonPropertyName("location")] public string? Location { get; init; }
     [JsonPropertyName("creatorUserId")] public Guid CreatorUserId { get; init; }
+    [JsonPropertyName("participantUserIds")] public IReadOnlyList<Guid> ParticipantUserIds { get; init; } = [];
+    [JsonPropertyName("viewerIsCreator")] public bool ViewerIsCreator { get; init; }
+    [JsonPropertyName("viewerIsParticipant")] public bool ViewerIsParticipant { get; init; }
+    [JsonPropertyName("creatorDisplayName")] public string? CreatorDisplayName { get; init; }
+    [JsonPropertyName("creatorAvatarUrl")] public string? CreatorAvatarUrl { get; init; }
     [JsonPropertyName("familyMemberIds")] public IReadOnlyList<Guid> FamilyMemberIds { get; init; } = [];
     [JsonPropertyName("friendIds")] public IReadOnlyList<string> FriendIds { get; init; } = [];
     [JsonPropertyName("coverPhotoId")] public Guid? CoverPhotoId { get; init; }
