@@ -50,7 +50,7 @@ public class ActivityDeleteApiTests : IClassFixture<WebApplicationFactory<Progra
         });
         createResponse.EnsureSuccessStatusCode();
         var created = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var activityId = created.GetProperty("id").GetString();
+        var activityId = created.GetProperty("data").GetProperty("id").GetString();
         Assert.False(string.IsNullOrWhiteSpace(activityId));
 
         var deleteResponse = await client.DeleteAsync($"/api/v1/activities/{activityId}");

@@ -72,7 +72,19 @@ public class ActivitiesController : ControllerBase
     public async Task<IActionResult> Create([FromBody] UpsertActivityAlbumRequestDto request, CancellationToken cancellationToken)
     {
         var result = await _activities.CreateAsync(request, cancellationToken);
-        return result.ToActionResult();
+        if (!result.Success)
+        {
+            return result.ToActionResult();
+        }
+
+        return result.StatusCode switch
+        {
+            201 => new ObjectResult(new ApiDataResponseDto<ActivityAlbumDto> { Data = result.Data! })
+            {
+                StatusCode = 201
+            },
+            _ => new OkObjectResult(new ApiDataResponseDto<ActivityAlbumDto> { Data = result.Data! })
+        };
     }
 
     [HttpPut("{activityId}")]
@@ -82,7 +94,12 @@ public class ActivitiesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _activities.UpdateAsync(activityId, request, cancellationToken);
-        return result.ToActionResult();
+        if (!result.Success)
+        {
+            return result.ToActionResult();
+        }
+
+        return new OkObjectResult(new ApiDataResponseDto<ActivityAlbumDto> { Data = result.Data! });
     }
 
     [HttpDelete("{activityId}")]

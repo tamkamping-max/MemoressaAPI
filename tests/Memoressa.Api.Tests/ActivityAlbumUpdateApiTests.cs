@@ -64,7 +64,7 @@ public class ActivityAlbumUpdateApiTests : IClassFixture<WebApplicationFactory<P
             createResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created,
             await createResponse.Content.ReadAsStringAsync());
         var created = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var activityId = created.GetProperty("id").GetString();
+        var activityId = created.GetProperty("data").GetProperty("id").GetString();
         Assert.False(string.IsNullOrWhiteSpace(activityId));
 
         var updateBody = new
@@ -88,8 +88,9 @@ public class ActivityAlbumUpdateApiTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal(HttpStatusCode.OK, putAgain.StatusCode);
 
         var dto = await putAgain.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        Assert.Equal("Trip updated", dto.GetProperty("title").GetString());
-        Assert.Equal(0, dto.GetProperty("agenda").GetArrayLength());
+        var activity = dto.GetProperty("data");
+        Assert.Equal("Trip updated", activity.GetProperty("title").GetString());
+        Assert.Equal(0, activity.GetProperty("agenda").GetArrayLength());
     }
 
     private static async Task RegisterAndAuthAsync(HttpClient client)

@@ -608,6 +608,13 @@ public class ActivityService : IActivityService
             return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.Fail(parseError, 400);
         }
 
+        if (photoIds.Count == 0)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>.Fail(
+                "At least one photo is required",
+                400);
+        }
+
         var activity = await ActivityAlbumAccess.ResolveForUpdateAsync(
             _db,
             ctx.Value.FamilyId,
