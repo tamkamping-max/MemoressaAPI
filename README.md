@@ -449,6 +449,8 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 
 MemoressaApp: upload settings picker, home carousel, create on upload confirm, edit in modal. All routes require JWT family scope.
 
+**Cross-family participants:** List routes (`GET /`, `/in-progress`, `/active-today`) include **in-progress** activities in other families when the caller is a listed participant (`friendIds` → `Friends.friendUserId`, or `familyMemberIds` → linked `FamilyMembers.linkedUserId`). **`GET /{activityId}/photos`**, upload **`CanUploadTo`**, and **append** photo link follow the same access rules. **PUT** activity, **DELETE**, and **PUT …/photos** (full replace) remain **creator-only** (**403** for participants).
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Paginated activity list for Events timeline / calendar. Query: **`excludeStatus`** (comma, e.g. `inProgress`), **`status`** (comma include filter), **`limit`** (default 50, max 100), **`cursor`**. **200** `{ data: { items: [ActivityAlbum...], nextCursor } }`. Sort **`createdAt` DESC**. Each item includes **`createdAt`** (activity album created time, not Memory). Access: same as other activity routes. |
