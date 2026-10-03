@@ -93,7 +93,7 @@ public static class EntityMapping
         Name = member.Name,
         Nickname = member.Nickname,
         BirthDate = member.BirthDate,
-        Generation = member.Generation,
+        Generation = FamilyMemberDtoMapping.GenerationForResponse(member),
         Relationship = member.Relationship,
         AvatarUrl = member.AvatarUrl,
         CityId = member.CityId,

@@ -25,7 +25,7 @@ public record FamilyMemberDto
     [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
     [JsonPropertyName("nickname")] public string? Nickname { get; init; }
     [JsonPropertyName("birthDate")] public DateTime? BirthDate { get; init; }
-    [JsonPropertyName("generation")] public Generation Generation { get; init; }
+    [JsonPropertyName("generation")] public Generation? Generation { get; init; }
     [JsonPropertyName("relationship")] public string? Relationship { get; init; }
     [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
     [JsonPropertyName("cityId")] public string? CityId { get; init; }

@@ -480,14 +480,14 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | Roster: accepted **`FamilyMember`** rows + **`pending_outgoing`** invites. Query **`connectionStatus=accepted`**. **Accepted:** **`id`** = **`familyMemberId`** = that person’s **`family_members`** row (unique per person; **`linkedUserId`** = their Memoressa user id when linked). **`counterparty`** / **`linkedUser`**: `{ id?, familyMemberId?, name, avatarUrl, … }`. **Pending:** **`id`** = invite/connection id for **`DELETE`**, **`familyMemberId`** omitted/null until accept. **`assignedToTree`**: `false` = not placed on tree tier. |
+| GET | `/` | Full roster: **all accepted** members (**`assignedToTree` true and false** — unassigned pool included) + **`pending_outgoing`** invites. **`?connectionStatus=accepted`** = accepted only (still includes **`assignedToTree: false`**). **`assignedToTree`** always returned (boolean). Unassigned: **`assignedToTree: false`**, **`generation`** null/omitted. Tier-only lists: **`GET /by-generation/{generation}`** (assigned only). **Accepted:** **`id`** = **`familyMemberId`**. **Pending:** **`id`** = invite id for **`DELETE`**. |
 | GET | `/invites` | Inbox: **`pending_incoming`** invites for the JWT user (nested **`inviter`** / **`invitee`** profiles). |
 | POST | `/invites` | `{ "email" }` — invite an **existing** app member (**201** / **`pending_outgoing`**). **`code`**: `invalid_email` (**400**), `cannot_invite_self` (**400**), `email_not_registered` (**404**), `family_already_connected` (**409** member or pending in family). |
 | POST | `/invites/{inviteId}/accept` | Accept → **`FamilyMember`** with **`linkedUserId`**, **`assignedToTree: false`** until placed on a tier (**PUT** with **`assignedToTree: true`**). |
 | POST | `/invites/{inviteId}/reject` | Decline (invitee) or cancel (inviter on own outgoing). |
 | GET | `/{id}` | Member by id, or pending outgoing invite id |
 | POST | `/` | Add local tree member (**`assignedToTree: true`**) — not a silent substitute for email invite |
-| PUT | `/{id}` | Update member; set **`generation`** + **`assignedToTree: true`** when dragging onto a tier |
+| PUT | `/{id}` | Update member; set **`generation`** + **`assignedToTree: true`** when placing on a tier. **`generation`** is persisted only while **`assignedToTree`** is true; list GET reflects latest values. |
 | DELETE | `/{id}` | Remove accepted member from tree (hard delete) or cancel **`pending_outgoing`** invite by list row **`id`**. **204** on success; **404** if not found / not in caller’s family; **403** if pending invite is not yours to cancel. Errors: `{ "message", "error" }`. Photo **`memberIds`** / tag join rows for that member are not rewritten (historical); **`photo_members`** links cascade on member delete. |
 | GET | `/by-generation/{generation}` | Tier members only (**`assignedToTree`** + generation) |
 

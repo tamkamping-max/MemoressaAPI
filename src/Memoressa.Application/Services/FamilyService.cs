@@ -42,6 +42,7 @@ public partial class FamilyService : IFamilyService
             return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Fail("Unauthorized", 401);
         }
 
+        // Full roster: all accepted members (assigned + unassigned pool), not only tree tiers.
         var members = await QueryMembers(ctx.Value.FamilyId).OrderBy(m => m.Name).ToListAsync(cancellationToken);
         var linkedUserIds = members.Where(m => m.LinkedUserId.HasValue).Select(m => m.LinkedUserId!.Value).Distinct().ToList();
         var linkedUsers = linkedUserIds.Count == 0
@@ -159,7 +160,6 @@ public partial class FamilyService : IFamilyService
         member.Name = request.Name;
         member.Nickname = request.Nickname;
         member.BirthDate = request.BirthDate;
-        member.Generation = request.Generation;
         member.Relationship = request.Relationship;
         member.AvatarUrl = request.AvatarUrl;
         member.CityId = request.CityId;
@@ -167,6 +167,11 @@ public partial class FamilyService : IFamilyService
         if (request.AssignedToTree.HasValue)
         {
             member.AssignedToTree = request.AssignedToTree.Value;
+        }
+
+        if (member.AssignedToTree)
+        {
+            member.Generation = request.Generation;
         }
 
         await _db.SaveChangesAsync(cancellationToken);

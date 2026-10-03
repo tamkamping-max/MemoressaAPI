@@ -55,13 +55,21 @@ public class AudienceConnectionTests
             PasswordHash = "x",
             IsActive = true
         });
-        db.FamilyMembers.Add(new FamilyMember
-        {
-            FamilyId = familyId,
-            Name = "OnTree",
-            AssignedToTree = true,
-            Generation = Generation.Self
-        });
+        db.FamilyMembers.AddRange(
+            new FamilyMember
+            {
+                FamilyId = familyId,
+                Name = "OnTree",
+                AssignedToTree = true,
+                Generation = Generation.Self
+            },
+            new FamilyMember
+            {
+                FamilyId = familyId,
+                Name = "Unassigned",
+                AssignedToTree = false,
+                Generation = Generation.Self
+            });
         db.FamilyMemberInvites.Add(new FamilyMemberInvite
         {
             FamilyId = familyId,
@@ -73,11 +81,12 @@ public class AudienceConnectionTests
         await db.SaveChangesAsync();
 
         var service = CreateFamilyService(db, inviterId, familyId);
-        Assert.Equal(2, (await service.GetMembersAsync()).Data!.Count);
+        Assert.Equal(3, (await service.GetMembersAsync()).Data!.Count);
 
         var accepted = await service.GetMembersAsync("accepted");
-        var row = Assert.Single(accepted.Data!);
-        Assert.Equal("accepted", row.ConnectionStatus);
+        Assert.Equal(2, accepted.Data!.Count);
+        Assert.DoesNotContain(accepted.Data, m => m.ConnectionStatus == "pending_outgoing");
+        Assert.Contains(accepted.Data, m => m.Name == "Unassigned" && !m.AssignedToTree);
     }
 
     [Fact]

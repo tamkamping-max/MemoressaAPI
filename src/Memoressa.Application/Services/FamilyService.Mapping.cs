@@ -1,3 +1,4 @@
+using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Memoressa.Domain.Entities;
@@ -25,7 +26,8 @@ public partial class FamilyService
             LinkedUser = profile,
             Counterparty = profile,
             ConnectionStatus = "accepted",
-            AssignedToTree = member.AssignedToTree
+            AssignedToTree = member.AssignedToTree,
+            Generation = FamilyMemberDtoMapping.GenerationForResponse(member)
         };
     }
 
@@ -77,7 +79,7 @@ public partial class FamilyService
             ConnectionStatus = "pending_outgoing",
             AssignedToTree = false,
             FaceRecognitionEnabled = true,
-            Generation = Generation.Self
+            Generation = null
         };
     }
 
