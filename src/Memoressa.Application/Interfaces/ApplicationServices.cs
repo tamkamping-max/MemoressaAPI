@@ -57,6 +57,9 @@ public interface IPhotoService
         int? limit = null,
         string? cursor = null,
         CancellationToken cancellationToken = default);
+    Task<ServiceResult<PhotoBatchResponseDto>> BatchGetPhotosAsync(
+        PhotoBatchRequestDto request,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult<PhotoDownloadDto>> GetOriginalDownloadAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ServiceResult<PhotoDownloadBatchResponseDto>> GetDownloadBatchAsync(
         PhotoDownloadBatchRequestDto request,
@@ -247,6 +250,10 @@ public interface IActivityService
         string? cursor = null,
         CancellationToken cancellationToken = default);
     Task<ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>> GetInProgressAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<ApiDataResponseDto<ActivityAlbumDto>>> GetByIdAsync(
+        string activityId,
+        Guid? creatorUserId = null,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult<ActivityAlbumDto>> CreateAsync(UpsertActivityAlbumRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<ActivityAlbumDto>> UpdateAsync(string activityId, UpsertActivityAlbumRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult> DeleteAsync(string activityId, CancellationToken cancellationToken = default);

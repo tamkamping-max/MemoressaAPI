@@ -419,7 +419,7 @@ All public REST endpoints use the prefix `api/v1/`. Internal Go WebSocket integr
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | User-created memory albums only (`POST /`). Excludes `IsAiGenerated`, `IsTodayHighlight`, and `type: aiMemory`. Same scope on `POST /filter` and `GET /years-ago-today`. |
+| GET | `/` | User-created memory albums only (`POST /`). Excludes `IsAiGenerated`, `IsTodayHighlight`, and `type: aiMemory`. Same scope on `POST /filter` and `GET /years-ago-today`. Each item includes **`photoCount`**, **`coverPhotos`** (≤4 photo summaries: `id`, `thumbnailUrl`, `remoteUrl`, `fullUrl`, `takenAt`, `uploadedBy`), **`coverThumbnailUrl`**. |
 | GET | `/ai-curated` | AI-curated memories |
 | GET | `/today` | Today's memories |
 | POST | `/today/regenerate` | Regenerate today highlight |

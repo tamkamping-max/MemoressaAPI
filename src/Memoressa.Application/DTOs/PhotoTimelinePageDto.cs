@@ -8,4 +8,6 @@ public record PhotoTimelinePageDto
     [JsonPropertyName("albumCards")] public IReadOnlyList<PhotoAlbumCardDto> AlbumCards { get; init; } = [];
     [JsonPropertyName("nextCursor")] public string? NextCursor { get; init; }
     [JsonPropertyName("hasMore")] public bool HasMore { get; init; }
+    [JsonIgnore]
+    public string? ETag { get; init; }
 }

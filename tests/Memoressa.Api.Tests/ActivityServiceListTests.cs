@@ -270,8 +270,11 @@ public class ActivityServiceListTests
         public Task<IReadOnlyList<PhotoDto>> ToDtosAsync(
             IEnumerable<Photo> photos,
             PhotoUrlPurpose purpose = PhotoUrlPurpose.ApiResponse,
-            CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+            CancellationToken cancellationToken = default)
+        {
+            var list = photos.Select(p => new PhotoDto { Id = p.Id, UploadedBy = p.UploadedByUserId }).ToList();
+            return Task.FromResult<IReadOnlyList<PhotoDto>>(list);
+        }
 
         public Task<string?> GetPresignedUrlAsync(
             Photo photo,

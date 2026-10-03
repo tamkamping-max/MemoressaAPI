@@ -81,6 +81,30 @@ public class PhotosController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _photoService.GetTimelinePhotosAsync(limit, cursor, cancellationToken);
+        if (!result.Success)
+        {
+            return result.ToActionResult();
+        }
+
+        if (!string.IsNullOrEmpty(result.Data!.ETag))
+        {
+            if (Request.Headers.IfNoneMatch.Contains(result.Data.ETag))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            Response.Headers.ETag = result.Data.ETag;
+        }
+
+        return result.ToActionResult();
+    }
+
+    [HttpPost("batch")]
+    public async Task<IActionResult> BatchGetPhotos(
+        [FromBody] PhotoBatchRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _photoService.BatchGetPhotosAsync(request, cancellationToken);
         return result.ToActionResult();
     }
 

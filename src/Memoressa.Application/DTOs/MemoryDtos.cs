@@ -24,6 +24,9 @@ public record MemoryDto
     [JsonPropertyName("visibility")] public MemoryVisibility Visibility { get; init; }
     [JsonPropertyName("weatherSummary")] public string? WeatherSummary { get; init; }
     [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
+    [JsonPropertyName("photoCount")] public int PhotoCount { get; init; }
+    [JsonPropertyName("coverPhotos")] public IReadOnlyList<PhotoSummaryDto> CoverPhotos { get; init; } = [];
+    [JsonPropertyName("coverThumbnailUrl")] public string? CoverThumbnailUrl { get; init; }
 }
 
 public record CreateMemoryRequestDto

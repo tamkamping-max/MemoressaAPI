@@ -93,9 +93,11 @@ public class ActivityService : IActivityService
         }
 
         var creatorSummaries = await LoadCreatorSummariesAsync(slice, cancellationToken);
-        var page = slice
-            .Select(a => MapActivityDto(a, ctx.Value.UserId, creatorSummaries))
-            .ToList();
+        var page = await MapActivityDtosWithFeedAsync(
+            slice,
+            ctx.Value.UserId,
+            creatorSummaries,
+            cancellationToken);
 
         string? nextCursor = null;
         if (hasMore && slice.Count > 0)
@@ -134,11 +136,48 @@ public class ActivityService : IActivityService
 
         var orderedActivities = activities.OrderByDescending(a => a.StartDate).ToList();
         var creatorSummaries = await LoadCreatorSummariesAsync(orderedActivities, cancellationToken);
-        var items = orderedActivities
-            .Select(a => MapActivityDto(a, ctx.Value.UserId, creatorSummaries))
-            .ToList();
+        var items = await MapActivityDtosWithFeedAsync(
+            orderedActivities,
+            ctx.Value.UserId,
+            creatorSummaries,
+            cancellationToken);
 
         return ServiceResult<ApiDataResponseDto<ActivityAlbumListDataDto>>.Ok(Wrap(items));
+    }
+
+    public async Task<ServiceResult<ApiDataResponseDto<ActivityAlbumDto>>> GetByIdAsync(
+        string activityId,
+        Guid? creatorUserId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityAlbumDto>>.Fail("Unauthorized", 401);
+        }
+
+        var resolved = await ActivityAlbumAccess.ResolveAccessibleAsync(
+            _db,
+            ctx.Value.UserId,
+            activityId,
+            cancellationToken,
+            creatorUserId,
+            ActivityAlbumAmbiguityPolicy.FailIfAmbiguous);
+        if (resolved.Activity is null)
+        {
+            return ServiceResult<ApiDataResponseDto<ActivityAlbumDto>>.Fail(
+                resolved.Error ?? "Activity not found",
+                resolved.StatusCode);
+        }
+
+        var dto = await MapActivityDtoWithFeedAsync(
+            resolved.Activity,
+            ctx.Value.UserId,
+            includeCreatorSummary: true,
+            cancellationToken);
+
+        return ServiceResult<ApiDataResponseDto<ActivityAlbumDto>>.Ok(
+            new ApiDataResponseDto<ActivityAlbumDto> { Data = dto });
     }
 
     public async Task<ServiceResult<ActivityAlbumDto>> CreateAsync(
@@ -211,7 +250,7 @@ public class ActivityService : IActivityService
         await ReloadActivityGraphAsync(activity.Id, cancellationToken);
         var loaded = await QueryActivities(ctx.Value.FamilyId).FirstAsync(a => a.Id == activity.Id, cancellationToken);
         return ServiceResult<ActivityAlbumDto>.Created(
-            await MapActivityDtoAsync(loaded, ctx.Value.UserId, includeCreatorSummary: true, cancellationToken));
+            await MapActivityDtoWithFeedAsync(loaded, ctx.Value.UserId, includeCreatorSummary: true, cancellationToken));
     }
 
     public async Task<ServiceResult<ActivityAlbumDto>> UpdateAsync(
@@ -330,7 +369,7 @@ public class ActivityService : IActivityService
 
         var loaded = await QueryActivitiesGraph().FirstAsync(a => a.Id == activity.Id, cancellationToken);
         return ServiceResult<ActivityAlbumDto>.Ok(
-            await MapActivityDtoAsync(loaded, ctx.Value.UserId, includeCreatorSummary: true, cancellationToken));
+            await MapActivityDtoWithFeedAsync(loaded, ctx.Value.UserId, includeCreatorSummary: true, cancellationToken));
     }
 
     public async Task<ServiceResult> DeleteAsync(string activityId, CancellationToken cancellationToken = default)
@@ -461,7 +500,11 @@ public class ActivityService : IActivityService
             {
                 SortRank = rank++,
                 Subtitle = ActivityAlbumMapping.BuildSubtitle(entry.Activity, referenceDate),
-                Activity = MapActivityDto(entry.Activity, ctx.Value.UserId, creatorSummaries),
+                Activity = await MapActivityDtoWithFeedAsync(
+                    entry.Activity,
+                    ctx.Value.UserId,
+                    creatorSummaries,
+                    cancellationToken),
                 Photos = previews
             });
         }
@@ -523,13 +566,18 @@ public class ActivityService : IActivityService
             take = ActivityPhotosMaxLimit;
         }
 
+        var total = await CountAccessibleLinkedPhotosAsync(activity.Id, ctx.Value.UserId, cancellationToken);
         var photos = await LoadLinkedPhotosAsync(activity.Id, ctx.Value.UserId, take, cancellationToken);
         var dtos = await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken);
 
         return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Ok(
             new ApiDataResponseDto<ActivityPhotosListDataDto>
             {
-                Data = new ActivityPhotosListDataDto { Items = dtos }
+                Data = new ActivityPhotosListDataDto
+                {
+                    Items = dtos,
+                    Total = total
+                }
             });
     }
 
@@ -1188,23 +1236,123 @@ public class ActivityService : IActivityService
         return ActivityAlbumMapping.ToDto(activity, viewerUserId, creator);
     }
 
-    private async Task<ActivityAlbumDto> MapActivityDtoAsync(
+    private async Task<ActivityAlbumDto> MapActivityDtoWithFeedAsync(
         ActivityAlbum activity,
         Guid viewerUserId,
         bool includeCreatorSummary,
         CancellationToken cancellationToken)
     {
-        ActivityAlbumCreatorSummary? creator = null;
+        IReadOnlyDictionary<Guid, ActivityAlbumCreatorSummary> creatorSummaries;
         if (includeCreatorSummary)
         {
-            var map = await LoadCreatorSummariesAsync([activity], cancellationToken);
-            if (map.TryGetValue(activity.CreatorUserId, out var summary))
-            {
-                creator = summary;
-            }
+            creatorSummaries = await LoadCreatorSummariesAsync([activity], cancellationToken);
+        }
+        else
+        {
+            creatorSummaries = new Dictionary<Guid, ActivityAlbumCreatorSummary>();
         }
 
-        return ActivityAlbumMapping.ToDto(activity, viewerUserId, creator);
+        return (await MapActivityDtosWithFeedAsync(
+            [activity],
+            viewerUserId,
+            creatorSummaries,
+            cancellationToken))[0];
+    }
+
+    private async Task<ActivityAlbumDto> MapActivityDtoWithFeedAsync(
+        ActivityAlbum activity,
+        Guid viewerUserId,
+        IReadOnlyDictionary<Guid, ActivityAlbumCreatorSummary> creatorSummaries,
+        CancellationToken cancellationToken)
+    {
+        return (await MapActivityDtosWithFeedAsync(
+            [activity],
+            viewerUserId,
+            creatorSummaries,
+            cancellationToken))[0];
+    }
+
+    private async Task<List<ActivityAlbumDto>> MapActivityDtosWithFeedAsync(
+        IReadOnlyList<ActivityAlbum> activities,
+        Guid viewerUserId,
+        IReadOnlyDictionary<Guid, ActivityAlbumCreatorSummary> creatorSummaries,
+        CancellationToken cancellationToken)
+    {
+        if (activities.Count == 0)
+        {
+            return [];
+        }
+
+        var activityIds = activities.Select(a => a.Id).ToList();
+        var snapshots = await ActivityAlbumPhotoFeedHelper.LoadSnapshotsAsync(
+            _db,
+            activityIds,
+            PhotoBatchLimits.ActivityPreviewPhotoLimit,
+            cancellationToken);
+
+        var previewIds = snapshots.Values
+            .SelectMany(s => s.PreviewPhotoIds ?? [])
+            .Distinct()
+            .ToList();
+
+        IReadOnlyList<PhotoSummaryDto> summaryList = [];
+        if (previewIds.Count > 0)
+        {
+            summaryList = await PhotoSummaryLoader.LoadSummariesCrossFamilyAsync(
+                _db,
+                _photoUrls,
+                viewerUserId,
+                previewIds,
+                cancellationToken);
+        }
+
+        var summaryById = summaryList.ToDictionary(s => s.Id);
+
+        var dtos = new List<ActivityAlbumDto>(activities.Count);
+        foreach (var activity in activities)
+        {
+            var baseDto = MapActivityDto(activity, viewerUserId, creatorSummaries);
+            if (!snapshots.TryGetValue(activity.Id, out var snapshot))
+            {
+                snapshot = new ActivityAlbumPhotoFeedSnapshot(0, []);
+            }
+
+            var previewIdList = snapshot.PreviewPhotoIds ?? [];
+            var previews = previewIdList
+                .Where(summaryById.ContainsKey)
+                .Select(id => summaryById[id])
+                .ToList();
+
+            dtos.Add(baseDto with
+            {
+                PhotoCount = snapshot.PhotoCount,
+                PreviewPhotos = previews
+            });
+        }
+
+        return dtos;
+    }
+
+    private async Task<int> CountAccessibleLinkedPhotosAsync(
+        Guid activityAlbumId,
+        Guid viewerUserId,
+        CancellationToken cancellationToken)
+    {
+        var linkedIds = await _db.ActivityAlbumPhotos.AsNoTracking()
+            .Where(ap => ap.ActivityAlbumId == activityAlbumId)
+            .Select(ap => ap.PhotoId)
+            .ToListAsync(cancellationToken);
+
+        if (linkedIds.Count == 0)
+        {
+            return 0;
+        }
+
+        return await PhotoViewerAccess.ApplyViewerFilter(
+                _db.Photos.AsNoTracking()
+                    .Where(p => linkedIds.Contains(p.Id) && !p.IsHidden),
+                viewerUserId)
+            .CountAsync(cancellationToken);
     }
 
     private async Task<IReadOnlyDictionary<Guid, ActivityAlbumCreatorSummary>> LoadCreatorSummariesAsync(

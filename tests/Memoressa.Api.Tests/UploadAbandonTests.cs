@@ -257,6 +257,12 @@ public class UploadAbandonTests
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
+        public Task<ServiceResult<ApiDataResponseDto<ActivityAlbumDto>>> GetByIdAsync(
+            string activityId,
+            Guid? creatorUserId = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<ServiceResult<ActivityAlbumDto>> CreateAsync(
             UpsertActivityAlbumRequestDto request,
             CancellationToken cancellationToken = default) =>

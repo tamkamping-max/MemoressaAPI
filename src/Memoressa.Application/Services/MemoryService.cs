@@ -12,12 +12,17 @@ public class MemoryService : IMemoryService
 {
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly IPhotoUrlResolver _photoUrls;
     private readonly Random _random = new();
 
-    public MemoryService(IMemoressaDbContext db, ICurrentUserService currentUser)
+    public MemoryService(
+        IMemoressaDbContext db,
+        ICurrentUserService currentUser,
+        IPhotoUrlResolver photoUrls)
     {
         _db = db;
         _currentUser = currentUser;
+        _photoUrls = photoUrls;
     }
 
     public async Task<ServiceResult<IReadOnlyList<MemoryDto>>> GetMemoriesAsync(CancellationToken cancellationToken = default)
@@ -32,7 +37,13 @@ public class MemoryService : IMemoryService
             .OrderByDescending(m => m.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return ServiceResult<IReadOnlyList<MemoryDto>>.Ok(memories.Select(m => m.ToDto()).ToList());
+        var items = new List<MemoryDto>(memories.Count);
+        foreach (var memory in memories)
+        {
+            items.Add(await EnrichMemoryDtoAsync(memory, ctx.Value.FamilyId, ctx.Value.UserId, cancellationToken));
+        }
+
+        return ServiceResult<IReadOnlyList<MemoryDto>>.Ok(items);
     }
 
     public async Task<ServiceResult<IReadOnlyList<MemoryDto>>> GetAiCuratedMemoriesAsync(CancellationToken cancellationToken = default)
@@ -339,6 +350,35 @@ public class MemoryService : IMemoryService
 
         var memories = await query.OrderByDescending(m => m.CreatedAt).ToListAsync(cancellationToken);
         return ServiceResult<IReadOnlyList<MemoryDto>>.Ok(memories.Select(m => m.ToDto()).ToList());
+    }
+
+    private async Task<MemoryDto> EnrichMemoryDtoAsync(
+        Memory memory,
+        Guid familyId,
+        Guid viewerUserId,
+        CancellationToken cancellationToken)
+    {
+        var dto = memory.ToDto();
+        var orderedPhotoIds = memory.MemoryPhotos
+            .OrderBy(mp => mp.SortOrder)
+            .Select(mp => mp.PhotoId)
+            .ToList();
+
+        var coverIds = orderedPhotoIds.Take(PhotoBatchLimits.MemoryCoverPhotoLimit).ToList();
+        var coverPhotos = await PhotoSummaryLoader.LoadSummariesAsync(
+            _db,
+            _photoUrls,
+            familyId,
+            viewerUserId,
+            coverIds,
+            cancellationToken);
+
+        return dto with
+        {
+            PhotoCount = orderedPhotoIds.Count,
+            CoverPhotos = coverPhotos,
+            CoverThumbnailUrl = coverPhotos.FirstOrDefault()?.ThumbnailUrl
+        };
     }
 
     private IQueryable<Memory> QueryMemories(Guid familyId) =>

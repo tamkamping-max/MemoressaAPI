@@ -315,12 +315,87 @@ public class PhotoService : IPhotoService
         }
 
         var items = await _photoUrls.ToDtosAsync(page, cancellationToken: cancellationToken);
+
+        var fingerprint = await BuildTimelineFingerprintAsync(ctx.Value.FamilyId, ctx.Value.UserId, cancellationToken);
         return ServiceResult<PhotoTimelinePageDto>.Ok(new PhotoTimelinePageDto
         {
             Items = items,
             NextCursor = nextCursor,
-            HasMore = hasMore
+            HasMore = hasMore,
+            ETag = fingerprint
         });
+    }
+
+    public async Task<ServiceResult<PhotoBatchResponseDto>> BatchGetPhotosAsync(
+        PhotoBatchRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
+        if (ctx is null)
+        {
+            return ServiceResult<PhotoBatchResponseDto>.Fail("Unauthorized", 401);
+        }
+
+        if (request.Ids.Count == 0)
+        {
+            return ServiceResult<PhotoBatchResponseDto>.Ok(new PhotoBatchResponseDto());
+        }
+
+        if (request.Ids.Count > PhotoBatchLimits.MaxPhotoIdsPerBatch)
+        {
+            return ServiceResult<PhotoBatchResponseDto>.Fail(
+                $"At most {PhotoBatchLimits.MaxPhotoIdsPerBatch} ids per request",
+                400);
+        }
+
+        var orderedIds = new List<Guid>(request.Ids.Count);
+        var seen = new HashSet<Guid>();
+        foreach (var raw in request.Ids)
+        {
+            if (!PhotoReferenceIds.TryParse(raw, out var id))
+            {
+                return ServiceResult<PhotoBatchResponseDto>.Fail($"Invalid photo id: {raw}", 400);
+            }
+
+            if (seen.Add(id))
+            {
+                orderedIds.Add(id);
+            }
+        }
+
+        var summaries = await PhotoSummaryLoader.LoadSummariesAsync(
+            _db,
+            _photoUrls,
+            ctx.Value.FamilyId,
+            ctx.Value.UserId,
+            orderedIds,
+            cancellationToken);
+
+        return ServiceResult<PhotoBatchResponseDto>.Ok(new PhotoBatchResponseDto { Items = summaries });
+    }
+
+    private async Task<string> BuildTimelineFingerprintAsync(
+        Guid familyId,
+        Guid viewerUserId,
+        CancellationToken cancellationToken)
+    {
+        var stats = await PhotoViewerAccess.ApplyViewerFilter(
+                _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId && !p.IsHidden),
+                viewerUserId)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Count = g.Count(),
+                MaxSort = g.Max(p => p.TakenAt ?? p.CreatedAt)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (stats is null || stats.Count == 0)
+        {
+            return "\"timeline-empty\"";
+        }
+
+        return $"\"tl-{stats.Count}-{stats.MaxSort.Ticks}\"";
     }
 
     public async Task<ServiceResult<PhotoDownloadDto>> GetOriginalDownloadAsync(

@@ -48,6 +48,16 @@ public class ActivitiesController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpGet("{activityId}")]
+    public async Task<IActionResult> GetById(
+        string activityId,
+        [FromQuery] Guid? creatorUserId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _activities.GetByIdAsync(activityId, creatorUserId, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("{activityId}/photos")]
     public async Task<IActionResult> GetPhotos(
         string activityId,

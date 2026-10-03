@@ -47,6 +47,8 @@ public record ActivityAlbumDto
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope PrivacyScope { get; init; } = UploadPrivacyScope.Family;
     [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
     [JsonPropertyName("agenda")] public IReadOnlyList<ActivityAgendaItemDto> Agenda { get; init; } = [];
+    [JsonPropertyName("photoCount")] public int PhotoCount { get; init; }
+    [JsonPropertyName("previewPhotos")] public IReadOnlyList<PhotoSummaryDto> PreviewPhotos { get; init; } = [];
 }
 
 public record UpsertActivityAlbumRequestDto
@@ -92,6 +94,8 @@ public record ActivityPhotoPreviewDto
 public record ActivityPhotosListDataDto
 {
     [JsonPropertyName("items")] public IReadOnlyList<PhotoDto> Items { get; init; } = [];
+    [JsonPropertyName("total")] public int Total { get; init; }
+    [JsonPropertyName("nextCursor")] public string? NextCursor { get; init; }
 }
 
 public record ActiveActivityTodayCardDto
