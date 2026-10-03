@@ -13,27 +13,37 @@ public partial class FamilyService
         CancellationToken cancellationToken)
     {
         var dto = await _avatarUrls.ToFamilyMemberDtoAsync(member, cancellationToken);
-        FamilyMemberUserSummaryDto? linked = null;
-        if (linkedUser is not null)
-        {
-            linked = new FamilyMemberUserSummaryDto
-            {
-                Id = linkedUser.Id,
-                Nickname = linkedUser.Nickname,
-                Email = linkedUser.Email,
-                AvatarUrl = await _avatarUrls.ResolveForResponseAsync(linkedUser.AvatarUrl, cancellationToken)
-            };
-        }
-
+        var profile = await BuildAcceptedMemberProfileAsync(member, linkedUser, cancellationToken);
         var displayName = linkedUser?.Nickname ?? linkedUser?.Email;
+
         return dto with
         {
-            Nickname = dto.Nickname ?? displayName,
+            FamilyMemberId = member.Id,
+            Nickname = dto.Nickname ?? displayName ?? dto.Name,
             Email = linkedUser?.Email,
             LinkedUserId = member.LinkedUserId,
-            LinkedUser = linked,
+            LinkedUser = profile,
+            Counterparty = profile,
             ConnectionStatus = "accepted",
             AssignedToTree = member.AssignedToTree
+        };
+    }
+
+    private async Task<FamilyMemberUserSummaryDto> BuildAcceptedMemberProfileAsync(
+        FamilyMember member,
+        UserAccount? linkedUser,
+        CancellationToken cancellationToken)
+    {
+        var avatarStored = linkedUser?.AvatarUrl ?? member.AvatarUrl;
+        var name = linkedUser?.Nickname ?? linkedUser?.Email ?? member.Name;
+        return new FamilyMemberUserSummaryDto
+        {
+            FamilyMemberId = member.Id,
+            Id = linkedUser?.Id,
+            Name = name,
+            Nickname = member.Nickname ?? linkedUser?.Nickname,
+            Email = linkedUser?.Email,
+            AvatarUrl = await _avatarUrls.ResolveForResponseAsync(avatarStored, cancellationToken)
         };
     }
 
@@ -43,28 +53,27 @@ public partial class FamilyService
         CancellationToken cancellationToken)
     {
         var displayName = inviteeUser?.Nickname ?? inviteeUser?.Email ?? invite.InviteeEmail;
-        FamilyMemberUserSummaryDto? linked = null;
-        if (inviteeUser is not null)
+        var profile = new FamilyMemberUserSummaryDto
         {
-            linked = new FamilyMemberUserSummaryDto
-            {
-                Id = inviteeUser.Id,
-                Nickname = inviteeUser.Nickname,
-                Email = inviteeUser.Email,
-                AvatarUrl = await _avatarUrls.ResolveForResponseAsync(inviteeUser.AvatarUrl, cancellationToken)
-            };
-        }
+            Id = inviteeUser?.Id,
+            Name = displayName,
+            Nickname = displayName,
+            Email = invite.InviteeEmail,
+            AvatarUrl = await _avatarUrls.ResolveForResponseAsync(inviteeUser?.AvatarUrl, cancellationToken)
+        };
 
         return new FamilyMemberDto
         {
             Id = invite.Id,
+            FamilyMemberId = null,
             InviteId = invite.Id,
             Name = displayName ?? invite.InviteeEmail,
             Nickname = displayName,
             Email = invite.InviteeEmail,
-            AvatarUrl = await _avatarUrls.ResolveForResponseAsync(inviteeUser?.AvatarUrl, cancellationToken),
+            AvatarUrl = profile.AvatarUrl,
             LinkedUserId = inviteeUser?.Id,
-            LinkedUser = linked,
+            LinkedUser = profile,
+            Counterparty = profile,
             ConnectionStatus = "pending_outgoing",
             AssignedToTree = false,
             FaceRecognitionEnabled = true,
@@ -85,6 +94,7 @@ public partial class FamilyService
         FamilyMemberUserSummaryDto MapUser(UserAccount user) => new()
         {
             Id = user.Id,
+            Name = user.Nickname ?? user.Email,
             Nickname = user.Nickname,
             Email = user.Email,
             AvatarUrl = user.AvatarUrl

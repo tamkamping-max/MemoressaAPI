@@ -480,7 +480,7 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | Roster: accepted **`FamilyMember`** rows + **`pending_outgoing`** invites (mirrors friends list). Query **`connectionStatus=accepted`** → accepted members only (includes **`assignedToTree: false`** after invite accept). **`id`** / **`familyConnectionId`** / **`memberConnectionId`** = row id for **`DELETE /{id}`**; **`linkedUserId`** / **`friendUserId`** = counterparty account (not for DELETE). |
+| GET | `/` | Roster: accepted **`FamilyMember`** rows + **`pending_outgoing`** invites. Query **`connectionStatus=accepted`**. **Accepted:** **`id`** = **`familyMemberId`** = that person’s **`family_members`** row (unique per person; **`linkedUserId`** = their Memoressa user id when linked). **`counterparty`** / **`linkedUser`**: `{ id?, familyMemberId?, name, avatarUrl, … }`. **Pending:** **`id`** = invite/connection id for **`DELETE`**, **`familyMemberId`** omitted/null until accept. **`assignedToTree`**: `false` = not placed on tree tier. |
 | GET | `/invites` | Inbox: **`pending_incoming`** invites for the JWT user (nested **`inviter`** / **`invitee`** profiles). |
 | POST | `/invites` | `{ "email" }` — invite an **existing** app member (**201** / **`pending_outgoing`**). **`code`**: `invalid_email` (**400**), `cannot_invite_self` (**400**), `email_not_registered` (**404**), `family_already_connected` (**409** member or pending in family). |
 | POST | `/invites/{inviteId}/accept` | Accept → **`FamilyMember`** with **`linkedUserId`**, **`assignedToTree: false`** until placed on a tier (**PUT** with **`assignedToTree: true`**). |

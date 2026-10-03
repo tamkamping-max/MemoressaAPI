@@ -5,7 +5,10 @@ namespace Memoressa.Application.DTOs;
 
 public record FamilyMemberUserSummaryDto
 {
-    [JsonPropertyName("id")] public Guid Id { get; init; }
+    /// <summary>Memoressa user account id when the member is linked to an app user.</summary>
+    [JsonPropertyName("id")] public Guid? Id { get; init; }
+    [JsonPropertyName("familyMemberId")] public Guid? FamilyMemberId { get; init; }
+    [JsonPropertyName("name")] public string? Name { get; init; }
     [JsonPropertyName("nickname")] public string? Nickname { get; init; }
     [JsonPropertyName("email")] public string? Email { get; init; }
     [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
@@ -13,7 +16,10 @@ public record FamilyMemberUserSummaryDto
 
 public record FamilyMemberDto
 {
+    /// <summary>Accepted: family_members row id. Pending invite: invite id (use familyConnectionId for DELETE).</summary>
     [JsonPropertyName("id")] public Guid Id { get; init; }
+    /// <summary>Accepted member row id; null while invite is still pending (no member row yet).</summary>
+    [JsonPropertyName("familyMemberId")] public Guid? FamilyMemberId { get; init; }
     [JsonPropertyName("familyConnectionId")] public Guid FamilyConnectionId => Id;
     [JsonPropertyName("memberConnectionId")] public Guid MemberConnectionId => Id;
     [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
@@ -33,6 +39,7 @@ public record FamilyMemberDto
     [JsonPropertyName("friendUserId")] public Guid? FriendUserId => LinkedUserId;
     [JsonPropertyName("inviteId")] public Guid? InviteId { get; init; }
     [JsonPropertyName("linkedUser")] public FamilyMemberUserSummaryDto? LinkedUser { get; init; }
+    [JsonPropertyName("counterparty")] public FamilyMemberUserSummaryDto? Counterparty { get; init; }
 }
 
 public record FamilyMemberInviteDto

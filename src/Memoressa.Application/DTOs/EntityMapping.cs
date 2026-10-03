@@ -89,6 +89,7 @@ public static class EntityMapping
     public static FamilyMemberDto ToDto(this FamilyMember member) => new()
     {
         Id = member.Id,
+        FamilyMemberId = member.Id,
         Name = member.Name,
         Nickname = member.Nickname,
         BirthDate = member.BirthDate,
