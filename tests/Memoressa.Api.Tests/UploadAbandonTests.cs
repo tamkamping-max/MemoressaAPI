@@ -288,6 +288,7 @@ public class UploadAbandonTests
             string activityId,
             int? limit = null,
             Guid? creatorUserId = null,
+            string? cursor = null,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 

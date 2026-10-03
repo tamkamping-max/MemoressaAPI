@@ -21,7 +21,8 @@ public readonly record struct ActivityAlbumResolveRequest(
 public readonly record struct ActivityAlbumResolveResult(
     ActivityAlbum? Activity,
     string? Error,
-    int StatusCode)
+    int StatusCode,
+    string? ErrorCode = null)
 {
     public bool Success => Activity is not null && StatusCode is >= 200 and < 300;
 
@@ -34,8 +35,9 @@ public readonly record struct ActivityAlbumResolveResult(
     public static ActivityAlbumResolveResult Ambiguous() =>
         new(
             null,
-            "Multiple activities match; pass creatorUserId or use the activity album id (GUID)",
-            409);
+            ActivityErrorCodes.ActivityAlbumAmbiguousMessage,
+            409,
+            ActivityErrorCodes.ActivityAlbumAmbiguous);
 
     public static ActivityAlbumResolveResult Forbidden() =>
         new(null, "Forbidden", 403);

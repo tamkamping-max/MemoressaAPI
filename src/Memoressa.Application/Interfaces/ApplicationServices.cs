@@ -276,6 +276,7 @@ public interface IActivityService
         string activityId,
         int? limit = null,
         Guid? creatorUserId = null,
+        string? cursor = null,
         CancellationToken cancellationToken = default);
     Task<ServiceResult> AttachPhotosAsync(string activityId, ActivityAlbumPhotosRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<ApiDataResponseDto<ActivityPhotoIdsDataDto>>> ReplaceActivityPhotosAsync(

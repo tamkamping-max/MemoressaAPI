@@ -165,6 +165,38 @@ public class StreamFeedPerformanceTests
         Assert.True(photos.Success);
         Assert.Equal(15, photos.Data!.Data.Total);
         Assert.Equal(5, photos.Data.Data.Items.Count);
+        Assert.True(photos.Data.Data.HasMore);
+    }
+
+    [Fact]
+    public async Task BatchGetPhotos_SkipsUnknownAndMalformedIds()
+    {
+        var userId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var known = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        db.UserAccounts.Add(new UserAccount { Id = userId, Email = "u@test.com", PasswordHash = "x", IsActive = true });
+        db.Families.Add(new Family { Id = familyId, OwnerUserId = userId, Name = "F" });
+        db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = userId, Role = "owner" });
+        db.Photos.Add(new Photo { Id = known, FamilyId = familyId, UploadedByUserId = userId, S3Key = "k.jpg" });
+        await db.SaveChangesAsync();
+
+        var service = new PhotoService(
+            db,
+            new FixedUser(userId, familyId),
+            new SummaryPhotoUrlResolver(),
+            new StubS3Storage(),
+            Microsoft.Extensions.Options.Options.Create(new MediaStorageSettings()),
+            new StubPhotoAlbumService());
+
+        var batch = await service.BatchGetPhotosAsync(new PhotoBatchRequestDto
+        {
+            Ids = [known.ToString(), Guid.NewGuid().ToString(), "bad-id"]
+        });
+
+        Assert.True(batch.Success);
+        Assert.Single(batch.Data!.Items);
     }
 
     private static MemoressaDbContext CreateDb()

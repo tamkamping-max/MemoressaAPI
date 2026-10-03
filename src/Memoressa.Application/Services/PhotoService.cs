@@ -415,7 +415,7 @@ public class PhotoService : IPhotoService
         {
             if (!PhotoReferenceIds.TryParse(raw, out var id))
             {
-                return ServiceResult<PhotoBatchResponseDto>.Fail($"Invalid photo id: {raw}", 400);
+                continue;
             }
 
             if (seen.Add(id))

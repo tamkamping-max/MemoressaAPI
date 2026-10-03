@@ -112,6 +112,7 @@ public class ActivityService : IActivityService
                 Data = new ActivityAlbumListPageDataDto
                 {
                     Items = page,
+                    HasMore = hasMore,
                     NextCursor = nextCursor
                 }
             });
@@ -165,9 +166,7 @@ public class ActivityService : IActivityService
             ActivityAlbumAmbiguityPolicy.FailIfAmbiguous);
         if (resolved.Activity is null)
         {
-            return ServiceResult<ApiDataResponseDto<ActivityAlbumDto>>.Fail(
-                resolved.Error ?? "Activity not found",
-                resolved.StatusCode);
+            return FailActivityResolve<ApiDataResponseDto<ActivityAlbumDto>>(resolved);
         }
 
         var dto = await MapActivityDtoWithFeedAsync(
@@ -540,12 +539,23 @@ public class ActivityService : IActivityService
         string activityId,
         int? limit = null,
         Guid? creatorUserId = null,
+        string? cursor = null,
         CancellationToken cancellationToken = default)
     {
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
         if (ctx is null)
         {
             return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Fail("Unauthorized", 401);
+        }
+
+        ActivityPhotoLinkCursor? decodedCursor = null;
+        if (!string.IsNullOrWhiteSpace(cursor))
+        {
+            decodedCursor = ActivityPhotoLinkCursor.TryDecode(cursor);
+            if (decodedCursor is null)
+            {
+                return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Fail("Invalid cursor", 400);
+            }
         }
 
         var resolved = await ActivityAlbumAccess.ResolveAccessibleAsync(
@@ -557,9 +567,7 @@ public class ActivityService : IActivityService
             ActivityAlbumAmbiguityPolicy.FailIfAmbiguous);
         if (resolved.Activity is null)
         {
-            return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Fail(
-                resolved.Error ?? "Activity not found",
-                resolved.StatusCode);
+            return FailActivityResolve<ApiDataResponseDto<ActivityPhotosListDataDto>>(resolved);
         }
 
         var activity = resolved.Activity;
@@ -576,12 +584,23 @@ public class ActivityService : IActivityService
         }
 
         var total = await CountAccessibleLinkedPhotosAsync(activity.Id, ctx.Value.UserId, cancellationToken);
-        var photos = await LoadLinkedPhotosAsync(activity.Id, ctx.Value.UserId, take, cancellationToken);
+        var page = await LoadVisibleLinkedPhotoPageAsync(
+            activity.Id,
+            ctx.Value.UserId,
+            take,
+            decodedCursor,
+            cancellationToken);
         var dtos = await PhotoUploaderEnrichment.EnrichPhotoDtosAsync(
             _db,
-            photos,
-            await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken),
+            page.Photos,
+            await _photoUrls.ToDtosAsync(page.Photos, cancellationToken: cancellationToken),
             cancellationToken);
+
+        string? nextCursor = null;
+        if (page.HasMore && page.TailLinkCursor is not null)
+        {
+            nextCursor = page.TailLinkCursor.Encode();
+        }
 
         return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Ok(
             new ApiDataResponseDto<ActivityPhotosListDataDto>
@@ -589,7 +608,9 @@ public class ActivityService : IActivityService
                 Data = new ActivityPhotosListDataDto
                 {
                     Items = dtos,
-                    Total = total
+                    Total = total,
+                    HasMore = page.HasMore,
+                    NextCursor = nextCursor
                 }
             });
     }
@@ -860,25 +881,47 @@ public class ActivityService : IActivityService
         return previews;
     }
 
+    private sealed record VisibleLinkedPhotoPage(
+        List<Photo> Photos,
+        bool HasMore,
+        ActivityPhotoLinkCursor? TailLinkCursor);
+
     private async Task<List<Photo>> LoadLinkedPhotosAsync(
         Guid activityId,
         Guid viewerUserId,
         int take,
         CancellationToken cancellationToken)
     {
+        var page = await LoadVisibleLinkedPhotoPageAsync(
+            activityId,
+            viewerUserId,
+            take,
+            cursor: null,
+            cancellationToken);
+        return page.Photos;
+    }
+
+    private async Task<VisibleLinkedPhotoPage> LoadVisibleLinkedPhotoPageAsync(
+        Guid activityId,
+        Guid viewerUserId,
+        int take,
+        ActivityPhotoLinkCursor? cursor,
+        CancellationToken cancellationToken)
+    {
         var links = await _db.ActivityAlbumPhotos.AsNoTracking()
             .Where(ap => ap.ActivityAlbumId == activityId)
             .OrderByDescending(ap => ap.SortOrder)
             .ThenByDescending(ap => ap.CreatedAt)
-            .Select(ap => new { ap.PhotoId, ap.SortOrder, ap.CreatedAt })
+            .ThenByDescending(ap => ap.PhotoId)
+            .Select(ap => new { ap.PhotoId, ap.SortOrder })
             .ToListAsync(cancellationToken);
 
         if (links.Count == 0)
         {
-            return [];
+            return new VisibleLinkedPhotoPage([], false, null);
         }
 
-        var orderedIds = links.Select(l => l.PhotoId).ToList();
+        var orderedIds = links.Select(l => l.PhotoId).Distinct().ToList();
         var photos = await PhotoViewerAccess.ApplyViewerFilter(
                 _db.Photos.AsNoTracking()
                     .Where(p => orderedIds.Contains(p.Id) && !p.IsHidden)
@@ -892,23 +935,51 @@ public class ActivityService : IActivityService
             .ToListAsync(cancellationToken);
 
         var visibleById = photos.ToDictionary(p => p.Id);
-        var result = new List<Photo>(Math.Min(take, photos.Count));
+        var orderedVisible = new List<(Photo Photo, int SortOrder)>(photos.Count);
         foreach (var link in links)
         {
-            if (!visibleById.TryGetValue(link.PhotoId, out var photo))
+            if (visibleById.TryGetValue(link.PhotoId, out var photo))
             {
-                continue;
-            }
-
-            result.Add(photo);
-            if (result.Count >= take)
-            {
-                break;
+                orderedVisible.Add((photo, link.SortOrder));
             }
         }
 
-        return result;
+        if (cursor is not null)
+        {
+            var startIndex = -1;
+            for (var i = 0; i < orderedVisible.Count; i++)
+            {
+                var row = orderedVisible[i];
+                if (row.SortOrder == cursor.SortOrder && row.Photo.Id == cursor.PhotoId)
+                {
+                    startIndex = i;
+                    break;
+                }
+            }
+
+            if (startIndex >= 0)
+            {
+                orderedVisible = orderedVisible.Skip(startIndex + 1).ToList();
+            }
+        }
+
+        var hasMore = orderedVisible.Count > take;
+        var slice = orderedVisible.Take(take).ToList();
+        ActivityPhotoLinkCursor? tail = slice.Count == 0
+            ? null
+            : new ActivityPhotoLinkCursor(slice[^1].SortOrder, slice[^1].Photo.Id);
+
+        return new VisibleLinkedPhotoPage(
+            slice.Select(s => s.Photo).ToList(),
+            hasMore,
+            tail);
     }
+
+    private static ServiceResult<T> FailActivityResolve<T>(ActivityAlbumResolveResult resolved) =>
+        ServiceResult<T>.Fail(
+            resolved.Error ?? "Activity not found",
+            resolved.StatusCode,
+            resolved.ErrorCode);
 
     private static void SanitizeParticipants(ActivityAlbum activity, Guid familyId)
     {

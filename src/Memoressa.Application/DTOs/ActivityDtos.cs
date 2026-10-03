@@ -97,6 +97,7 @@ public record ActivityPhotosListDataDto
 {
     [JsonPropertyName("items")] public IReadOnlyList<PhotoDto> Items { get; init; } = [];
     [JsonPropertyName("total")] public int Total { get; init; }
+    [JsonPropertyName("hasMore")] public bool HasMore { get; init; }
     [JsonPropertyName("nextCursor")] public string? NextCursor { get; init; }
 }
 
@@ -121,6 +122,7 @@ public record ActivityAlbumListDataDto
 public record ActivityAlbumListPageDataDto
 {
     [JsonPropertyName("items")] public IReadOnlyList<ActivityAlbumDto> Items { get; init; } = [];
+    [JsonPropertyName("hasMore")] public bool HasMore { get; init; }
     [JsonPropertyName("nextCursor")] public string? NextCursor { get; init; }
 }
 
