@@ -17,7 +17,7 @@ public static class ServiceResultExtensions
             };
         }
 
-        return ToErrorResult(result.Error ?? "Request failed", result.StatusCode);
+        return ToErrorResult(result.Error ?? "Request failed", result.StatusCode, result.ErrorCode);
     }
 
     public static IActionResult ToActionResult<T>(this ServiceResult<T> result)
@@ -32,12 +32,14 @@ public static class ServiceResultExtensions
             };
         }
 
-        return ToErrorResult(result.Error ?? "Request failed", result.StatusCode);
+        return ToErrorResult(result.Error ?? "Request failed", result.StatusCode, result.ErrorCode);
     }
 
-    private static IActionResult ToErrorResult(string error, int statusCode)
+    private static IActionResult ToErrorResult(string error, int statusCode, string? errorCode = null)
     {
-        var body = new { error, message = error };
+        object body = errorCode is null
+            ? new { error, message = error }
+            : new { error, message = error, code = errorCode };
         return statusCode switch
         {
             401 => new UnauthorizedObjectResult(body),

@@ -227,16 +227,17 @@ public class PhotoService : IPhotoService
                 var distinctMemberIds = request.MemberIds.Distinct().ToList();
                 if (distinctMemberIds.Count > 0)
                 {
-                    var validCount = await _db.FamilyMembers.AsNoTracking()
-                        .CountAsync(
-                            m => m.FamilyId == photo.FamilyId && distinctMemberIds.Contains(m.Id),
-                            cancellationToken);
-
-                    if (validCount != distinctMemberIds.Count)
+                    var memberFailure = await AudienceConnectionValidation.ValidateFamilyMemberIdsAsync(
+                        _db,
+                        photo.FamilyId,
+                        distinctMemberIds,
+                        cancellationToken);
+                    if (memberFailure is not null)
                     {
                         return ServiceResult<PhotoDto>.Fail(
-                            "One or more family members are invalid for this photo",
-                            403);
+                            memberFailure.Error!,
+                            memberFailure.StatusCode,
+                            memberFailure.ErrorCode);
                     }
 
                     if (!request.PrivacyScope.HasValue)
@@ -253,16 +254,17 @@ public class PhotoService : IPhotoService
                 var distinctFriendIds = request.FriendIds.Distinct().ToList();
                 if (distinctFriendIds.Count > 0)
                 {
-                    var validCount = await _db.Friends.AsNoTracking()
-                        .CountAsync(
-                            f => f.OwnerUserId == ctx.Value.UserId && distinctFriendIds.Contains(f.Id),
-                            cancellationToken);
-
-                    if (validCount != distinctFriendIds.Count)
+                    var friendFailure = await AudienceConnectionValidation.ValidateFriendIdsAsync(
+                        _db,
+                        ctx.Value.UserId,
+                        distinctFriendIds,
+                        cancellationToken);
+                    if (friendFailure is not null)
                     {
                         return ServiceResult<PhotoDto>.Fail(
-                            "One or more friends are invalid for this photo",
-                            403);
+                            friendFailure.Error!,
+                            friendFailure.StatusCode,
+                            friendFailure.ErrorCode);
                     }
                 }
 

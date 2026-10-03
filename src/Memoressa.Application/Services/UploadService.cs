@@ -130,6 +130,38 @@ public class UploadService : IUploadService
                 startPrivacyValidation.StatusCode);
         }
 
+        if (request.MemberIds is { Count: > 0 })
+        {
+            var memberAudienceFailure = await AudienceConnectionValidation.ValidateFamilyMemberIdsAsync(
+                _db,
+                ctx.Value.FamilyId,
+                request.MemberIds,
+                cancellationToken);
+            if (memberAudienceFailure is not null)
+            {
+                return ServiceResult<StartUploadResponseDto>.Fail(
+                    memberAudienceFailure.Error!,
+                    memberAudienceFailure.StatusCode,
+                    memberAudienceFailure.ErrorCode);
+            }
+        }
+
+        if (request.FriendIds is { Count: > 0 })
+        {
+            var friendAudienceFailure = await AudienceConnectionValidation.ValidateFriendIdsAsync(
+                _db,
+                ctx.Value.UserId,
+                request.FriendIds,
+                cancellationToken);
+            if (friendAudienceFailure is not null)
+            {
+                return ServiceResult<StartUploadResponseDto>.Fail(
+                    friendAudienceFailure.Error!,
+                    friendAudienceFailure.StatusCode,
+                    friendAudienceFailure.ErrorCode);
+            }
+        }
+
         var activityParticipantsVisible = request.ActivityParticipantsVisible ?? activityAlbumId.HasValue;
         if (activityAlbumId.HasValue && request.ActivityParticipantsVisible == false)
         {
@@ -460,7 +492,10 @@ public class UploadService : IUploadService
             if (memberFailure is not null)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return ServiceResult<PhotoDto>.Fail(memberFailure.Error!, memberFailure.StatusCode);
+                return ServiceResult<PhotoDto>.Fail(
+                    memberFailure.Error!,
+                    memberFailure.StatusCode,
+                    memberFailure.ErrorCode);
             }
         }
 
@@ -475,7 +510,10 @@ public class UploadService : IUploadService
             if (friendFailure is not null)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return ServiceResult<PhotoDto>.Fail(friendFailure.Error!, friendFailure.StatusCode);
+                return ServiceResult<PhotoDto>.Fail(
+                    friendFailure.Error!,
+                    friendFailure.StatusCode,
+                    friendFailure.ErrorCode);
             }
         }
 

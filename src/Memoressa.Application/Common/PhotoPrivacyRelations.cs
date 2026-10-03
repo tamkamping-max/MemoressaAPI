@@ -13,19 +13,14 @@ public static class PhotoPrivacyRelations
         CancellationToken cancellationToken)
     {
         var distinctMemberIds = memberIds.Where(id => id != Guid.Empty).Distinct().ToList();
-        if (distinctMemberIds.Count > 0)
+        var memberFailure = await AudienceConnectionValidation.ValidateFamilyMemberIdsAsync(
+            db,
+            photo.FamilyId,
+            distinctMemberIds,
+            cancellationToken);
+        if (memberFailure is not null)
         {
-            var validCount = await db.FamilyMembers.AsNoTracking()
-                .CountAsync(
-                    m => m.FamilyId == photo.FamilyId && distinctMemberIds.Contains(m.Id),
-                    cancellationToken);
-
-            if (validCount != distinctMemberIds.Count)
-            {
-                return ServiceResult.Fail(
-                    "One or more family members are invalid for this photo",
-                    403);
-            }
+            return memberFailure;
         }
 
         if (db.Database.IsRelational())
@@ -66,19 +61,14 @@ public static class PhotoPrivacyRelations
         CancellationToken cancellationToken)
     {
         var distinctFriendIds = friendIds.Where(id => id != Guid.Empty).Distinct().ToList();
-        if (distinctFriendIds.Count > 0)
+        var friendFailure = await AudienceConnectionValidation.ValidateFriendIdsAsync(
+            db,
+            ownerUserId,
+            distinctFriendIds,
+            cancellationToken);
+        if (friendFailure is not null)
         {
-            var validCount = await db.Friends.AsNoTracking()
-                .CountAsync(
-                    f => f.OwnerUserId == ownerUserId && distinctFriendIds.Contains(f.Id),
-                    cancellationToken);
-
-            if (validCount != distinctFriendIds.Count)
-            {
-                return ServiceResult.Fail(
-                    "One or more friends are invalid for this photo",
-                    403);
-            }
+            return friendFailure;
         }
 
         if (db.Database.IsRelational())

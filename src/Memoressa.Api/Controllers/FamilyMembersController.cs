@@ -20,9 +20,11 @@ public class FamilyMembersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetMembers(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMembers(
+        [FromQuery] string? connectionStatus,
+        CancellationToken cancellationToken)
     {
-        var result = await _familyService.GetMembersAsync(cancellationToken);
+        var result = await _familyService.GetMembersAsync(connectionStatus, cancellationToken);
         return result.ToActionResult();
     }
 

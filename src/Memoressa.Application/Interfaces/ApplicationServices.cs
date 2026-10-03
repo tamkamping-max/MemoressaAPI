@@ -86,7 +86,9 @@ public interface IPhotoService
 
 public interface IFamilyService
 {
-    Task<ServiceResult<IReadOnlyList<FamilyMemberDto>>> GetMembersAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<IReadOnlyList<FamilyMemberDto>>> GetMembersAsync(
+        string? connectionStatus = null,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult<FamilyMemberDto>> GetMemberByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ServiceResult<FamilyMemberDto>> AddMemberAsync(CreateFamilyMemberRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult<FamilyMemberDto>> UpdateMemberAsync(Guid id, UpdateFamilyMemberRequestDto request, CancellationToken cancellationToken = default);
@@ -165,7 +167,9 @@ public interface ISettingsService
 
 public interface IFriendService
 {
-    Task<ServiceResult<IReadOnlyList<FriendDto>>> GetFriendsAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<IReadOnlyList<FriendDto>>> GetFriendsAsync(
+        string? status = null,
+        CancellationToken cancellationToken = default);
     Task<ServiceResult<IReadOnlyList<FriendInviteDto>>> GetFriendInvitesAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<FriendInviteDto>> CreateFriendInviteAsync(
         CreateFriendInviteRequestDto request,

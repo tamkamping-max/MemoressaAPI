@@ -117,7 +117,7 @@ public class PhotoFriendReplaceTests
             CancellationToken.None);
 
         Assert.False(result.Success);
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(400, result.StatusCode);
     }
 
     private sealed class StubCurrentUser(Guid userId) : ICurrentUserService

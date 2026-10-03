@@ -23,8 +23,15 @@ public partial class FriendService : IFriendService
         _avatarUrls = avatarUrls;
     }
 
-    public async Task<ServiceResult<IReadOnlyList<FriendDto>>> GetFriendsAsync(CancellationToken cancellationToken = default)
+    public async Task<ServiceResult<IReadOnlyList<FriendDto>>> GetFriendsAsync(
+        string? status = null,
+        CancellationToken cancellationToken = default)
     {
+        if (!ConnectionListFilter.TryParseFriendsStatus(status, out var filterMode, out var filterError))
+        {
+            return ServiceResult<IReadOnlyList<FriendDto>>.Fail(filterError!, 400);
+        }
+
         if (!_currentUser.UserId.HasValue)
         {
             return ServiceResult<IReadOnlyList<FriendDto>>.Fail("Unauthorized", 401);
@@ -74,7 +81,10 @@ public partial class FriendService : IFriendService
             }
         }
 
-        dtos.AddRange(await BuildPendingFriendDtosAsync(userId, user.Email, cancellationToken));
+        if (filterMode != ConnectionListFilterMode.AcceptedOnly)
+        {
+            dtos.AddRange(await BuildPendingFriendDtosAsync(userId, user.Email, cancellationToken));
+        }
 
         return ServiceResult<IReadOnlyList<FriendDto>>.Ok(dtos);
     }

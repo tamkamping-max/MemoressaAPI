@@ -24,8 +24,18 @@ public partial class FamilyService : IFamilyService
         _avatarUrls = avatarUrls;
     }
 
-    public async Task<ServiceResult<IReadOnlyList<FamilyMemberDto>>> GetMembersAsync(CancellationToken cancellationToken = default)
+    public async Task<ServiceResult<IReadOnlyList<FamilyMemberDto>>> GetMembersAsync(
+        string? connectionStatus = null,
+        CancellationToken cancellationToken = default)
     {
+        if (!ConnectionListFilter.TryParseFamilyConnectionStatus(
+                connectionStatus,
+                out var filterMode,
+                out var filterError))
+        {
+            return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Fail(filterError!, 400);
+        }
+
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
         if (ctx is null)
         {
@@ -47,10 +57,13 @@ public partial class FamilyService : IFamilyService
             dtos.Add(await MapAcceptedMemberAsync(member, linked, cancellationToken));
         }
 
-        dtos.AddRange(await BuildPendingOutgoingInviteDtosAsync(
-            ctx.Value.FamilyId,
-            ctx.Value.UserId,
-            cancellationToken));
+        if (filterMode != ConnectionListFilterMode.AcceptedOnly)
+        {
+            dtos.AddRange(await BuildPendingOutgoingInviteDtosAsync(
+                ctx.Value.FamilyId,
+                ctx.Value.UserId,
+                cancellationToken));
+        }
 
         return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Ok(dtos);
     }

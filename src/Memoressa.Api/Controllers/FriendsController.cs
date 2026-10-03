@@ -19,9 +19,11 @@ public class FriendsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetFriends(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetFriends(
+        [FromQuery] string? status,
+        CancellationToken cancellationToken)
     {
-        var result = await _friendService.GetFriendsAsync(cancellationToken);
+        var result = await _friendService.GetFriendsAsync(status, cancellationToken);
         return result.ToActionResult();
     }
 

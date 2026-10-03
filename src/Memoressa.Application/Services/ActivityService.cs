@@ -235,10 +235,13 @@ public class ActivityService : IActivityService
         }
 
         _db.ActivityAlbums.Add(activity);
-        var relationError = await ApplyRelationsAsync(activity, request, ctx.Value.UserId, cancellationToken);
-        if (relationError is not null)
+        var relationFailure = await ApplyRelationsAsync(activity, request, ctx.Value.UserId, cancellationToken);
+        if (relationFailure is not null)
         {
-            return ServiceResult<ActivityAlbumDto>.Fail(relationError, 400);
+            return ServiceResult<ActivityAlbumDto>.Fail(
+                relationFailure.Error,
+                400,
+                relationFailure.ErrorCode);
         }
 
         if (request.PhotoIds.Count > 0)
@@ -321,15 +324,18 @@ public class ActivityService : IActivityService
             await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
             try
             {
-                var relationError = await ReplaceActivityRelationsAsync(
+                var relationFailure = await ReplaceActivityRelationsAsync(
                     activity,
                     request,
                     activity.CreatorUserId,
                     cancellationToken);
-                if (relationError is not null)
+                if (relationFailure is not null)
                 {
                     await transaction.RollbackAsync(cancellationToken);
-                    return ServiceResult<ActivityAlbumDto>.Fail(relationError, 400);
+                    return ServiceResult<ActivityAlbumDto>.Fail(
+                        relationFailure.Error,
+                        400,
+                        relationFailure.ErrorCode);
                 }
 
                 await _db.SaveChangesAsync(cancellationToken);
@@ -345,14 +351,17 @@ public class ActivityService : IActivityService
         }
         else
         {
-            var relationError = await ReplaceActivityRelationsAsync(
+            var relationFailure = await ReplaceActivityRelationsAsync(
                 activity,
                 request,
                 activity.CreatorUserId,
                 cancellationToken);
-            if (relationError is not null)
+            if (relationFailure is not null)
             {
-                return ServiceResult<ActivityAlbumDto>.Fail(relationError, 400);
+                return ServiceResult<ActivityAlbumDto>.Fail(
+                    relationFailure.Error,
+                    400,
+                    relationFailure.ErrorCode);
             }
 
             try
@@ -922,7 +931,9 @@ public class ActivityService : IActivityService
         || activity.FamilyMembers.Count > 0
         || activity.Friends.Count > 0;
 
-    private async Task<string?> ReplaceActivityRelationsAsync(
+    private sealed record RelationApplyFailure(string Error, string? ErrorCode);
+
+    private async Task<RelationApplyFailure?> ReplaceActivityRelationsAsync(
         ActivityAlbum activity,
         UpsertActivityAlbumRequestDto request,
         Guid creatorUserId,
@@ -1070,7 +1081,7 @@ public class ActivityService : IActivityService
         }
     }
 
-    private async Task<string?> ApplyRelationsAsync(
+    private async Task<RelationApplyFailure?> ApplyRelationsAsync(
         ActivityAlbum activity,
         UpsertActivityAlbumRequestDto request,
         Guid creatorUserId,
@@ -1079,12 +1090,14 @@ public class ActivityService : IActivityService
         var memberIds = request.FamilyMemberIds.Distinct().ToList();
         if (memberIds.Count > 0)
         {
-            var validCount = await _db.FamilyMembers.CountAsync(
-                m => m.FamilyId == activity.FamilyId && memberIds.Contains(m.Id),
+            var memberFailure = await AudienceConnectionValidation.ValidateFamilyMemberIdsAsync(
+                _db,
+                activity.FamilyId,
+                memberIds,
                 cancellationToken);
-            if (validCount != memberIds.Count)
+            if (memberFailure is not null)
             {
-                return "One or more familyMemberIds are invalid for this family";
+                return new RelationApplyFailure(memberFailure.Error!, memberFailure.ErrorCode);
             }
 
             foreach (var memberId in memberIds)
@@ -1136,7 +1149,21 @@ public class ActivityService : IActivityService
 
             if (!friendId.HasValue)
             {
-                return "One or more friendIds are invalid for this user";
+                if (Guid.TryParse(trimmed, out var pendingCheckId)
+                    && await AudienceConnectionValidation.HasPendingFriendInviteIdsForUserAsync(
+                        _db,
+                        creatorUserId,
+                        [pendingCheckId],
+                        cancellationToken))
+                {
+                    return new RelationApplyFailure(
+                        AudienceConnectionValidation.NotConnectedMessage,
+                        AudienceConnectionValidation.NotConnectedCode);
+                }
+
+                return new RelationApplyFailure(
+                    "One or more friendIds are invalid for this user",
+                    null);
             }
 
             _db.ActivityAlbumFriends.Add(new ActivityAlbumFriend
@@ -1154,7 +1181,9 @@ public class ActivityService : IActivityService
                 cancellationToken);
             if (!coverOk)
             {
-                return "coverPhotoId is not a valid photo in this family";
+                return new RelationApplyFailure(
+                    "coverPhotoId is not a valid photo in this family",
+                    null);
             }
         }
 
