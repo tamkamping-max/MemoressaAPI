@@ -104,10 +104,16 @@ public class AppProfileFriendsSecurityTests : IClassFixture<WebApplicationFactor
         var client = _factory.CreateClient();
         await RegisterAndAuthAsync(client, "inviter");
 
-        var inviteResponse = await client.PostAsJsonAsync("/api/v1/friends/invites", new
+        var pendingEmail = $"pending-{Guid.NewGuid():N}@memoressa.com";
+        var registerPending = await _factory.CreateClient().PostAsJsonAsync("/api/v1/auth/register", new
         {
-            email = $"pending-{Guid.NewGuid():N}@memoressa.com"
+            email = pendingEmail,
+            password = "Password123!",
+            nickname = "Pending"
         });
+        registerPending.EnsureSuccessStatusCode();
+
+        var inviteResponse = await client.PostAsJsonAsync("/api/v1/friends/invites", new { email = pendingEmail });
         Assert.Equal(HttpStatusCode.Created, inviteResponse.StatusCode);
 
         var friendsResponse = await client.GetAsync("/api/v1/friends");

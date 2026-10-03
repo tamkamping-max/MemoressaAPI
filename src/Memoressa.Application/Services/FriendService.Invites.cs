@@ -92,7 +92,10 @@ public partial class FriendService
 
         if (!PasswordResetCodeRules.TryNormalizeEmail(request.Email, out var inviteeEmail, out var formatError))
         {
-            return ServiceResult<FriendInviteDto>.Fail(formatError!, 400);
+            return ServiceResult<FriendInviteDto>.Fail(
+                formatError!,
+                400,
+                InviteErrorCodes.InvalidEmail);
         }
 
         var inviterId = _currentUser.UserId.Value;
@@ -105,34 +108,41 @@ public partial class FriendService
 
         if (string.Equals(inviter.Email, inviteeEmail, StringComparison.OrdinalIgnoreCase))
         {
-            return ServiceResult<FriendInviteDto>.Fail("Cannot invite yourself", 400);
+            return ServiceResult<FriendInviteDto>.Fail(
+                InviteErrorCodes.CannotInviteSelfMessage,
+                400,
+                InviteErrorCodes.CannotInviteSelf);
         }
 
         var inviteeUser = await _db.UserAccounts.AsNoTracking()
             .FirstOrDefaultAsync(u => u.Email == inviteeEmail && u.IsActive, cancellationToken);
 
-        if (inviteeUser is not null
-            && await AlreadyFriendsAsync(inviterId, inviteeUser.Id, cancellationToken))
+        if (inviteeUser is null)
         {
-            return ServiceResult<FriendInviteDto>.Fail("Already friends", 409);
+            return ServiceResult<FriendInviteDto>.Fail(
+                InviteErrorCodes.EmailNotRegisteredMessage,
+                404,
+                InviteErrorCodes.EmailNotRegistered);
         }
 
-        var existingPending = await _db.FriendInvites
-            .FirstOrDefaultAsync(
-                i => i.Status == FriendInviteStatus.Pending
-                     && i.InviterUserId == inviterId
-                     && i.InviteeEmail == inviteeEmail,
-                cancellationToken);
-
-        if (existingPending is not null)
+        if (await FriendInviteConnectionRules.IsAlreadyConnectedAsync(
+                _db,
+                inviterId,
+                inviter.Email,
+                inviteeUser.Id,
+                inviteeEmail,
+                cancellationToken))
         {
-            return ServiceResult<FriendInviteDto>.Ok(MapOutgoingInvite(existingPending, inviteeUser));
+            return ServiceResult<FriendInviteDto>.Fail(
+                InviteErrorCodes.FriendAlreadyConnectedMessage,
+                409,
+                InviteErrorCodes.FriendAlreadyConnected);
         }
 
         var invite = new FriendInvite
         {
             InviterUserId = inviterId,
-            InviteeUserId = inviteeUser?.Id,
+            InviteeUserId = inviteeUser.Id,
             InviteeEmail = inviteeEmail,
             Status = FriendInviteStatus.Pending
         };
@@ -268,10 +278,6 @@ public partial class FriendService
         };
     }
 
-    private async Task<bool> AlreadyFriendsAsync(Guid userA, Guid userB, CancellationToken cancellationToken)
-    {
-        return await _db.Friends.AsNoTracking().AnyAsync(
-            f => f.OwnerUserId == userA && f.FriendUserId == userB,
-            cancellationToken);
-    }
+    private Task<bool> AlreadyFriendsAsync(Guid userA, Guid userB, CancellationToken cancellationToken) =>
+        FriendInviteConnectionRules.AreAlreadyFriendsAsync(_db, userA, userB, cancellationToken);
 }

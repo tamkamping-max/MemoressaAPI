@@ -482,7 +482,7 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 |--------|------|-------------|
 | GET | `/` | Roster: accepted **`FamilyMember`** rows + **`pending_outgoing`** invites (mirrors friends list). Query **`connectionStatus=accepted`** → accepted members only (includes **`assignedToTree: false`** after invite accept). **`id`** / **`familyConnectionId`** / **`memberConnectionId`** = row id for **`DELETE /{id}`**; **`linkedUserId`** / **`friendUserId`** = counterparty account (not for DELETE). |
 | GET | `/invites` | Inbox: **`pending_incoming`** invites for the JWT user (nested **`inviter`** / **`invitee`** profiles). |
-| POST | `/invites` | `{ "email" }` — invite an **existing** app member to the caller’s family tree (**201** / row with **`pending_outgoing`**). |
+| POST | `/invites` | `{ "email" }` — invite an **existing** app member (**201** / **`pending_outgoing`**). **`code`**: `invalid_email` (**400**), `cannot_invite_self` (**400**), `email_not_registered` (**404**), `family_already_connected` (**409** member or pending in family). |
 | POST | `/invites/{inviteId}/accept` | Accept → **`FamilyMember`** with **`linkedUserId`**, **`assignedToTree: false`** until placed on a tier (**PUT** with **`assignedToTree: true`**). |
 | POST | `/invites/{inviteId}/reject` | Decline (invitee) or cancel (inviter on own outgoing). |
 | GET | `/{id}` | Member by id, or pending outgoing invite id |
@@ -628,7 +628,7 @@ Requires **`Ai:GrokApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Comple
 |--------|------|-------------|
 | GET | `/` | Accepted + **pending** friends. Query **`status=accepted`** → accepted connections only (for photo/activity audience pickers). **`id`** / **`friendshipId`** / **`connectionId`** = row id for **`DELETE /{id}`**; **`friendUserId`** / **`accountId`** = counterparty account (not for DELETE). |
 | GET | `/invites` | Pending invites (`pending_incoming` / `pending_outgoing`) |
-| POST | `/invites` | `{ email }` |
+| POST | `/invites` | `{ email }` — **201** invite on success. Errors include **`code`**: `invalid_email` (**400**), `cannot_invite_self` (**400**), `email_not_registered` (**404**), `friend_already_connected` (**409** accepted or pending either direction). Body: `{ "error", "message", "code" }`. |
 | POST | `/invites/{id}/accept` | Accept invite (creates reciprocal `friends` rows) |
 | POST | `/invites/{id}/reject` | Reject or cancel pending invite |
 | POST | `/` | Add friend (manual) |

@@ -70,7 +70,10 @@ public partial class FamilyService
 
         if (!PasswordResetCodeRules.TryNormalizeEmail(request.Email, out var inviteeEmail, out var formatError))
         {
-            return ServiceResult<FamilyMemberDto>.Fail(formatError!, 400);
+            return ServiceResult<FamilyMemberDto>.Fail(
+                formatError!,
+                400,
+                InviteErrorCodes.InvalidEmail);
         }
 
         var inviterId = ctx.Value.UserId;
@@ -83,33 +86,33 @@ public partial class FamilyService
 
         if (string.Equals(inviter.Email, inviteeEmail, StringComparison.OrdinalIgnoreCase))
         {
-            return ServiceResult<FamilyMemberDto>.Fail("Cannot invite yourself", 400);
+            return ServiceResult<FamilyMemberDto>.Fail(
+                InviteErrorCodes.CannotInviteSelfMessage,
+                400,
+                InviteErrorCodes.CannotInviteSelf);
         }
 
         var inviteeUser = await _db.UserAccounts.AsNoTracking()
             .FirstOrDefaultAsync(u => u.Email == inviteeEmail && u.IsActive, cancellationToken);
         if (inviteeUser is null)
         {
-            return ServiceResult<FamilyMemberDto>.Fail("Invitee must be an existing app member", 404);
+            return ServiceResult<FamilyMemberDto>.Fail(
+                InviteErrorCodes.EmailNotRegisteredMessage,
+                404,
+                InviteErrorCodes.EmailNotRegistered);
         }
 
-        if (await AlreadyLinkedInFamilyAsync(ctx.Value.FamilyId, inviteeUser.Id, cancellationToken))
+        if (await FamilyInviteConnectionRules.IsAlreadyConnectedAsync(
+                _db,
+                ctx.Value.FamilyId,
+                inviteeUser.Id,
+                inviteeEmail,
+                cancellationToken))
         {
-            return ServiceResult<FamilyMemberDto>.Fail("Already in family tree", 409);
-        }
-
-        var existingPending = await _db.FamilyMemberInvites
-            .FirstOrDefaultAsync(
-                i => i.Status == FriendInviteStatus.Pending
-                     && i.FamilyId == ctx.Value.FamilyId
-                     && i.InviterUserId == inviterId
-                     && i.InviteeEmail == inviteeEmail,
-                cancellationToken);
-
-        if (existingPending is not null)
-        {
-            return ServiceResult<FamilyMemberDto>.Ok(
-                await MapPendingOutgoingInviteAsync(existingPending, inviteeUser, cancellationToken));
+            return ServiceResult<FamilyMemberDto>.Fail(
+                InviteErrorCodes.FamilyAlreadyConnectedMessage,
+                409,
+                InviteErrorCodes.FamilyAlreadyConnected);
         }
 
         var invite = new FamilyMemberInvite
@@ -245,12 +248,11 @@ public partial class FamilyService
         return ServiceResult.NoContent();
     }
 
-    private async Task<bool> AlreadyLinkedInFamilyAsync(
+    private Task<bool> AlreadyLinkedInFamilyAsync(
         Guid familyId,
         Guid linkedUserId,
         CancellationToken cancellationToken) =>
-        await _db.FamilyMembers.AsNoTracking()
-            .AnyAsync(m => m.FamilyId == familyId && m.LinkedUserId == linkedUserId, cancellationToken);
+        FamilyInviteConnectionRules.IsLinkedInFamilyAsync(_db, familyId, linkedUserId, cancellationToken);
 
     private async Task<IReadOnlyList<FamilyMemberDto>> BuildPendingOutgoingInviteDtosAsync(
         Guid familyId,
