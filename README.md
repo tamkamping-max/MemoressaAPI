@@ -626,14 +626,14 @@ Requires **`Ai:GrokApiKey`** or **`XAI_API_KEY`**. Uses xAI Grok via Chat Comple
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | Accepted + **pending** friends (`status`, `friendUserId`, nested **`friendUser`** `{ id, nickname, email, avatarUrl }`, top-level **`avatarUrl`**) |
+| GET | `/` | Accepted + **pending** friends. **`id`** / **`friendshipId`** / **`connectionId`** = row id for **`DELETE /{id}`**; **`friendUserId`** / **`accountId`** = counterparty account (not for DELETE). |
 | GET | `/invites` | Pending invites (`pending_incoming` / `pending_outgoing`) |
 | POST | `/invites` | `{ email }` |
 | POST | `/invites/{id}/accept` | Accept invite (creates reciprocal `friends` rows) |
 | POST | `/invites/{id}/reject` | Reject or cancel pending invite |
 | POST | `/` | Add friend (manual) |
 | PUT | `/{id}` | Update friend |
-| DELETE | `/{id}` | Delete friend |
+| DELETE | `/{id}` | Remove accepted connection (both users’ `friends` rows) or cancel/reject **pending** invite by **`id`**. **204** on success; **404** if not found/not yours; **403** if forbidden. Errors: `{ "message", "error" }`. Activity `friendIds` are not auto-stripped (historical). |
 
 Family members `POST`/`PUT` accept optional **`cityId`** (separate from user `profileCityId` on PATCH `/me`).
 

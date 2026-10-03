@@ -155,17 +155,66 @@ public partial class FriendService : IFriendService
             return ServiceResult.Fail("Unauthorized", 401);
         }
 
+        var userId = _currentUser.UserId.Value;
+
         var friend = await _db.Friends.FirstOrDefaultAsync(
-            f => f.Id == id && f.OwnerUserId == _currentUser.UserId.Value,
+            f => f.Id == id && f.OwnerUserId == userId,
             cancellationToken);
 
-        if (friend is null)
+        if (friend is not null)
+        {
+            await RemoveAcceptedFriendConnectionAsync(userId, friend, cancellationToken);
+            return ServiceResult.NoContent();
+        }
+
+        var invite = await _db.FriendInvites.FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
+        if (invite is null || invite.Status != Domain.Enums.FriendInviteStatus.Pending)
         {
             return ServiceResult.NotFound("Friend not found");
         }
 
+        if (invite.InviterUserId == userId)
+        {
+            invite.Status = Domain.Enums.FriendInviteStatus.Rejected;
+            await _db.SaveChangesAsync(cancellationToken);
+            return ServiceResult.NoContent();
+        }
+
+        var user = await _db.UserAccounts.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user is null)
+        {
+            return ServiceResult.Fail("Unauthorized", 401);
+        }
+
+        if (invite.InviteeUserId == userId
+            || string.Equals(invite.InviteeEmail, user.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            invite.Status = Domain.Enums.FriendInviteStatus.Rejected;
+            await _db.SaveChangesAsync(cancellationToken);
+            return ServiceResult.NoContent();
+        }
+
+        return ServiceResult.Forbidden("You cannot delete this connection");
+    }
+
+    private async Task RemoveAcceptedFriendConnectionAsync(
+        Guid ownerUserId,
+        Friend friend,
+        CancellationToken cancellationToken)
+    {
+        if (friend.FriendUserId.HasValue)
+        {
+            var reciprocal = await _db.Friends
+                .Where(f => f.OwnerUserId == friend.FriendUserId.Value && f.FriendUserId == ownerUserId)
+                .ToListAsync(cancellationToken);
+            if (reciprocal.Count > 0)
+            {
+                _db.Friends.RemoveRange(reciprocal);
+            }
+        }
+
         _db.Friends.Remove(friend);
         await _db.SaveChangesAsync(cancellationToken);
-        return ServiceResult.Ok();
     }
 }

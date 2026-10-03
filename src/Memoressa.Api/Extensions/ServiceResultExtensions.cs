@@ -35,17 +35,20 @@ public static class ServiceResultExtensions
         return ToErrorResult(result.Error ?? "Request failed", result.StatusCode);
     }
 
-    private static IActionResult ToErrorResult(string error, int statusCode) =>
-        statusCode switch
+    private static IActionResult ToErrorResult(string error, int statusCode)
+    {
+        var body = new { error, message = error };
+        return statusCode switch
         {
-            401 => new UnauthorizedObjectResult(new { error }),
-            403 => new ObjectResult(new { error }) { StatusCode = 403 },
-            404 => new NotFoundObjectResult(new { error }),
-            409 => new ConflictObjectResult(new { error }),
-            413 => new ObjectResult(new { error }) { StatusCode = 413 },
-            429 => new ObjectResult(new { error }) { StatusCode = 429 },
-            503 => new ObjectResult(new { error }) { StatusCode = 503 },
+            401 => new UnauthorizedObjectResult(body),
+            403 => new ObjectResult(body) { StatusCode = 403 },
+            404 => new NotFoundObjectResult(body),
+            409 => new ConflictObjectResult(body),
+            413 => new ObjectResult(body) { StatusCode = 413 },
+            429 => new ObjectResult(body) { StatusCode = 429 },
+            503 => new ObjectResult(body) { StatusCode = 503 },
             204 => new StatusCodeResult(204),
-            _ => new BadRequestObjectResult(new { error })
+            _ => new BadRequestObjectResult(body)
         };
+    }
 }

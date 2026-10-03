@@ -77,7 +77,10 @@ public record FriendUserSummaryDto
 
 public record FriendDto
 {
+    /// <summary>Connection row id — use in <c>DELETE /friends/{id}</c> (not <see cref="FriendUserId"/>).</summary>
     [JsonPropertyName("id")] public Guid Id { get; init; }
+    [JsonPropertyName("friendshipId")] public Guid FriendshipId => Id;
+    [JsonPropertyName("connectionId")] public Guid ConnectionId => Id;
     [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
     [JsonPropertyName("nickname")] public string? Nickname { get; init; }
     [JsonPropertyName("email")] public string? Email { get; init; }
@@ -88,6 +91,7 @@ public record FriendDto
     [JsonPropertyName("friendUser")] public FriendUserSummaryDto? FriendUser { get; init; }
     [JsonPropertyName("frameLinked")] public bool FrameLinked { get; init; }
     [JsonPropertyName("status")] public string Status { get; init; } = "accepted";
+    [JsonPropertyName("connectionStatus")] public string ConnectionStatus => Status;
     [JsonPropertyName("sharedActivityCount")] public int SharedActivityCount { get; init; }
     [JsonPropertyName("sharedMemoryCount")] public int SharedMemoryCount { get; init; }
 }
