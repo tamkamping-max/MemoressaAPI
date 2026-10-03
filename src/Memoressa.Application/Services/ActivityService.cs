@@ -568,7 +568,11 @@ public class ActivityService : IActivityService
 
         var total = await CountAccessibleLinkedPhotosAsync(activity.Id, ctx.Value.UserId, cancellationToken);
         var photos = await LoadLinkedPhotosAsync(activity.Id, ctx.Value.UserId, take, cancellationToken);
-        var dtos = await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken);
+        var dtos = await PhotoUploaderEnrichment.EnrichPhotoDtosAsync(
+            _db,
+            photos,
+            await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken),
+            cancellationToken);
 
         return ServiceResult<ApiDataResponseDto<ActivityPhotosListDataDto>>.Ok(
             new ApiDataResponseDto<ActivityPhotosListDataDto>
@@ -857,7 +861,6 @@ public class ActivityService : IActivityService
             .Where(ap => ap.ActivityAlbumId == activityId)
             .OrderByDescending(ap => ap.SortOrder)
             .ThenByDescending(ap => ap.CreatedAt)
-            .Take(take * 2)
             .Select(ap => new { ap.PhotoId, ap.SortOrder, ap.CreatedAt })
             .ToListAsync(cancellationToken);
 
@@ -866,26 +869,36 @@ public class ActivityService : IActivityService
             return [];
         }
 
-        var photoIds = links.Select(l => l.PhotoId).ToList();
+        var orderedIds = links.Select(l => l.PhotoId).ToList();
         var photos = await PhotoViewerAccess.ApplyViewerFilter(
                 _db.Photos.AsNoTracking()
-                    .Where(p => photoIds.Contains(p.Id) && !p.IsHidden)
+                    .Where(p => orderedIds.Contains(p.Id) && !p.IsHidden)
                     .Include(p => p.UploadedBy)
                     .Include(p => p.PhotoMembers)
+                    .Include(p => p.PhotoFriends)
                     .Include(p => p.UserTags)
                     .Include(p => p.AiTags),
                 viewerUserId,
                 _db)
             .ToListAsync(cancellationToken);
 
-        var order = links
-            .Select((l, index) => (l.PhotoId, Index: index))
-            .ToDictionary(x => x.PhotoId, x => x.Index);
+        var visibleById = photos.ToDictionary(p => p.Id);
+        var result = new List<Photo>(Math.Min(take, photos.Count));
+        foreach (var link in links)
+        {
+            if (!visibleById.TryGetValue(link.PhotoId, out var photo))
+            {
+                continue;
+            }
 
-        return photos
-            .OrderBy(p => order.GetValueOrDefault(p.Id, int.MaxValue))
-            .Take(take)
-            .ToList();
+            result.Add(photo);
+            if (result.Count >= take)
+            {
+                break;
+            }
+        }
+
+        return result;
     }
 
     private static void SanitizeParticipants(ActivityAlbum activity, Guid familyId)
@@ -1287,8 +1300,9 @@ public class ActivityService : IActivityService
         }
 
         var activityIds = activities.Select(a => a.Id).ToList();
-        var snapshots = await ActivityAlbumPhotoFeedHelper.LoadSnapshotsAsync(
+        var snapshots = await ActivityAlbumPhotoFeedHelper.LoadViewerSnapshotsAsync(
             _db,
+            viewerUserId,
             activityIds,
             PhotoBatchLimits.ActivityPreviewPhotoLimit,
             cancellationToken);

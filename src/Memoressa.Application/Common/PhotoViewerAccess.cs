@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Memoressa.Application.Common;
 
 /// <summary>
-/// Limits photo visibility to the authenticated viewer within their resolved family and privacy rules.
+/// Server-side CanViewerSeePhoto(U, photo) for lists and single-photo checks (App 1003).
 /// </summary>
 public static class PhotoViewerAccess
 {
@@ -17,7 +17,8 @@ public static class PhotoViewerAccess
         query.Where(p =>
             p.UploadedByUserId == viewerUserId
             || ((p.ActivityParticipantsVisible
-                 || db.ActivityAlbumPhotos.Any(link => link.PhotoId == p.Id))
+                 || (p.PrivacyScope != UploadPrivacyScope.OnlySelf
+                     && db.ActivityAlbumPhotos.Any(link => link.PhotoId == p.Id)))
                 && db.ActivityAlbumPhotos.Any(aap =>
                     aap.PhotoId == p.Id
                     && (
@@ -35,14 +36,49 @@ public static class PhotoViewerAccess
                             && db.Friends.Any(f =>
                                 f.Id == aff.FriendId && f.FriendUserId == viewerUserId)))))
             || (p.PrivacyScope == UploadPrivacyScope.Family
-                && db.FamilyMemberships.Any(m => m.UserId == viewerUserId && m.FamilyId == p.FamilyId))
+                && db.FamilyMemberships.Any(m => m.UserId == viewerUserId && m.FamilyId == p.FamilyId)
+                && (!db.PhotoMembers.Any(pm => pm.PhotoId == p.Id)
+                    || db.PhotoMembers.Any(pm =>
+                        pm.PhotoId == p.Id
+                        && db.FamilyMembers.Any(fm =>
+                            fm.Id == pm.FamilyMemberId
+                            && (fm.LinkedUserId == viewerUserId
+                                || db.FamilyMemberships.Any(m =>
+                                    m.UserId == viewerUserId
+                                    && m.FamilyId == fm.FamilyId
+                                    && db.UserAccounts.Any(u =>
+                                        u.Id == viewerUserId && u.SelfFamilyMemberId == fm.Id)))))))
             || (p.PrivacyScope == UploadPrivacyScope.Friends
-                && db.Friends.Any(f =>
-                    f.OwnerUserId == p.UploadedByUserId && f.FriendUserId == viewerUserId))
+                && ((!db.PhotoFriends.Any(pf => pf.PhotoId == p.Id)
+                     && db.Friends.Any(f =>
+                         f.OwnerUserId == p.UploadedByUserId && f.FriendUserId == viewerUserId))
+                    || db.PhotoFriends.Any(pf =>
+                        pf.PhotoId == p.Id
+                        && db.Friends.Any(f =>
+                            f.Id == pf.FriendId
+                            && f.OwnerUserId == p.UploadedByUserId
+                            && f.FriendUserId == viewerUserId))))
             || (p.PrivacyScope == UploadPrivacyScope.FriendsAndFamily
-                && (db.FamilyMemberships.Any(m => m.UserId == viewerUserId && m.FamilyId == p.FamilyId)
+                && ((db.FamilyMemberships.Any(m => m.UserId == viewerUserId && m.FamilyId == p.FamilyId)
+                     && (!db.PhotoMembers.Any(pm => pm.PhotoId == p.Id)
+                         || db.PhotoMembers.Any(pm =>
+                             pm.PhotoId == p.Id
+                             && db.FamilyMembers.Any(fm =>
+                                 fm.Id == pm.FamilyMemberId
+                                 && (fm.LinkedUserId == viewerUserId
+                                     || db.FamilyMemberships.Any(m =>
+                                         m.UserId == viewerUserId
+                                         && m.FamilyId == fm.FamilyId
+                                         && db.UserAccounts.Any(u =>
+                                             u.Id == viewerUserId && u.SelfFamilyMemberId == fm.Id)))))))
                     || db.Friends.Any(f =>
-                        f.OwnerUserId == p.UploadedByUserId && f.FriendUserId == viewerUserId)))
+                        f.OwnerUserId == p.UploadedByUserId && f.FriendUserId == viewerUserId)
+                    || db.PhotoFriends.Any(pf =>
+                        pf.PhotoId == p.Id
+                        && db.Friends.Any(f =>
+                            f.Id == pf.FriendId
+                            && f.OwnerUserId == p.UploadedByUserId
+                            && f.FriendUserId == viewerUserId))))
             || (p.PrivacyScope == UploadPrivacyScope.Custom
                 && (db.PhotoMembers.Any(pm =>
                         pm.PhotoId == p.Id

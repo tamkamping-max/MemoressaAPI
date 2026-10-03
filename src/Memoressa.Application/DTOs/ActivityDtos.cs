@@ -47,7 +47,9 @@ public record ActivityAlbumDto
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope PrivacyScope { get; init; } = UploadPrivacyScope.Family;
     [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
     [JsonPropertyName("agenda")] public IReadOnlyList<ActivityAgendaItemDto> Agenda { get; init; } = [];
+    /// <summary>Photos linked to this activity that the current viewer may open (not raw link count).</summary>
     [JsonPropertyName("photoCount")] public int PhotoCount { get; init; }
+    [JsonPropertyName("visiblePhotoCount")] public int VisiblePhotoCount => PhotoCount;
     [JsonPropertyName("previewPhotos")] public IReadOnlyList<PhotoSummaryDto> PreviewPhotos { get; init; } = [];
 }
 
