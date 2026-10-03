@@ -42,6 +42,11 @@ public partial class FamilyService : IFamilyService
             return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Fail("Unauthorized", 401);
         }
 
+        await RepairInviteeAcceptedInviteMirrorsAsync(
+            ctx.Value.UserId,
+            ctx.Value.FamilyId,
+            cancellationToken);
+
         // Full roster: all accepted members (assigned + unassigned pool), not only tree tiers.
         var members = await QueryMembers(ctx.Value.FamilyId).OrderBy(m => m.Name).ToListAsync(cancellationToken);
         var linkedUserIds = members.Where(m => m.LinkedUserId.HasValue).Select(m => m.LinkedUserId!.Value).Distinct().ToList();

@@ -478,7 +478,7 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 
 ### Family Members — `api/v1/family-members`
 
-**Family scope:** Routes use the JWT user’s **`family_id`** claim when present and the user belongs to that family; otherwise the user’s first **`family_memberships`** row. **`GET /`** always lists **`family_members`** for that resolved family (not the inviter’s family when you accepted someone else’s invite).
+**Family scope:** Routes use the JWT user’s **`family_id`** claim when present and the user belongs to that family; otherwise **`family_memberships`** (prefer **`owner`**, then earliest). Stale JWT **`family_id`** (not a membership) falls back the same way — invitee roster stays on **home** family. **`GET /`** lists **`family_members`** for that resolved family and **backfills** missing inviter mirror rows for accepted invites (未分配). Use **`GET /`**, not **`GET /by-generation/{generation}`**, for the unassigned pool (`assignedToTree: false`).
 
 | Method | Path | Description |
 |--------|------|-------------|

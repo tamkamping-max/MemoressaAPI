@@ -220,27 +220,57 @@ public partial class FamilyService
         Guid inviteeUserId,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.FamilyId.HasValue)
+        var familyId = await ServiceHelpers.ResolveMembershipFamilyIdAsync(
+            inviteeUserId,
+            _currentUser.FamilyId,
+            _db,
+            cancellationToken);
+        if (familyId.HasValue)
         {
-            var jwtFamilyId = _currentUser.FamilyId.Value;
-            var jwtMember = await _db.FamilyMemberships.AsNoTracking()
-                .AnyAsync(
-                    m => m.UserId == inviteeUserId && m.FamilyId == jwtFamilyId,
-                    cancellationToken);
-            if (jwtMember)
-            {
-                return ServiceResult<Guid>.Ok(jwtFamilyId);
-            }
-        }
-
-        var membership = await _db.FamilyMemberships.AsNoTracking()
-            .FirstOrDefaultAsync(m => m.UserId == inviteeUserId, cancellationToken);
-        if (membership is not null)
-        {
-            return ServiceResult<Guid>.Ok(membership.FamilyId);
+            return ServiceResult<Guid>.Ok(familyId.Value);
         }
 
         return await BootstrapInviteeHomeFamilyAsync(inviteeUserId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Repairs missing inviter mirror rows for accepted invites (legacy accepts before mirror backfill).
+    /// </summary>
+    internal async Task RepairInviteeAcceptedInviteMirrorsAsync(
+        Guid inviteeUserId,
+        Guid homeFamilyId,
+        CancellationToken cancellationToken)
+    {
+        var acceptedAsInvitee = await _db.FamilyMemberInvites
+            .Include(i => i.Inviter)
+            .Where(i => i.Status == FriendInviteStatus.Accepted && i.InviteeUserId == inviteeUserId)
+            .ToListAsync(cancellationToken);
+
+        if (acceptedAsInvitee.Count == 0)
+        {
+            return;
+        }
+
+        var changed = false;
+        foreach (var invite in acceptedAsInvitee)
+        {
+            var hasMirror = await _db.FamilyMembers.AsNoTracking()
+                .AnyAsync(
+                    m => m.FamilyId == homeFamilyId && m.LinkedUserId == invite.InviterUserId,
+                    cancellationToken);
+            if (hasMirror)
+            {
+                continue;
+            }
+
+            await EnsureInviterMirrorMemberOnHomeFamilyAsync(homeFamilyId, invite, cancellationToken);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private async Task<ServiceResult<Guid>> BootstrapInviteeHomeFamilyAsync(

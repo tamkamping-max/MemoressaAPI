@@ -25,20 +25,45 @@ internal static class ServiceHelpers
             return null;
         }
 
-        if (currentUser.FamilyId.HasValue)
-        {
-            var familyId = currentUser.FamilyId.Value;
-            var isMember = await db.FamilyMemberships.AsNoTracking()
-                .AnyAsync(
-                    m => m.UserId == currentUser.UserId.Value && m.FamilyId == familyId,
-                    cancellationToken);
+        var familyId = await ResolveMembershipFamilyIdAsync(
+            currentUser.UserId.Value,
+            currentUser.FamilyId,
+            db,
+            cancellationToken);
 
-            return isMember ? (currentUser.UserId.Value, familyId) : null;
+        return familyId.HasValue
+            ? (currentUser.UserId.Value, familyId.Value)
+            : null;
+    }
+
+    /// <summary>
+    /// JWT <c>family_id</c> when the user belongs to that family; otherwise owner membership, then earliest membership.
+    /// Shared by family roster scope and invite accept mirror placement.
+    /// </summary>
+    public static async Task<Guid?> ResolveMembershipFamilyIdAsync(
+        Guid userId,
+        Guid? jwtFamilyId,
+        IMemoressaDbContext db,
+        CancellationToken cancellationToken)
+    {
+        if (jwtFamilyId.HasValue)
+        {
+            var jwtIsMember = await db.FamilyMemberships.AsNoTracking()
+                .AnyAsync(
+                    m => m.UserId == userId && m.FamilyId == jwtFamilyId.Value,
+                    cancellationToken);
+            if (jwtIsMember)
+            {
+                return jwtFamilyId.Value;
+            }
         }
 
         var membership = await db.FamilyMemberships.AsNoTracking()
-            .FirstOrDefaultAsync(m => m.UserId == currentUser.UserId.Value, cancellationToken);
+            .Where(m => m.UserId == userId)
+            .OrderBy(m => m.Role == "owner" ? 0 : 1)
+            .ThenBy(m => m.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        return membership is null ? null : (currentUser.UserId.Value, membership.FamilyId);
+        return membership?.FamilyId;
     }
 }

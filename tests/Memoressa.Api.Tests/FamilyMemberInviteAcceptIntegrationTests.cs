@@ -53,6 +53,72 @@ public class FamilyMemberInviteAcceptIntegrationTests
     }
 
     [Fact]
+    public async Task GetMembers_WithStaleJwtFamilyId_StillListsInviterMirrorOnHomeFamily()
+    {
+        var inviterFamilyId = Guid.NewGuid();
+        var inviteeFamilyId = Guid.NewGuid();
+        var inviterId = Guid.NewGuid();
+        var inviteeId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        SeedUser(db, inviterId, "inviter@test.com", inviterFamilyId, "Inviter");
+        SeedUser(db, inviteeId, "invitee@test.com", inviteeFamilyId, "Invitee");
+        await db.SaveChangesAsync();
+
+        var inviterService = CreateService(db, inviterId, inviterFamilyId);
+        var inviteId = (await inviterService.CreateFamilyMemberInviteAsync(
+            new CreateFamilyMemberInviteRequestDto { Email = "invitee@test.com" })).Data!.Id;
+
+        var inviteeService = CreateService(db, inviteeId, inviteeFamilyId);
+        Assert.True((await inviteeService.AcceptFamilyMemberInviteAsync(inviteId)).Success);
+
+        var staleJwtService = CreateService(db, inviteeId, inviterFamilyId);
+        var roster = await staleJwtService.GetMembersAsync();
+        Assert.True(roster.Success);
+        Assert.Contains(
+            roster.Data!,
+            m => m.LinkedUserId == inviterId && !m.AssignedToTree && m.ConnectionStatus == "accepted");
+    }
+
+    [Fact]
+    public async Task GetMembers_RepairsMissingInviterMirror_AfterLegacyAccept()
+    {
+        var inviterFamilyId = Guid.NewGuid();
+        var inviteeFamilyId = Guid.NewGuid();
+        var inviterId = Guid.NewGuid();
+        var inviteeId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        SeedUser(db, inviterId, "inviter@test.com", inviterFamilyId, "Inviter");
+        SeedUser(db, inviteeId, "invitee@test.com", inviteeFamilyId, "Invitee");
+        db.FamilyMemberInvites.Add(new FamilyMemberInvite
+        {
+            FamilyId = inviterFamilyId,
+            InviterUserId = inviterId,
+            InviteeUserId = inviteeId,
+            InviteeEmail = "invitee@test.com",
+            Status = FriendInviteStatus.Accepted
+        });
+        db.FamilyMembers.Add(new FamilyMember
+        {
+            FamilyId = inviterFamilyId,
+            Name = "Invitee",
+            LinkedUserId = inviteeId,
+            AssignedToTree = false,
+            Generation = Generation.Self
+        });
+        await db.SaveChangesAsync();
+
+        var inviteeService = CreateService(db, inviteeId, inviteeFamilyId);
+        var roster = await inviteeService.GetMembersAsync();
+        Assert.True(roster.Success);
+        Assert.Contains(roster.Data!, m => m.LinkedUserId == inviterId && !m.AssignedToTree);
+
+        Assert.True(await db.FamilyMembers.AnyAsync(
+            m => m.FamilyId == inviteeFamilyId && m.LinkedUserId == inviterId && !m.AssignedToTree));
+    }
+
+    [Fact]
     public async Task AcceptInvite_BootstrapsHomeFamily_WhenInviteeHasNoMembership()
     {
         var inviterFamilyId = Guid.NewGuid();
