@@ -40,9 +40,11 @@ public class FamilyMemberInviteTests
         var inviterId = Guid.NewGuid();
         var inviteeId = Guid.NewGuid();
 
+        var inviteeFamilyId = Guid.NewGuid();
+
         await using var db = CreateDb();
         SeedUser(db, inviterId, "inviter@test.com", familyId, "Inviter");
-        SeedUser(db, inviteeId, "invitee@test.com", Guid.NewGuid(), "Invitee");
+        SeedUser(db, inviteeId, "invitee@test.com", inviteeFamilyId, "Invitee");
         await db.SaveChangesAsync();
 
         var inviterService = CreateService(db, inviterId, familyId);
@@ -50,7 +52,7 @@ public class FamilyMemberInviteTests
             new CreateFamilyMemberInviteRequestDto { Email = "invitee@test.com" });
         var inviteId = created.Data!.InviteId!.Value;
 
-        var inviteeService = CreateService(db, inviteeId, Guid.NewGuid());
+        var inviteeService = CreateService(db, inviteeId, inviteeFamilyId);
         var accepted = await inviteeService.AcceptFamilyMemberInviteAsync(inviteId);
         Assert.True(accepted.Success);
         Assert.Equal("accepted", accepted.Data!.ConnectionStatus);
@@ -59,6 +61,11 @@ public class FamilyMemberInviteTests
 
         var inviterRoster = await inviterService.GetMembersAsync();
         Assert.Contains(inviterRoster.Data!, m => m.LinkedUserId == inviteeId && !m.AssignedToTree);
+
+        var inviteeRoster = await inviteeService.GetMembersAsync();
+        Assert.Contains(
+            inviteeRoster.Data!,
+            m => m.LinkedUserId == inviterId && !m.AssignedToTree && m.ConnectionStatus == "accepted");
     }
 
     [Fact]

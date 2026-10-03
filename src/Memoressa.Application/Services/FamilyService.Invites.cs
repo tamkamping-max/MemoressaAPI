@@ -173,33 +173,82 @@ public partial class FamilyService
 
         invite.InviteeUserId ??= userId;
 
+        FamilyMember memberRow;
         if (await AlreadyLinkedInFamilyAsync(invite.FamilyId, userId, cancellationToken))
         {
-            invite.Status = FriendInviteStatus.Accepted;
-            await _db.SaveChangesAsync(cancellationToken);
-            var existing = await _db.FamilyMembers
+            memberRow = await _db.FamilyMembers
                 .Include(m => m.PhotoMembers)
                 .FirstAsync(m => m.FamilyId == invite.FamilyId && m.LinkedUserId == userId, cancellationToken);
-            return ServiceResult<FamilyMemberDto>.Ok(
-                await MapAcceptedMemberAsync(existing, user, cancellationToken));
+        }
+        else
+        {
+            var displayName = user.Nickname ?? user.Email ?? "Family member";
+            memberRow = new FamilyMember
+            {
+                FamilyId = invite.FamilyId,
+                Name = displayName,
+                Nickname = user.Nickname,
+                LinkedUserId = userId,
+                AssignedToTree = false,
+                Generation = Generation.Self,
+                AvatarUrl = user.AvatarUrl
+            };
+            _db.FamilyMembers.Add(memberRow);
         }
 
-        var displayName = user.Nickname ?? user.Email ?? "Family member";
-        var member = new FamilyMember
-        {
-            FamilyId = invite.FamilyId,
-            Name = displayName,
-            Nickname = user.Nickname,
-            LinkedUserId = userId,
-            AssignedToTree = false,
-            Generation = Generation.Self,
-            AvatarUrl = user.AvatarUrl
-        };
-        _db.FamilyMembers.Add(member);
+        await EnsureInviterOnInviteeHomeRosterAsync(userId, invite, cancellationToken);
+
         invite.Status = FriendInviteStatus.Accepted;
         await _db.SaveChangesAsync(cancellationToken);
 
-        return ServiceResult<FamilyMemberDto>.Ok(await MapAcceptedMemberAsync(member, user, cancellationToken));
+        return ServiceResult<FamilyMemberDto>.Ok(await MapAcceptedMemberAsync(memberRow, user, cancellationToken));
+    }
+
+    /// <summary>
+    /// After accept, invitee's GET /family-members must list the inviter as unassigned (mirror connection).
+    /// </summary>
+    private async Task EnsureInviterOnInviteeHomeRosterAsync(
+        Guid inviteeUserId,
+        FamilyMemberInvite invite,
+        CancellationToken cancellationToken)
+    {
+        var inviteeHome = await _db.FamilyMemberships.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.UserId == inviteeUserId, cancellationToken);
+        if (inviteeHome is null)
+        {
+            return;
+        }
+
+        var homeFamilyId = inviteeHome.FamilyId;
+        if (homeFamilyId == invite.FamilyId)
+        {
+            return;
+        }
+
+        if (await AlreadyLinkedInFamilyAsync(homeFamilyId, invite.InviterUserId, cancellationToken))
+        {
+            return;
+        }
+
+        var inviter = invite.Inviter
+                      ?? await _db.UserAccounts.AsNoTracking()
+                          .FirstOrDefaultAsync(u => u.Id == invite.InviterUserId, cancellationToken);
+        if (inviter is null)
+        {
+            return;
+        }
+
+        var inviterDisplay = inviter.Nickname ?? inviter.Email ?? "Family member";
+        _db.FamilyMembers.Add(new FamilyMember
+        {
+            FamilyId = homeFamilyId,
+            Name = inviterDisplay,
+            Nickname = inviter.Nickname,
+            LinkedUserId = invite.InviterUserId,
+            AssignedToTree = false,
+            Generation = Generation.Self,
+            AvatarUrl = inviter.AvatarUrl
+        });
     }
 
     public async Task<ServiceResult> RejectFamilyMemberInviteAsync(
