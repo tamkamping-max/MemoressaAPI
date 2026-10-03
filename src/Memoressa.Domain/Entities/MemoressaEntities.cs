@@ -98,6 +98,18 @@ public class FriendInvite : Entity
     public UserAccount? Invitee { get; set; }
 }
 
+public class FamilyMemberInvite : Entity
+{
+    public Guid FamilyId { get; set; }
+    public Guid InviterUserId { get; set; }
+    public Guid? InviteeUserId { get; set; }
+    public string InviteeEmail { get; set; } = string.Empty;
+    public FriendInviteStatus Status { get; set; } = FriendInviteStatus.Pending;
+    public Family Family { get; set; } = null!;
+    public UserAccount Inviter { get; set; } = null!;
+    public UserAccount? Invitee { get; set; }
+}
+
 public class Family : Entity
 {
     public string Name { get; set; } = "My Family";
@@ -134,6 +146,8 @@ public class FamilyMember : Entity, IFamilyScoped
     public string? CityId { get; set; }
     public bool FaceRecognitionEnabled { get; set; } = true;
     public Guid? LinkedUserId { get; set; }
+    /// <summary>When false, member is connected but shown under unassigned family (not on a generation tier).</summary>
+    public bool AssignedToTree { get; set; } = true;
 
     public Family Family { get; set; } = null!;
     public ICollection<PhotoMember> PhotoMembers { get; set; } = [];

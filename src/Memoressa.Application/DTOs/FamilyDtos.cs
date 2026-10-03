@@ -3,6 +3,14 @@ using Memoressa.Domain.Enums;
 
 namespace Memoressa.Application.DTOs;
 
+public record FamilyMemberUserSummaryDto
+{
+    [JsonPropertyName("id")] public Guid Id { get; init; }
+    [JsonPropertyName("nickname")] public string? Nickname { get; init; }
+    [JsonPropertyName("email")] public string? Email { get; init; }
+    [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
+}
+
 public record FamilyMemberDto
 {
     [JsonPropertyName("id")] public Guid Id { get; init; }
@@ -15,6 +23,34 @@ public record FamilyMemberDto
     [JsonPropertyName("cityId")] public string? CityId { get; init; }
     [JsonPropertyName("faceRecognitionEnabled")] public bool FaceRecognitionEnabled { get; init; }
     [JsonPropertyName("photoIds")] public IReadOnlyList<Guid> PhotoIds { get; init; } = [];
+    [JsonPropertyName("connectionStatus")] public string ConnectionStatus { get; init; } = "accepted";
+    [JsonPropertyName("status")] public string Status => ConnectionStatus;
+    [JsonPropertyName("assignedToTree")] public bool AssignedToTree { get; init; } = true;
+    [JsonPropertyName("email")] public string? Email { get; init; }
+    [JsonPropertyName("linkedUserId")] public Guid? LinkedUserId { get; init; }
+    [JsonPropertyName("friendUserId")] public Guid? FriendUserId => LinkedUserId;
+    [JsonPropertyName("inviteId")] public Guid? InviteId { get; init; }
+    [JsonPropertyName("linkedUser")] public FamilyMemberUserSummaryDto? LinkedUser { get; init; }
+}
+
+public record FamilyMemberInviteDto
+{
+    [JsonPropertyName("id")] public Guid Id { get; init; }
+    [JsonPropertyName("inviteId")] public Guid InviteId => Id;
+    [JsonPropertyName("name")] public string? Name { get; init; }
+    [JsonPropertyName("nickname")] public string? Nickname { get; init; }
+    [JsonPropertyName("email")] public string Email { get; init; } = string.Empty;
+    [JsonPropertyName("avatarUrl")] public string? AvatarUrl { get; init; }
+    [JsonPropertyName("status")] public string Status { get; init; } = string.Empty;
+    [JsonPropertyName("connectionStatus")] public string ConnectionStatus => Status;
+    [JsonPropertyName("createdAt")] public DateTime CreatedAt { get; init; }
+    [JsonPropertyName("inviter")] public FamilyMemberUserSummaryDto? Inviter { get; init; }
+    [JsonPropertyName("invitee")] public FamilyMemberUserSummaryDto? Invitee { get; init; }
+}
+
+public record CreateFamilyMemberInviteRequestDto
+{
+    [JsonPropertyName("email")] public string Email { get; init; } = string.Empty;
 }
 
 public record CreateFamilyMemberRequestDto
@@ -29,7 +65,10 @@ public record CreateFamilyMemberRequestDto
     [JsonPropertyName("faceRecognitionEnabled")] public bool FaceRecognitionEnabled { get; init; } = true;
 }
 
-public record UpdateFamilyMemberRequestDto : CreateFamilyMemberRequestDto;
+public record UpdateFamilyMemberRequestDto : CreateFamilyMemberRequestDto
+{
+    [JsonPropertyName("assignedToTree")] public bool? AssignedToTree { get; init; }
+}
 
 public record FamilyMomentDto
 {

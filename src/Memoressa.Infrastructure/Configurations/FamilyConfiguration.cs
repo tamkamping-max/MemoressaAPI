@@ -46,3 +46,20 @@ public class FamilyMemberConfiguration : IEntityTypeConfiguration<FamilyMember>
         builder.HasMany(x => x.MemoryMembers).WithOne(x => x.FamilyMember).HasForeignKey(x => x.FamilyMemberId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class FamilyMemberInviteConfiguration : IEntityTypeConfiguration<FamilyMemberInvite>
+{
+    public void Configure(EntityTypeBuilder<FamilyMemberInvite> builder)
+    {
+        builder.ToTable("family_member_invites");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.InviteeEmail).HasMaxLength(320).IsRequired();
+        builder.HasIndex(x => x.FamilyId);
+        builder.HasIndex(x => x.InviterUserId);
+        builder.HasIndex(x => x.InviteeUserId);
+        builder.HasIndex(x => x.InviteeEmail);
+        builder.HasOne(x => x.Family).WithMany().HasForeignKey(x => x.FamilyId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.Inviter).WithMany().HasForeignKey(x => x.InviterUserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.Invitee).WithMany().HasForeignKey(x => x.InviteeUserId).OnDelete(DeleteBehavior.SetNull);
+    }
+}

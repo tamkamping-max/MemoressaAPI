@@ -97,7 +97,10 @@ public static class EntityMapping
         AvatarUrl = member.AvatarUrl,
         CityId = member.CityId,
         FaceRecognitionEnabled = member.FaceRecognitionEnabled,
-        PhotoIds = member.PhotoMembers.Select(pm => pm.PhotoId).ToList()
+        PhotoIds = member.PhotoMembers.Select(pm => pm.PhotoId).ToList(),
+        ConnectionStatus = "accepted",
+        AssignedToTree = member.AssignedToTree,
+        LinkedUserId = member.LinkedUserId
     };
 
     public static FamilyMomentDto ToDto(this FamilyMoment moment) => new()

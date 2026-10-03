@@ -19,6 +19,7 @@ public class MemoressaDbContext : DbContext, IMemoressaDbContext
     public DbSet<EmailVerificationCode> EmailVerificationCodes => Set<EmailVerificationCode>();
     public DbSet<EmailChangeCode> EmailChangeCodes => Set<EmailChangeCode>();
     public DbSet<FriendInvite> FriendInvites => Set<FriendInvite>();
+    public DbSet<FamilyMemberInvite> FamilyMemberInvites => Set<FamilyMemberInvite>();
     public DbSet<Family> Families => Set<Family>();
     public DbSet<FamilyMembership> FamilyMemberships => Set<FamilyMembership>();
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();

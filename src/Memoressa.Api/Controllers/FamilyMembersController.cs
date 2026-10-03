@@ -26,6 +26,36 @@ public class FamilyMembersController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpGet("invites")]
+    public async Task<IActionResult> GetFamilyMemberInvites(CancellationToken cancellationToken)
+    {
+        var result = await _familyService.GetFamilyMemberInvitesAsync(cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("invites")]
+    public async Task<IActionResult> CreateFamilyMemberInvite(
+        [FromBody] CreateFamilyMemberInviteRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _familyService.CreateFamilyMemberInviteAsync(request, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("invites/{id:guid}/accept")]
+    public async Task<IActionResult> AcceptFamilyMemberInvite(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _familyService.AcceptFamilyMemberInviteAsync(id, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("invites/{id:guid}/reject")]
+    public async Task<IActionResult> RejectFamilyMemberInvite(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _familyService.RejectFamilyMemberInviteAsync(id, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetMemberById(Guid id, CancellationToken cancellationToken)
     {

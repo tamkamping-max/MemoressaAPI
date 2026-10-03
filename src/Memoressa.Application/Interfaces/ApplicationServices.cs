@@ -92,6 +92,12 @@ public interface IFamilyService
     Task<ServiceResult<FamilyMemberDto>> UpdateMemberAsync(Guid id, UpdateFamilyMemberRequestDto request, CancellationToken cancellationToken = default);
     Task<ServiceResult> DeleteMemberAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ServiceResult<IReadOnlyList<FamilyMemberDto>>> GetMembersByGenerationAsync(Domain.Enums.Generation generation, CancellationToken cancellationToken = default);
+    Task<ServiceResult<IReadOnlyList<FamilyMemberInviteDto>>> GetFamilyMemberInvitesAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<FamilyMemberDto>> CreateFamilyMemberInviteAsync(
+        CreateFamilyMemberInviteRequestDto request,
+        CancellationToken cancellationToken = default);
+    Task<ServiceResult<FamilyMemberDto>> AcceptFamilyMemberInviteAsync(Guid inviteId, CancellationToken cancellationToken = default);
+    Task<ServiceResult> RejectFamilyMemberInviteAsync(Guid inviteId, CancellationToken cancellationToken = default);
 }
 
 public interface IFamilyMomentService

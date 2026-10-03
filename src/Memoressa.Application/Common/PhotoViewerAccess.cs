@@ -36,7 +36,9 @@ public static class PhotoViewerAccess
                             && db.Friends.Any(f =>
                                 f.Id == aff.FriendId && f.FriendUserId == viewerUserId)))))
             || (p.PrivacyScope == UploadPrivacyScope.Family
-                && db.FamilyMemberships.Any(m => m.UserId == viewerUserId && m.FamilyId == p.FamilyId)
+                && (db.FamilyMemberships.Any(m => m.UserId == viewerUserId && m.FamilyId == p.FamilyId)
+                    || db.FamilyMembers.Any(fm =>
+                        fm.FamilyId == p.FamilyId && fm.LinkedUserId == viewerUserId))
                 && (!db.PhotoMembers.Any(pm => pm.PhotoId == p.Id)
                     || db.PhotoMembers.Any(pm =>
                         pm.PhotoId == p.Id
@@ -59,7 +61,9 @@ public static class PhotoViewerAccess
                             && f.OwnerUserId == p.UploadedByUserId
                             && f.FriendUserId == viewerUserId))))
             || (p.PrivacyScope == UploadPrivacyScope.FriendsAndFamily
-                && ((db.FamilyMemberships.Any(m => m.UserId == viewerUserId && m.FamilyId == p.FamilyId)
+                && (((db.FamilyMemberships.Any(m => m.UserId == viewerUserId && m.FamilyId == p.FamilyId)
+                      || db.FamilyMembers.Any(fm =>
+                          fm.FamilyId == p.FamilyId && fm.LinkedUserId == viewerUserId))
                      && (!db.PhotoMembers.Any(pm => pm.PhotoId == p.Id)
                          || db.PhotoMembers.Any(pm =>
                              pm.PhotoId == p.Id

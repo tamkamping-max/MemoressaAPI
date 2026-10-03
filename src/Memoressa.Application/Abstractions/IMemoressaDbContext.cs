@@ -16,6 +16,7 @@ public interface IMemoressaDbContext
     DbSet<EmailVerificationCode> EmailVerificationCodes { get; }
     DbSet<EmailChangeCode> EmailChangeCodes { get; }
     DbSet<FriendInvite> FriendInvites { get; }
+    DbSet<FamilyMemberInvite> FamilyMemberInvites { get; }
     DbSet<Family> Families { get; }
     DbSet<FamilyMembership> FamilyMemberships { get; }
     DbSet<FamilyMember> FamilyMembers { get; }

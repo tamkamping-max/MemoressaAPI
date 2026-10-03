@@ -3,11 +3,12 @@ using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Memoressa.Domain.Entities;
+using Memoressa.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Memoressa.Application.Services;
 
-public class FamilyService : IFamilyService
+public partial class FamilyService : IFamilyService
 {
     private readonly IMemoressaDbContext _db;
     private readonly ICurrentUserService _currentUser;
@@ -32,7 +33,26 @@ public class FamilyService : IFamilyService
         }
 
         var members = await QueryMembers(ctx.Value.FamilyId).OrderBy(m => m.Name).ToListAsync(cancellationToken);
-        return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Ok(await MapMembersAsync(members, cancellationToken));
+        var linkedUserIds = members.Where(m => m.LinkedUserId.HasValue).Select(m => m.LinkedUserId!.Value).Distinct().ToList();
+        var linkedUsers = linkedUserIds.Count == 0
+            ? new Dictionary<Guid, UserAccount>()
+            : await _db.UserAccounts.AsNoTracking()
+                .Where(u => linkedUserIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, cancellationToken);
+
+        var dtos = new List<FamilyMemberDto>(members.Count);
+        foreach (var member in members)
+        {
+            linkedUsers.TryGetValue(member.LinkedUserId ?? Guid.Empty, out var linked);
+            dtos.Add(await MapAcceptedMemberAsync(member, linked, cancellationToken));
+        }
+
+        dtos.AddRange(await BuildPendingOutgoingInviteDtosAsync(
+            ctx.Value.FamilyId,
+            ctx.Value.UserId,
+            cancellationToken));
+
+        return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Ok(dtos);
     }
 
     public async Task<ServiceResult<FamilyMemberDto>> GetMemberByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -44,9 +64,34 @@ public class FamilyService : IFamilyService
         }
 
         var member = await QueryMembers(ctx.Value.FamilyId).FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
-        return member is null
-            ? ServiceResult<FamilyMemberDto>.NotFound("Member not found")
-            : ServiceResult<FamilyMemberDto>.Ok(await _avatarUrls.ToFamilyMemberDtoAsync(member, cancellationToken));
+        if (member is not null)
+        {
+            UserAccount? linked = null;
+            if (member.LinkedUserId.HasValue)
+            {
+                linked = await _db.UserAccounts.AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Id == member.LinkedUserId.Value, cancellationToken);
+            }
+
+            return ServiceResult<FamilyMemberDto>.Ok(await MapAcceptedMemberAsync(member, linked, cancellationToken));
+        }
+
+        var pending = await _db.FamilyMemberInvites.AsNoTracking()
+            .Include(i => i.Invitee)
+            .FirstOrDefaultAsync(
+                i => i.Id == id
+                     && i.FamilyId == ctx.Value.FamilyId
+                     && i.Status == FriendInviteStatus.Pending
+                     && i.InviterUserId == ctx.Value.UserId,
+                cancellationToken);
+
+        if (pending is null)
+        {
+            return ServiceResult<FamilyMemberDto>.NotFound("Member not found");
+        }
+
+        return ServiceResult<FamilyMemberDto>.Ok(
+            await MapPendingOutgoingInviteAsync(pending, pending.Invitee, cancellationToken));
     }
 
     public async Task<ServiceResult<FamilyMemberDto>> AddMemberAsync(
@@ -69,12 +114,13 @@ public class FamilyService : IFamilyService
             Relationship = request.Relationship,
             AvatarUrl = request.AvatarUrl,
             CityId = request.CityId,
-            FaceRecognitionEnabled = request.FaceRecognitionEnabled
+            FaceRecognitionEnabled = request.FaceRecognitionEnabled,
+            AssignedToTree = true
         };
 
         _db.FamilyMembers.Add(member);
         await _db.SaveChangesAsync(cancellationToken);
-        return ServiceResult<FamilyMemberDto>.Ok(await _avatarUrls.ToFamilyMemberDtoAsync(member, cancellationToken));
+        return ServiceResult<FamilyMemberDto>.Ok(await MapAcceptedMemberAsync(member, linkedUser: null, cancellationToken));
     }
 
     public async Task<ServiceResult<FamilyMemberDto>> UpdateMemberAsync(
@@ -105,8 +151,21 @@ public class FamilyService : IFamilyService
         member.AvatarUrl = request.AvatarUrl;
         member.CityId = request.CityId;
         member.FaceRecognitionEnabled = request.FaceRecognitionEnabled;
+        if (request.AssignedToTree.HasValue)
+        {
+            member.AssignedToTree = request.AssignedToTree.Value;
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
-        return ServiceResult<FamilyMemberDto>.Ok(await _avatarUrls.ToFamilyMemberDtoAsync(member, cancellationToken));
+
+        UserAccount? linked = null;
+        if (member.LinkedUserId.HasValue)
+        {
+            linked = await _db.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == member.LinkedUserId.Value, cancellationToken);
+        }
+
+        return ServiceResult<FamilyMemberDto>.Ok(await MapAcceptedMemberAsync(member, linked, cancellationToken));
     }
 
     public async Task<ServiceResult> DeleteMemberAsync(Guid id, CancellationToken cancellationToken = default)
@@ -117,19 +176,34 @@ public class FamilyService : IFamilyService
             return ServiceResult.Fail("Unauthorized", 401);
         }
 
-        var member = await _db.FamilyMembers.FirstOrDefaultAsync(m => m.Id == id && m.FamilyId == ctx.Value.FamilyId, cancellationToken);
-        if (member is null)
+        var member = await _db.FamilyMembers.FirstOrDefaultAsync(
+            m => m.Id == id && m.FamilyId == ctx.Value.FamilyId,
+            cancellationToken);
+        if (member is not null)
+        {
+            _db.FamilyMembers.Remove(member);
+            await _db.SaveChangesAsync(cancellationToken);
+            return ServiceResult.Ok();
+        }
+
+        var invite = await _db.FamilyMemberInvites.FirstOrDefaultAsync(
+            i => i.Id == id
+                 && i.FamilyId == ctx.Value.FamilyId
+                 && i.Status == FriendInviteStatus.Pending
+                 && i.InviterUserId == ctx.Value.UserId,
+            cancellationToken);
+        if (invite is null)
         {
             return ServiceResult.NotFound("Member not found");
         }
 
-        _db.FamilyMembers.Remove(member);
+        invite.Status = FriendInviteStatus.Rejected;
         await _db.SaveChangesAsync(cancellationToken);
         return ServiceResult.Ok();
     }
 
     public async Task<ServiceResult<IReadOnlyList<FamilyMemberDto>>> GetMembersByGenerationAsync(
-        Domain.Enums.Generation generation,
+        Generation generation,
         CancellationToken cancellationToken = default)
     {
         var ctx = await ServiceHelpers.ResolveFamilyAsync(_currentUser, _db, cancellationToken);
@@ -139,23 +213,24 @@ public class FamilyService : IFamilyService
         }
 
         var members = await QueryMembers(ctx.Value.FamilyId)
-            .Where(m => m.Generation == generation)
+            .Where(m => m.AssignedToTree && m.Generation == generation)
             .ToListAsync(cancellationToken);
 
-        return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Ok(await MapMembersAsync(members, cancellationToken));
-    }
+        var linkedUserIds = members.Where(m => m.LinkedUserId.HasValue).Select(m => m.LinkedUserId!.Value).Distinct().ToList();
+        var linkedUsers = linkedUserIds.Count == 0
+            ? new Dictionary<Guid, UserAccount>()
+            : await _db.UserAccounts.AsNoTracking()
+                .Where(u => linkedUserIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, cancellationToken);
 
-    private async Task<IReadOnlyList<FamilyMemberDto>> MapMembersAsync(
-        IReadOnlyList<FamilyMember> members,
-        CancellationToken cancellationToken)
-    {
-        var list = new List<FamilyMemberDto>(members.Count);
+        var dtos = new List<FamilyMemberDto>(members.Count);
         foreach (var member in members)
         {
-            list.Add(await _avatarUrls.ToFamilyMemberDtoAsync(member, cancellationToken));
+            linkedUsers.TryGetValue(member.LinkedUserId ?? Guid.Empty, out var linked);
+            dtos.Add(await MapAcceptedMemberAsync(member, linked, cancellationToken));
         }
 
-        return list;
+        return ServiceResult<IReadOnlyList<FamilyMemberDto>>.Ok(dtos);
     }
 
     private IQueryable<FamilyMember> QueryMembers(Guid familyId) =>

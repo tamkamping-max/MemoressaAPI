@@ -480,12 +480,20 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | List family members |
-| GET | `/{id}` | Get member by ID |
-| POST | `/` | Add family member |
-| PUT | `/{id}` | Update member |
-| DELETE | `/{id}` | Delete member |
-| GET | `/by-generation/{generation}` | Members by generation |
+| GET | `/` | Roster: accepted **`FamilyMember`** rows + **`pending_outgoing`** invites (mirrors friends list). Each item includes **`connectionStatus`** / **`status`** (`accepted` \| `pending_outgoing` \| `pending_incoming`), **`assignedToTree`**, optional **`email`**, **`linkedUserId`** / **`friendUserId`**, **`inviteId`** on pending rows. |
+| GET | `/invites` | Inbox: **`pending_incoming`** invites for the JWT user (nested **`inviter`** / **`invitee`** profiles). |
+| POST | `/invites` | `{ "email" }` — invite an **existing** app member to the caller’s family tree (**201** / row with **`pending_outgoing`**). |
+| POST | `/invites/{inviteId}/accept` | Accept → **`FamilyMember`** with **`linkedUserId`**, **`assignedToTree: false`** until placed on a tier (**PUT** with **`assignedToTree: true`**). |
+| POST | `/invites/{inviteId}/reject` | Decline (invitee) or cancel (inviter on own outgoing). |
+| GET | `/{id}` | Member by id, or pending outgoing invite id |
+| POST | `/` | Add local tree member (**`assignedToTree: true`**) — not a silent substitute for email invite |
+| PUT | `/{id}` | Update member; set **`generation`** + **`assignedToTree: true`** when dragging onto a tier |
+| DELETE | `/{id}` | Remove member, or cancel **`pending_outgoing`** invite by **`inviteId`** |
+| GET | `/by-generation/{generation}` | Tier members only (**`assignedToTree`** + generation) |
+
+**Photo privacy:** `family` visibility includes users linked on the tree via **`family_members.linkedUserId`** (accepted invite), not only **`family_memberships`**.
+
+Migration **`026_family_member_invites.sql`** (`family_member_invites`, `family_members.assignedToTree`).
 
 ### Family Moments — `api/v1/family-moments`
 
