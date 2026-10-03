@@ -480,7 +480,7 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | Roster: accepted **`FamilyMember`** rows + **`pending_outgoing`** invites (mirrors friends list). Each item includes **`connectionStatus`** / **`status`** (`accepted` \| `pending_outgoing` \| `pending_incoming`), **`assignedToTree`**, optional **`email`**, **`linkedUserId`** / **`friendUserId`**, **`inviteId`** on pending rows. |
+| GET | `/` | Roster: accepted **`FamilyMember`** rows + **`pending_outgoing`** invites (mirrors friends list). **`id`** / **`familyConnectionId`** / **`memberConnectionId`** = row id for **`DELETE /{id}`**; **`linkedUserId`** / **`friendUserId`** = counterparty account (not for DELETE). **`connectionStatus`** / **`status`**, **`assignedToTree`**, optional **`email`**, **`inviteId`** on pending rows. |
 | GET | `/invites` | Inbox: **`pending_incoming`** invites for the JWT user (nested **`inviter`** / **`invitee`** profiles). |
 | POST | `/invites` | `{ "email" }` — invite an **existing** app member to the caller’s family tree (**201** / row with **`pending_outgoing`**). |
 | POST | `/invites/{inviteId}/accept` | Accept → **`FamilyMember`** with **`linkedUserId`**, **`assignedToTree: false`** until placed on a tier (**PUT** with **`assignedToTree: true`**). |
@@ -488,7 +488,7 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 | GET | `/{id}` | Member by id, or pending outgoing invite id |
 | POST | `/` | Add local tree member (**`assignedToTree: true`**) — not a silent substitute for email invite |
 | PUT | `/{id}` | Update member; set **`generation`** + **`assignedToTree: true`** when dragging onto a tier |
-| DELETE | `/{id}` | Remove member, or cancel **`pending_outgoing`** invite by **`inviteId`** |
+| DELETE | `/{id}` | Remove accepted member from tree (hard delete) or cancel **`pending_outgoing`** invite by list row **`id`**. **204** on success; **404** if not found / not in caller’s family; **403** if pending invite is not yours to cancel. Errors: `{ "message", "error" }`. Photo **`memberIds`** / tag join rows for that member are not rewritten (historical); **`photo_members`** links cascade on member delete. |
 | GET | `/by-generation/{generation}` | Tier members only (**`assignedToTree`** + generation) |
 
 **Photo privacy:** `family` visibility includes users linked on the tree via **`family_members.linkedUserId`** (accepted invite), not only **`family_memberships`**.

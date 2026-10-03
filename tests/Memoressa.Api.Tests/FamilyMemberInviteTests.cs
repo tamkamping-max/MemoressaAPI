@@ -105,6 +105,7 @@ public class FamilyMemberInviteTests
 
         var deleted = await service.DeleteMemberAsync(inviteId);
         Assert.True(deleted.Success);
+        Assert.Equal(204, deleted.StatusCode);
 
         var roster = await service.GetMembersAsync();
         Assert.DoesNotContain(roster.Data!, m => m.Id == inviteId);

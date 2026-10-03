@@ -183,23 +183,30 @@ public partial class FamilyService : IFamilyService
         {
             _db.FamilyMembers.Remove(member);
             await _db.SaveChangesAsync(cancellationToken);
-            return ServiceResult.Ok();
+            return ServiceResult.NoContent();
         }
 
         var invite = await _db.FamilyMemberInvites.FirstOrDefaultAsync(
-            i => i.Id == id
-                 && i.FamilyId == ctx.Value.FamilyId
-                 && i.Status == FriendInviteStatus.Pending
-                 && i.InviterUserId == ctx.Value.UserId,
+            i => i.Id == id && i.Status == FriendInviteStatus.Pending,
             cancellationToken);
         if (invite is null)
         {
             return ServiceResult.NotFound("Member not found");
         }
 
-        invite.Status = FriendInviteStatus.Rejected;
-        await _db.SaveChangesAsync(cancellationToken);
-        return ServiceResult.Ok();
+        if (invite.FamilyId != ctx.Value.FamilyId)
+        {
+            return ServiceResult.NotFound("Member not found");
+        }
+
+        if (invite.InviterUserId == ctx.Value.UserId)
+        {
+            invite.Status = FriendInviteStatus.Rejected;
+            await _db.SaveChangesAsync(cancellationToken);
+            return ServiceResult.NoContent();
+        }
+
+        return ServiceResult.Forbidden("You cannot delete this connection");
     }
 
     public async Task<ServiceResult<IReadOnlyList<FamilyMemberDto>>> GetMembersByGenerationAsync(

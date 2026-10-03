@@ -14,6 +14,8 @@ public record FamilyMemberUserSummaryDto
 public record FamilyMemberDto
 {
     [JsonPropertyName("id")] public Guid Id { get; init; }
+    [JsonPropertyName("familyConnectionId")] public Guid FamilyConnectionId => Id;
+    [JsonPropertyName("memberConnectionId")] public Guid MemberConnectionId => Id;
     [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
     [JsonPropertyName("nickname")] public string? Nickname { get; init; }
     [JsonPropertyName("birthDate")] public DateTime? BirthDate { get; init; }
