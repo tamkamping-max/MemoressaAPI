@@ -478,12 +478,14 @@ Migrations **`009_activity_albums.sql`**, **`022_activity_album_privacy_scope.sq
 
 ### Family Members — `api/v1/family-members`
 
+**Family scope:** Routes use the JWT user’s **`family_id`** claim when present and the user belongs to that family; otherwise the user’s first **`family_memberships`** row. **`GET /`** always lists **`family_members`** for that resolved family (not the inviter’s family when you accepted someone else’s invite).
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Full roster: **all accepted** members (**`assignedToTree` true and false** — unassigned pool included) + **`pending_outgoing`** invites. **`?connectionStatus=accepted`** = accepted only (still includes **`assignedToTree: false`**). **`assignedToTree`** always returned (boolean). Unassigned: **`assignedToTree: false`**, **`generation`** null/omitted. Tier-only lists: **`GET /by-generation/{generation}`** (assigned only). **Accepted:** **`id`** = **`familyMemberId`**. **Pending:** **`id`** = invite id for **`DELETE`**. |
 | GET | `/invites` | Inbox: **`pending_incoming`** invites for the JWT user (nested **`inviter`** / **`invitee`** profiles). |
 | POST | `/invites` | `{ "email" }` — invite an **existing** app member (**201** / **`pending_outgoing`**). **`code`**: `invalid_email` (**400**), `cannot_invite_self` (**400**), `email_not_registered` (**404**), `family_already_connected` (**409** member or pending in family). |
-| POST | `/invites/{inviteId}/accept` | Accept → inviter’s family gets invitee as **`FamilyMember`** (`linkedUserId`, **`assignedToTree: false`**). **Also** adds inviter to invitee’s home **`GET /family-members`** as unassigned accepted (`linkedUserId` = inviter, **`assignedToTree: false`**) so both sides see each other in 未分配家人. |
+| POST | `/invites/{inviteId}/accept` | **200** body = invitee **home** family row for the **inviter** (`linkedUserId` = inviter user id, **`assignedToTree: false`**, **`connectionStatus: accepted`**) — same shape as **`GET /family-members`** 未分配列. Server also adds invitee to inviter’s family (unassigned). If invitee has no **`family_memberships`**, API bootstraps a home family (same as registration). Resolve home family: JWT **`family_id`** → first membership → bootstrap. |
 | POST | `/invites/{inviteId}/reject` | Decline (invitee) or cancel (inviter on own outgoing). |
 | GET | `/{id}` | Member by id, or pending outgoing invite id |
 | POST | `/` | Add local tree member (**`assignedToTree: true`**) — not a silent substitute for email invite |

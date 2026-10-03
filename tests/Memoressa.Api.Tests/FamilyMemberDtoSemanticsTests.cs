@@ -92,8 +92,9 @@ public class FamilyMemberDtoSemanticsTests
         Assert.Equal("accepted", accepted.Data!.ConnectionStatus);
         Assert.NotNull(accepted.Data.FamilyMemberId);
         Assert.Equal(accepted.Data.Id, accepted.Data.FamilyMemberId);
-        Assert.Equal(inviteeId, accepted.Data.LinkedUserId);
+        Assert.Equal(inviterId, accepted.Data.LinkedUserId);
         Assert.Equal(accepted.Data.FamilyMemberId, accepted.Data.Counterparty!.FamilyMemberId);
+        Assert.Equal(inviterId, accepted.Data.Counterparty.Id);
         Assert.False(accepted.Data.AssignedToTree);
     }
 

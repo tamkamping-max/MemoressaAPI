@@ -57,7 +57,7 @@ public class FamilyMemberInviteTests
         Assert.True(accepted.Success);
         Assert.Equal("accepted", accepted.Data!.ConnectionStatus);
         Assert.False(accepted.Data.AssignedToTree);
-        Assert.Equal(inviteeId, accepted.Data.LinkedUserId);
+        Assert.Equal(inviterId, accepted.Data.LinkedUserId);
 
         var inviterRoster = await inviterService.GetMembersAsync();
         Assert.Contains(inviterRoster.Data!, m => m.LinkedUserId == inviteeId && !m.AssignedToTree);
