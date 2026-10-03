@@ -26,7 +26,8 @@ public static class PhotoSummaryLoader
                 db.Photos.AsNoTracking()
                     .Where(p => p.FamilyId == familyId && distinct.Contains(p.Id) && !p.IsHidden)
                     .Include(p => p.UploadedBy),
-                viewerUserId)
+                viewerUserId,
+                db)
             .ToListAsync(cancellationToken);
 
         if (photos.Count == 0)
@@ -69,7 +70,8 @@ public static class PhotoSummaryLoader
                 db.Photos.AsNoTracking()
                     .Where(p => distinct.Contains(p.Id) && !p.IsHidden)
                     .Include(p => p.UploadedBy),
-                viewerUserId)
+                viewerUserId,
+                db)
             .ToListAsync(cancellationToken);
 
         if (photos.Count == 0)

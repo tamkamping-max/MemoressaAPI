@@ -120,6 +120,29 @@ public class UploadService : IUploadService
             activityAlbumId = activity.Id;
         }
 
+        var startPrivacyValidation = PhotoPrivacyValidation.ValidateStartUpload(
+            request,
+            activityAlbumId.HasValue);
+        if (startPrivacyValidation is not null)
+        {
+            return ServiceResult<StartUploadResponseDto>.Fail(
+                startPrivacyValidation.Error!,
+                startPrivacyValidation.StatusCode);
+        }
+
+        var activityParticipantsVisible = request.ActivityParticipantsVisible ?? activityAlbumId.HasValue;
+        if (activityAlbumId.HasValue && request.ActivityParticipantsVisible == false)
+        {
+            return ServiceResult<StartUploadResponseDto>.Fail(
+                PhotoPrivacyValidation.ActivityParticipantsLockedMessage,
+                400);
+        }
+
+        if (activityAlbumId.HasValue)
+        {
+            activityParticipantsVisible = true;
+        }
+
         var originalFileNameInput = string.IsNullOrWhiteSpace(request.OriginalFileName)
             ? request.FileName
             : request.OriginalFileName;
@@ -236,6 +259,9 @@ public class UploadService : IUploadService
             ActivityAlbumId = activityAlbumId,
             TakenAt = request.TakenAt,
             PrivacyScope = request.PrivacyScope,
+            ActivityParticipantsVisible = activityParticipantsVisible,
+            PrivacyMemberIdsJson = PhotoPrivacyIdsJson.WriteGuids(request.MemberIds ?? []),
+            PrivacyFriendIdsJson = PhotoPrivacyIdsJson.WriteGuids(request.FriendIds ?? []),
             SharedAlbumId = request.SharedAlbumId,
             ExpiresAt = expiresAt,
             Status = UploadSessionStatus.Pending
@@ -366,6 +392,36 @@ public class UploadService : IUploadService
 
         user.CloudStorageUsedBytes += totalQuotaBytes;
 
+        var privacyScope = request?.PrivacyScope ?? session.PrivacyScope;
+        var memberIds = request?.MemberIds ?? PhotoPrivacyIdsJson.ReadGuids(session.PrivacyMemberIdsJson);
+        var friendIds = request?.FriendIds ?? PhotoPrivacyIdsJson.ReadGuids(session.PrivacyFriendIdsJson);
+        var visibility = request?.Visibility ?? MemoryVisibility.Family;
+
+        var privacyValidation = PhotoPrivacyValidation.ValidateCompleteOrUpdate(
+            privacyScope,
+            visibility,
+            memberIds,
+            friendIds);
+        if (privacyValidation is not null)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ServiceResult<PhotoDto>.Fail(privacyValidation.Error!, privacyValidation.StatusCode);
+        }
+
+        var activityParticipantsVisible = request?.ActivityParticipantsVisible ?? session.ActivityParticipantsVisible;
+        if (session.ActivityAlbumId.HasValue)
+        {
+            if (request?.ActivityParticipantsVisible == false)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return ServiceResult<PhotoDto>.Fail(
+                    PhotoPrivacyValidation.ActivityParticipantsLockedMessage,
+                    400);
+            }
+
+            activityParticipantsVisible = true;
+        }
+
         var photo = new Photo
         {
             FamilyId = session.FamilyId,
@@ -383,15 +439,46 @@ public class UploadService : IUploadService
             OriginalStillFileSizeBytes = stillSize,
             LivePhotoVideoFileSizeBytes = liveVideoSize,
             FileSizeBytes = totalQuotaBytes,
-            PrivacyScope = session.PrivacyScope,
+            PrivacyScope = privacyScope,
+            ActivityParticipantsVisible = activityParticipantsVisible,
             SharedAlbumId = session.SharedAlbumId,
             TakenAt = session.TakenAt ?? session.CreatedAt,
-            Visibility = MemoryVisibility.Family,
+            Visibility = visibility,
             Description = UploadMetadata.NormalizeOptionalText(request?.Description),
             Location = UploadMetadata.NormalizeOptionalText(request?.Location)
         };
 
         _db.Photos.Add(photo);
+
+        if (memberIds.Count > 0)
+        {
+            var memberFailure = await PhotoPrivacyRelations.ReplaceMembersAsync(
+                _db,
+                photo,
+                memberIds,
+                cancellationToken);
+            if (memberFailure is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return ServiceResult<PhotoDto>.Fail(memberFailure.Error!, memberFailure.StatusCode);
+            }
+        }
+
+        if (friendIds.Count > 0)
+        {
+            var friendFailure = await PhotoPrivacyRelations.ReplaceFriendsAsync(
+                _db,
+                photo,
+                session.UserId,
+                friendIds,
+                cancellationToken);
+            if (friendFailure is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return ServiceResult<PhotoDto>.Fail(friendFailure.Error!, friendFailure.StatusCode);
+            }
+        }
+
         session.Status = UploadSessionStatus.Completed;
         session.ResultPhotoId = photo.Id;
         session.OriginalStillFileSizeBytes = stillSize;

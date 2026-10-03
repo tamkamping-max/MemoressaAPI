@@ -43,6 +43,11 @@ public record PhotoDto
     [JsonPropertyName("visibility")] public MemoryVisibility Visibility { get; init; }
     [JsonConverter(typeof(UploadPrivacyScopeJsonConverter))]
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope PrivacyScope { get; init; } = UploadPrivacyScope.Family;
+    [JsonPropertyName("activityParticipantsVisible")] public bool ActivityParticipantsVisible { get; init; }
+    [JsonPropertyName("privacyOnlySelf")] public bool PrivacyOnlySelf { get; init; }
+    [JsonPropertyName("privacyFamily")] public bool PrivacyFamily { get; init; }
+    [JsonPropertyName("privacyFriends")] public bool PrivacyFriends { get; init; }
+    [JsonPropertyName("privacyCustomList")] public bool PrivacyCustomList { get; init; }
     [JsonPropertyName("originalFileName")] public string? OriginalFileName { get; init; }
     [JsonPropertyName("isLivePhoto")] public bool IsLivePhoto { get; init; }
     [JsonPropertyName("albumId")] public Guid? AlbumId { get; init; }
@@ -60,6 +65,7 @@ public record UpdatePhotoRequestDto
     [JsonPropertyName("visibility")] public MemoryVisibility? Visibility { get; init; }
     [JsonConverter(typeof(UploadPrivacyScopeJsonConverter))]
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope? PrivacyScope { get; init; }
+    [JsonPropertyName("activityParticipantsVisible")] public bool? ActivityParticipantsVisible { get; init; }
     [JsonPropertyName("isHidden")] public bool? IsHidden { get; init; }
     /// <summary>Full replace of user tags. Does not affect AI tags in <c>photo_ai_tags</c>.</summary>
     [JsonPropertyName("userTags")] public IReadOnlyList<string>? UserTags { get; init; }
@@ -85,6 +91,10 @@ public record StartUploadRequestDto
     [JsonPropertyName("mediaKind")] public MediaKind MediaKind { get; init; } = MediaKind.Photo;
     [JsonConverter(typeof(UploadPrivacyScopeJsonConverter))]
     [JsonPropertyName("privacyScope")] public UploadPrivacyScope PrivacyScope { get; init; } = UploadPrivacyScope.Family;
+    [JsonPropertyName("memberIds")] public IReadOnlyList<Guid>? MemberIds { get; init; }
+    [JsonPropertyName("friendIds")] public IReadOnlyList<Guid>? FriendIds { get; init; }
+    [JsonPropertyName("activityParticipantsVisible")] public bool? ActivityParticipantsVisible { get; init; }
+    [JsonPropertyName("visibility")] public MemoryVisibility? Visibility { get; init; }
     [JsonPropertyName("sharedAlbumId")] public Guid? SharedAlbumId { get; init; }
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
     /// <summary>Link completed upload to an in-progress activity album (external id, e.g. act_...).</summary>
@@ -98,6 +108,12 @@ public record CompleteUploadRequestDto
 {
     [JsonPropertyName("description")] public string? Description { get; init; }
     [JsonPropertyName("location")] public string? Location { get; init; }
+    [JsonConverter(typeof(UploadPrivacyScopeJsonConverter))]
+    [JsonPropertyName("privacyScope")] public UploadPrivacyScope? PrivacyScope { get; init; }
+    [JsonPropertyName("visibility")] public MemoryVisibility? Visibility { get; init; }
+    [JsonPropertyName("memberIds")] public IReadOnlyList<Guid>? MemberIds { get; init; }
+    [JsonPropertyName("friendIds")] public IReadOnlyList<Guid>? FriendIds { get; init; }
+    [JsonPropertyName("activityParticipantsVisible")] public bool? ActivityParticipantsVisible { get; init; }
 }
 
 public record UploadPartTargetDto

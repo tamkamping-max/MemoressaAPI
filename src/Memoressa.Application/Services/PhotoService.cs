@@ -130,7 +130,8 @@ public class PhotoService : IPhotoService
             .Include(p => p.AiTags)
             .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == ctx.Value.FamilyId, cancellationToken);
 
-        if (photo is null || !PhotoViewerAccess.CanView(photo, ctx.Value.UserId))
+        if (photo is null
+            || !await PhotoViewerAccess.CanViewAsync(_db, photo, ctx.Value.UserId, cancellationToken))
         {
             return ServiceResult<PhotoDto>.NotFound("Photo not found");
         }
@@ -142,6 +143,40 @@ public class PhotoService : IPhotoService
 
         async Task<ServiceResult<PhotoDto>?> ApplyChangesAsync()
         {
+            var effectiveScope = request.PrivacyScope ?? photo.PrivacyScope;
+            var effectiveVisibility = request.Visibility ?? photo.Visibility;
+            var membersForValidation = request.MemberIds
+                                     ?? (effectiveScope == UploadPrivacyScope.Custom
+                                         ? photo.PhotoMembers.Select(pm => pm.FamilyMemberId).ToList()
+                                         : null);
+            var friendsForValidation = request.FriendIds
+                                     ?? (effectiveScope == UploadPrivacyScope.Custom
+                                         ? photo.PhotoFriends.Select(pf => pf.FriendId).ToList()
+                                         : null);
+            var privacyValidation = PhotoPrivacyValidation.ValidateCompleteOrUpdate(
+                effectiveScope,
+                request.Visibility ?? (request.PrivacyScope.HasValue ? effectiveVisibility : null),
+                membersForValidation,
+                friendsForValidation);
+            if (privacyValidation is not null)
+            {
+                return ServiceResult<PhotoDto>.Fail(privacyValidation.Error!, privacyValidation.StatusCode);
+            }
+
+            if (request.ActivityParticipantsVisible == false)
+            {
+                var linkedToActivity = await PhotoActivityLinkage.IsLinkedToActivityAlbumAsync(
+                    _db,
+                    photo.Id,
+                    cancellationToken);
+                if (linkedToActivity)
+                {
+                    return ServiceResult<PhotoDto>.Fail(
+                        PhotoPrivacyValidation.ActivityParticipantsLockedMessage,
+                        400);
+                }
+            }
+
             if (request.Description is not null)
             {
                 photo.Description = request.Description;
@@ -165,6 +200,11 @@ public class PhotoService : IPhotoService
             if (request.PrivacyScope.HasValue)
             {
                 photo.PrivacyScope = request.PrivacyScope.Value;
+            }
+
+            if (request.ActivityParticipantsVisible.HasValue)
+            {
+                photo.ActivityParticipantsVisible = request.ActivityParticipantsVisible.Value;
             }
 
             if (request.IsHidden.HasValue)
@@ -381,7 +421,8 @@ public class PhotoService : IPhotoService
     {
         var stats = await PhotoViewerAccess.ApplyViewerFilter(
                 _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId && !p.IsHidden),
-                viewerUserId)
+                viewerUserId,
+                _db)
             .GroupBy(_ => 1)
             .Select(g => new
             {
@@ -719,7 +760,7 @@ public class PhotoService : IPhotoService
                 continue;
             }
 
-            if (!PhotoViewerAccess.CanView(photo, viewerUserId))
+            if (!await PhotoViewerAccess.CanViewAsync(_db, photo, viewerUserId, cancellationToken))
             {
                 continue;
             }
@@ -761,9 +802,19 @@ public class PhotoService : IPhotoService
             };
         }
 
-        var visibleEntries = entries
-            .Where(e => e.Photo.FamilyId == familyId && PhotoViewerAccess.CanView(e.Photo, viewerUserId))
-            .ToList();
+        var visibleEntries = new List<TodayMemoriesComposer.SelectionEntry>();
+        foreach (var entry in entries)
+        {
+            if (entry.Photo.FamilyId != familyId)
+            {
+                continue;
+            }
+
+            if (await PhotoViewerAccess.CanViewAsync(_db, entry.Photo, viewerUserId, cancellationToken))
+            {
+                visibleEntries.Add(entry);
+            }
+        }
 
         if (visibleEntries.Count == 0)
         {
@@ -809,7 +860,8 @@ public class PhotoService : IPhotoService
         var photo = await _db.Photos
             .FirstOrDefaultAsync(p => p.Id == id && p.FamilyId == familyId, cancellationToken);
 
-        if (photo is null || !PhotoViewerAccess.CanView(photo, viewerUserId))
+        if (photo is null
+            || !await PhotoViewerAccess.CanViewAsync(_db, photo, viewerUserId, cancellationToken))
         {
             return (false, "Photo not found", 404);
         }
@@ -907,7 +959,8 @@ public class PhotoService : IPhotoService
         CancellationToken cancellationToken) =>
         await PhotoViewerAccess.ApplyViewerFilter(
                 _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId),
-                viewerUserId)
+                viewerUserId,
+                _db)
             .CountAsync(
                 p => !p.IsHidden
                      && (p.S3Key != null && p.S3Key != "" || p.LocalAssetPath != null && p.LocalAssetPath != ""),
@@ -916,7 +969,8 @@ public class PhotoService : IPhotoService
     private IQueryable<Domain.Entities.Photo> QueryPhotos(Guid familyId, Guid viewerUserId) =>
         PhotoViewerAccess.ApplyViewerFilter(
                 _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId),
-                viewerUserId)
+                viewerUserId,
+                _db)
             .Include(p => p.PhotoMembers)
             .Include(p => p.PhotoFriends)
             .Include(p => p.AiTags)

@@ -1,3 +1,4 @@
+using Memoressa.Application.Common;
 using Memoressa.Domain.Entities;
 using Memoressa.Domain.Enums;
 
@@ -21,38 +22,44 @@ public static class EntityMapping
     public static PhotoDto ToDto(this Photo photo, string? remoteUrl = null, string? thumbnailUrl = null, string? fullUrl = null)
     {
         var uploader = BuildUploaderFields(photo);
+        var uiFlags = PhotoPrivacyUiFlags.FromScope(photo.PrivacyScope);
         return new PhotoDto
-    {
-        Id = photo.Id,
-        AssetPath = photo.LocalAssetPath ?? remoteUrl ?? string.Empty,
-        ThumbnailPath = thumbnailUrl,
-        ThumbnailUrl = thumbnailUrl,
-        RemoteUrl = remoteUrl,
-        FullUrl = fullUrl,
-        TakenAt = photo.TakenAt,
-        Location = photo.Location,
-        Description = photo.Description,
-        MemberIds = photo.PhotoMembers.Select(pm => pm.FamilyMemberId).ToList(),
-        FriendIds = photo.PhotoFriends.Select(pf => pf.FriendId).ToList(),
-        UserTags = photo.UserTags.OrderBy(t => t.Tag).Select(t => t.Tag).ToList(),
-        AiTags = photo.AiTags.OrderBy(t => t.Tag).Select(t => t.Tag).ToList(),
-        EventId = photo.EventId,
-        UploadedBy = photo.UploadedByUserId,
-        UploaderNickname = uploader.Nickname,
-        UploaderEmail = uploader.Email,
-        Uploader = uploader.Nested,
-        Generation = photo.Generation,
-        IsHidden = photo.IsHidden,
-        IsDuplicate = photo.IsDuplicate,
-        IsSimilar = photo.IsSimilar,
-        IsBlurry = photo.IsBlurry,
-        IsScreenshot = photo.IsScreenshot,
-        IsAiInferred = photo.IsAiInferred,
-        Visibility = photo.Visibility,
-        PrivacyScope = photo.PrivacyScope,
-        OriginalFileName = photo.OriginalFileName,
-        IsLivePhoto = photo.IsLivePhoto
-    };
+        {
+            Id = photo.Id,
+            AssetPath = photo.LocalAssetPath ?? remoteUrl ?? string.Empty,
+            ThumbnailPath = thumbnailUrl,
+            ThumbnailUrl = thumbnailUrl,
+            RemoteUrl = remoteUrl,
+            FullUrl = fullUrl,
+            TakenAt = photo.TakenAt,
+            Location = photo.Location,
+            Description = photo.Description,
+            MemberIds = photo.PhotoMembers.Select(pm => pm.FamilyMemberId).ToList(),
+            FriendIds = photo.PhotoFriends.Select(pf => pf.FriendId).ToList(),
+            UserTags = photo.UserTags.OrderBy(t => t.Tag).Select(t => t.Tag).ToList(),
+            AiTags = photo.AiTags.OrderBy(t => t.Tag).Select(t => t.Tag).ToList(),
+            EventId = photo.EventId,
+            UploadedBy = photo.UploadedByUserId,
+            UploaderNickname = uploader.Nickname,
+            UploaderEmail = uploader.Email,
+            Uploader = uploader.Nested,
+            Generation = photo.Generation,
+            IsHidden = photo.IsHidden,
+            IsDuplicate = photo.IsDuplicate,
+            IsSimilar = photo.IsSimilar,
+            IsBlurry = photo.IsBlurry,
+            IsScreenshot = photo.IsScreenshot,
+            IsAiInferred = photo.IsAiInferred,
+            Visibility = photo.Visibility,
+            PrivacyScope = photo.PrivacyScope,
+            ActivityParticipantsVisible = photo.ActivityParticipantsVisible,
+            PrivacyOnlySelf = uiFlags.PrivacyOnlySelf,
+            PrivacyFamily = uiFlags.PrivacyFamily,
+            PrivacyFriends = uiFlags.PrivacyFriends,
+            PrivacyCustomList = uiFlags.PrivacyCustomList,
+            OriginalFileName = photo.OriginalFileName,
+            IsLivePhoto = photo.IsLivePhoto
+        };
     }
 
     private static (string? Nickname, string? Email, PhotoUploaderDto? Nested) BuildUploaderFields(Photo photo)

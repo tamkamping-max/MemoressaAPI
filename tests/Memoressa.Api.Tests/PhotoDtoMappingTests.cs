@@ -2,6 +2,7 @@ using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Domain.Entities;
 using Memoressa.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
 
 namespace Memoressa.Api.Tests;
 
@@ -112,17 +113,38 @@ public class PhotoViewerAccessTests
     [Theory]
     [InlineData(UploadPrivacyScope.Family, false)]
     [InlineData(UploadPrivacyScope.OnlySelf, true)]
-    public void CanView_RespectsOnlySelfPrivacy(UploadPrivacyScope scope, bool blockedForOtherUser)
+    public async Task CanViewAsync_RespectsOnlySelfPrivacy(UploadPrivacyScope scope, bool blockedForOtherUser)
     {
+        var options = new DbContextOptionsBuilder<Memoressa.Infrastructure.Data.MemoressaDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+            .Options;
+
+        await using var db = new Memoressa.Infrastructure.Data.MemoressaDbContext(options);
+
         var ownerId = Guid.NewGuid();
         var viewerId = Guid.NewGuid();
-        var photo = new Photo
-        {
-            UploadedByUserId = ownerId,
-            PrivacyScope = scope
-        };
+        var familyId = Guid.NewGuid();
+        var photoId = Guid.NewGuid();
 
-        Assert.True(PhotoViewerAccess.CanView(photo, ownerId));
-        Assert.Equal(blockedForOtherUser, !PhotoViewerAccess.CanView(photo, viewerId));
+        db.Families.Add(new Family { Id = familyId, Name = "T", OwnerUserId = ownerId });
+        db.UserAccounts.AddRange(
+            new UserAccount { Id = ownerId, Email = "o@test.com" },
+            new UserAccount { Id = viewerId, Email = "v@test.com" });
+        db.FamilyMemberships.AddRange(
+            new FamilyMembership { UserId = ownerId, FamilyId = familyId },
+            new FamilyMembership { UserId = viewerId, FamilyId = familyId });
+        db.Photos.Add(new Photo
+        {
+            Id = photoId,
+            FamilyId = familyId,
+            UploadedByUserId = ownerId,
+            S3Key = "x.jpg",
+            ContentType = "image/jpeg",
+            PrivacyScope = scope
+        });
+        await db.SaveChangesAsync();
+
+        Assert.True(await PhotoViewerAccess.CanViewAsync(db, photoId, ownerId, CancellationToken.None));
+        Assert.Equal(blockedForOtherUser, !await PhotoViewerAccess.CanViewAsync(db, photoId, viewerId, CancellationToken.None));
     }
 }

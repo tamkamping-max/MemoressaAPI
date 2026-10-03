@@ -177,6 +177,8 @@ public class Photo : Entity, IFamilyScoped
     public bool IsAiInferred { get; set; }
     public MemoryVisibility Visibility { get; set; } = MemoryVisibility.Family;
     public UploadPrivacyScope PrivacyScope { get; set; } = UploadPrivacyScope.Family;
+    /// <summary>When true, users who can access a linked activity album may also view this photo (stacked with privacyScope).</summary>
+    public bool ActivityParticipantsVisible { get; set; }
     public Guid? SharedAlbumId { get; set; }
     /// <summary>Total bytes counted toward user quota (still original + Live video when applicable).</summary>
     public long? FileSizeBytes { get; set; }
@@ -499,6 +501,11 @@ public class UploadSession : Entity
     public DateTime? TakenAt { get; set; }
     public UploadSessionStatus Status { get; set; } = UploadSessionStatus.Pending;
     public UploadPrivacyScope PrivacyScope { get; set; } = UploadPrivacyScope.Family;
+    public bool ActivityParticipantsVisible { get; set; }
+    /// <summary>JSON array of family member ids staged until upload complete.</summary>
+    public string PrivacyMemberIdsJson { get; set; } = "[]";
+    /// <summary>JSON array of friend ids staged until upload complete.</summary>
+    public string PrivacyFriendIdsJson { get; set; } = "[]";
     public Guid? SharedAlbumId { get; set; }
     public Guid? ActivityAlbumId { get; set; }
     /// <summary>When true, display key (S3Key) references the same object as S3KeyFull; no separate compressed PUT.</summary>

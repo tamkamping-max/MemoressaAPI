@@ -761,7 +761,8 @@ public class ActivityService : IActivityService
         var photos = await PhotoViewerAccess.ApplyViewerFilter(
                 _db.Photos.AsNoTracking()
                     .Where(p => p.FamilyId == familyId && photoIds.Contains(p.Id) && !p.IsHidden),
-                viewerUserId)
+                viewerUserId,
+                _db)
             .Select(p => p.Id)
             .ToListAsync(cancellationToken);
 
@@ -789,7 +790,8 @@ public class ActivityService : IActivityService
         var validPhotoIds = await PhotoViewerAccess.ApplyViewerFilter(
                 _db.Photos.AsNoTracking()
                     .Where(p => photoIds.Contains(p.Id) && !p.IsHidden),
-                viewerUserId)
+                viewerUserId,
+                _db)
             .Select(p => p.Id)
             .ToListAsync(cancellationToken);
 
@@ -872,7 +874,8 @@ public class ActivityService : IActivityService
                     .Include(p => p.PhotoMembers)
                     .Include(p => p.UserTags)
                     .Include(p => p.AiTags),
-                viewerUserId)
+                viewerUserId,
+                _db)
             .ToListAsync(cancellationToken);
 
         var order = links
@@ -1351,7 +1354,8 @@ public class ActivityService : IActivityService
         return await PhotoViewerAccess.ApplyViewerFilter(
                 _db.Photos.AsNoTracking()
                     .Where(p => linkedIds.Contains(p.Id) && !p.IsHidden),
-                viewerUserId)
+                viewerUserId,
+                _db)
             .CountAsync(cancellationToken);
     }
 

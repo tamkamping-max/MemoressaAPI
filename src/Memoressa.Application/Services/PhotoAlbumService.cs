@@ -521,7 +521,8 @@ public class PhotoAlbumService : IPhotoAlbumService
     {
         var accessible = await PhotoViewerAccess.ApplyViewerFilter(
                 _db.Photos.AsNoTracking().Where(p => p.FamilyId == familyId),
-                viewerUserId)
+                viewerUserId,
+                _db)
             .Where(p => photoIds.Contains(p.Id))
             .Select(p => p.Id)
             .ToListAsync(cancellationToken);
@@ -633,7 +634,8 @@ public class PhotoAlbumService : IPhotoAlbumService
         {
             var photos = await PhotoViewerAccess.ApplyViewerFilter(
                     _db.Photos.AsNoTracking().Where(p => photoIds.Contains(p.Id)),
-                    _currentUser.UserId ?? Guid.Empty)
+                    _currentUser.UserId ?? Guid.Empty,
+                    _db)
                 .ToListAsync(cancellationToken);
 
             var summaryList = new List<PhotoAlbumPhotoSummaryDto>();
