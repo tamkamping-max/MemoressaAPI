@@ -35,19 +35,22 @@ public static class PhotoSummaryLoader
             return [];
         }
 
-        var dtos = await photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken);
+        var dtos = await PhotoUploaderEnrichment.EnrichPhotoDtosAsync(
+            db,
+            photos,
+            await photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken),
+            cancellationToken);
         var dtoById = dtos.ToDictionary(d => d.Id);
-        var photoById = photos.ToDictionary(p => p.Id);
 
         var summaries = new List<PhotoSummaryDto>(photoIdsInOrder.Count);
         foreach (var id in photoIdsInOrder)
         {
-            if (!photoById.TryGetValue(id, out var photo) || !dtoById.TryGetValue(id, out var dto))
+            if (!dtoById.TryGetValue(id, out var dto))
             {
                 continue;
             }
 
-            summaries.Add(PhotoSummaryMapping.FromPhoto(photo, dto));
+            summaries.Add(PhotoSummaryMapping.FromDto(dto));
         }
 
         return summaries;
@@ -79,19 +82,22 @@ public static class PhotoSummaryLoader
             return [];
         }
 
-        var dtos = await photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken);
+        var dtos = await PhotoUploaderEnrichment.EnrichPhotoDtosAsync(
+            db,
+            photos,
+            await photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken),
+            cancellationToken);
         var dtoById = dtos.ToDictionary(d => d.Id);
-        var photoById = photos.ToDictionary(p => p.Id);
 
         var summaries = new List<PhotoSummaryDto>(photoIdsInOrder.Count);
         foreach (var id in photoIdsInOrder)
         {
-            if (!photoById.TryGetValue(id, out var photo) || !dtoById.TryGetValue(id, out var dto))
+            if (!dtoById.TryGetValue(id, out var dto))
             {
                 continue;
             }
 
-            summaries.Add(PhotoSummaryMapping.FromPhoto(photo, dto));
+            summaries.Add(PhotoSummaryMapping.FromDto(dto));
         }
 
         return summaries;

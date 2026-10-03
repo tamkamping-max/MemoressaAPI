@@ -35,7 +35,7 @@ public class PhotoDtoMappingTests
     }
 
     [Fact]
-    public void ToDto_OmitsDisplayFieldsWhenNicknameAndEmailMissing()
+    public void ToDto_AlwaysIncludesUploaderId_EvenWhenDisplayFieldsMissing()
     {
         var uploaderId = Guid.NewGuid();
         var photo = new Photo
@@ -49,7 +49,26 @@ public class PhotoDtoMappingTests
         Assert.Equal(uploaderId, dto.UploadedBy);
         Assert.Null(dto.UploaderNickname);
         Assert.Null(dto.UploaderEmail);
-        Assert.Null(dto.Uploader);
+        Assert.NotNull(dto.Uploader);
+        Assert.Equal(uploaderId, dto.Uploader!.Id);
+    }
+
+    [Fact]
+    public void ToDto_UsesFamilyMemberLabelWhenAccountNicknameMissing()
+    {
+        var uploaderId = Guid.NewGuid();
+        var photo = new Photo
+        {
+            UploadedByUserId = uploaderId,
+            UploadedBy = new UserAccount { Id = uploaderId, Email = "a@test.com", Nickname = null }
+        };
+
+        var fields = PhotoUploaderDisplay.Resolve(photo, familyMemberDisplayName: "Grandma");
+        var dto = PhotoUploaderDisplay.ApplyToDto(photo.ToDto(), fields);
+
+        Assert.Equal("Grandma", dto.UploaderNickname);
+        Assert.Equal("Grandma", dto.UploaderDisplayName);
+        Assert.Equal("Grandma", dto.Uploader!.Nickname);
     }
 
     [Fact]

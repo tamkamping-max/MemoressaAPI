@@ -43,7 +43,13 @@ public class PhotoService : IPhotoService
         }
 
         var photos = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId).OrderByDescending(p => p.TakenAt).ToListAsync(cancellationToken);
-        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken));
+        var dtos = await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken);
+        var enriched = await PhotoUploaderEnrichment.EnrichPhotoDtosAsync(
+            _db,
+            photos,
+            dtos,
+            cancellationToken);
+        return ServiceResult<IReadOnlyList<PhotoDto>>.Ok(enriched);
     }
 
     public async Task<ServiceResult<PhotoDto>> GetPhotoByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -60,7 +66,11 @@ public class PhotoService : IPhotoService
             return ServiceResult<PhotoDto>.NotFound("Photo not found");
         }
 
-        var dto = await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken);
+        var dto = await PhotoUploaderEnrichment.EnrichPhotoDtoAsync(
+            _db,
+            photo,
+            await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken),
+            cancellationToken);
         var albumContext = await _photoAlbums.TryGetPrimaryAlbumForPhotoAsync(
             photo.Id,
             ctx.Value.FamilyId,
@@ -291,7 +301,12 @@ public class PhotoService : IPhotoService
         }
 
         var updated = await QueryPhotos(ctx.Value.FamilyId, ctx.Value.UserId).FirstAsync(p => p.Id == id, cancellationToken);
-        return ServiceResult<PhotoDto>.Ok(await _photoUrls.ToDtoAsync(updated, cancellationToken: cancellationToken));
+        var updatedDto = await PhotoUploaderEnrichment.EnrichPhotoDtoAsync(
+            _db,
+            updated,
+            await _photoUrls.ToDtoAsync(updated, cancellationToken: cancellationToken),
+            cancellationToken);
+        return ServiceResult<PhotoDto>.Ok(updatedDto);
     }
 
     public async Task<ServiceResult> HidePhotoAsync(Guid id, CancellationToken cancellationToken = default)
@@ -354,7 +369,11 @@ public class PhotoService : IPhotoService
             nextCursor = new TimelineCursor(last.TakenAt ?? last.CreatedAt, last.Id).Encode();
         }
 
-        var items = await _photoUrls.ToDtosAsync(page, cancellationToken: cancellationToken);
+        var items = await PhotoUploaderEnrichment.EnrichPhotoDtosAsync(
+            _db,
+            page,
+            await _photoUrls.ToDtosAsync(page, cancellationToken: cancellationToken),
+            cancellationToken);
 
         var fingerprint = await BuildTimelineFingerprintAsync(ctx.Value.FamilyId, ctx.Value.UserId, cancellationToken);
         return ServiceResult<PhotoTimelinePageDto>.Ok(new PhotoTimelinePageDto

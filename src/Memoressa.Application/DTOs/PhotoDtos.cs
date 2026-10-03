@@ -33,6 +33,8 @@ public record PhotoDto
     [JsonPropertyName("uploaderNickname")] public string? UploaderNickname { get; init; }
     [JsonPropertyName("uploaderEmail")] public string? UploaderEmail { get; init; }
     [JsonPropertyName("uploader")] public PhotoUploaderDto? Uploader { get; init; }
+    /// <summary>Same as <see cref="UploaderNickname"/> when set; optional App hint for timeline pills.</summary>
+    [JsonPropertyName("uploaderDisplayName")] public string? UploaderDisplayName { get; init; }
     [JsonPropertyName("generation")] public Generation? Generation { get; init; }
     [JsonPropertyName("isHidden")] public bool IsHidden { get; init; }
     [JsonPropertyName("isDuplicate")] public bool IsDuplicate { get; init; }

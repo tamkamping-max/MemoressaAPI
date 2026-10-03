@@ -1,176 +1,116 @@
+using Memoressa.Application.Abstractions;
 using Memoressa.Application.Common;
 using Memoressa.Application.DTOs;
 using Memoressa.Application.Interfaces;
 using Memoressa.Application.Services;
 using Memoressa.Domain.Entities;
-using Memoressa.Domain.Enums;
 using Memoressa.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Memoressa.Api.Tests;
 
-public class StreamFeedPerformanceTests
+public class PhotoUploaderAttributionTests
 {
     [Fact]
-    public async Task BatchGetPhotosAsync_ReturnsUpTo50SummariesInOrder()
+    public async Task Timeline_IncludesUploaderNickname_ForFamilyMemberUpload()
     {
-        var userId = Guid.NewGuid();
         var familyId = Guid.NewGuid();
-        var ids = Enumerable.Range(0, 3).Select(_ => Guid.NewGuid()).ToList();
+        var viewerId = Guid.NewGuid();
+        var uploaderId = Guid.NewGuid();
+        var photoId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
 
         await using var db = CreateDb();
-        db.UserAccounts.Add(new UserAccount { Id = userId, Email = "u@test.com", PasswordHash = "x", IsActive = true });
-        db.Families.Add(new Family { Id = familyId, OwnerUserId = userId, Name = "F" });
-        db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = userId, Role = "owner" });
-        foreach (var id in ids)
+        db.Families.Add(new Family { Id = familyId, Name = "Home", OwnerUserId = viewerId });
+        db.UserAccounts.AddRange(
+            new UserAccount { Id = viewerId, Email = "viewer@test.com", PasswordHash = "x", IsActive = true, Nickname = "Viewer" },
+            new UserAccount { Id = uploaderId, Email = "uploader@test.com", PasswordHash = "x", IsActive = true });
+        db.FamilyMemberships.AddRange(
+            new FamilyMembership { FamilyId = familyId, UserId = viewerId },
+            new FamilyMembership { FamilyId = familyId, UserId = uploaderId });
+        db.FamilyMembers.Add(new FamilyMember
         {
-            db.Photos.Add(new Photo
-            {
-                Id = id,
-                FamilyId = familyId,
-                UploadedByUserId = userId,
-                S3Key = $"{id}.jpg"
-            });
-        }
-
+            Id = memberId,
+            FamilyId = familyId,
+            Name = "Alice",
+            LinkedUserId = uploaderId
+        });
+        db.Photos.Add(new Photo
+        {
+            Id = photoId,
+            FamilyId = familyId,
+            UploadedByUserId = uploaderId,
+            S3Key = "a.jpg",
+            ContentType = "image/jpeg",
+            TakenAt = DateTime.UtcNow
+        });
         await db.SaveChangesAsync();
 
         var service = new PhotoService(
             db,
-            new FixedUser(userId, familyId),
+            new FixedUser(viewerId, familyId),
             new SummaryPhotoUrlResolver(),
             new StubS3Storage(),
-            Microsoft.Extensions.Options.Options.Create(new MediaStorageSettings()),
+            Options.Create(new MediaStorageSettings()),
             new StubPhotoAlbumService());
 
-        var result = await service.BatchGetPhotosAsync(new PhotoBatchRequestDto
+        var timeline = await service.GetTimelinePhotosAsync(limit: 10);
+        Assert.True(timeline.Success);
+        var item = Assert.Single(timeline.Data!.Items);
+        Assert.Equal(uploaderId, item.UploadedBy);
+        Assert.Equal("Alice", item.UploaderNickname);
+        Assert.Equal("Alice", item.UploaderDisplayName);
+        Assert.Equal("Alice", item.Uploader!.Nickname);
+    }
+
+    [Fact]
+    public async Task BatchGetPhotosAsync_IncludesUploaderFields()
+    {
+        var familyId = Guid.NewGuid();
+        var viewerId = Guid.NewGuid();
+        var uploaderId = Guid.NewGuid();
+        var photoId = Guid.NewGuid();
+
+        await using var db = CreateDb();
+        db.Families.Add(new Family { Id = familyId, Name = "Home", OwnerUserId = viewerId });
+        db.UserAccounts.AddRange(
+            new UserAccount { Id = viewerId, Email = "viewer@test.com", PasswordHash = "x", IsActive = true },
+            new UserAccount { Id = uploaderId, Email = "bob@test.com", PasswordHash = "x", IsActive = true, Nickname = "Bob" });
+        db.FamilyMemberships.AddRange(
+            new FamilyMembership { FamilyId = familyId, UserId = viewerId },
+            new FamilyMembership { FamilyId = familyId, UserId = uploaderId });
+        db.Photos.Add(new Photo
         {
-            Ids = ids.Select(id => $"photo_{id:N}").Reverse().ToList()
+            Id = photoId,
+            FamilyId = familyId,
+            UploadedByUserId = uploaderId,
+            S3Key = "b.jpg",
+            ContentType = "image/jpeg"
         });
-
-        Assert.True(result.Success);
-        Assert.Equal(3, result.Data!.Items.Count);
-        Assert.Equal(ids[2], result.Data.Items[0].Id);
-        Assert.Equal("thumb", result.Data.Items[0].ThumbnailUrl);
-        Assert.Equal(userId, result.Data.Items[0].UploadedBy);
-        Assert.Equal("u@test.com", result.Data.Items[0].UploaderNickname);
-    }
-
-    [Fact]
-    public async Task GetMemoriesAsync_IncludesPhotoCountAndCoverPhotos()
-    {
-        var userId = Guid.NewGuid();
-        var familyId = Guid.NewGuid();
-        var photoIds = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToList();
-
-        await using var db = CreateDb();
-        db.UserAccounts.Add(new UserAccount { Id = userId, Email = "u@test.com", PasswordHash = "x", IsActive = true });
-        db.Families.Add(new Family { Id = familyId, OwnerUserId = userId, Name = "F" });
-        db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = userId, Role = "owner" });
-        foreach (var id in photoIds)
-        {
-            db.Photos.Add(new Photo
-            {
-                Id = id,
-                FamilyId = familyId,
-                UploadedByUserId = userId,
-                S3Key = $"{id}.jpg"
-            });
-        }
-
-        var memory = new Memory
-        {
-            FamilyId = familyId,
-            CreatedByUserId = userId,
-            Title = "Trip",
-            Type = MemoryType.Photo
-        };
-        db.Memories.Add(memory);
-        var order = 0;
-        foreach (var id in photoIds)
-        {
-            db.MemoryPhotos.Add(new MemoryPhoto { MemoryId = memory.Id, PhotoId = id, SortOrder = order++ });
-        }
-
         await db.SaveChangesAsync();
 
-        var service = new MemoryService(db, new FixedUser(userId, familyId), new SummaryPhotoUrlResolver());
-        var result = await service.GetMemoriesAsync();
-
-        Assert.True(result.Success);
-        var dto = Assert.Single(result.Data!);
-        Assert.Equal(5, dto.PhotoCount);
-        Assert.Equal(4, dto.CoverPhotos.Count);
-        Assert.NotNull(dto.CoverThumbnailUrl);
-    }
-
-    [Fact]
-    public async Task GetInProgressAsync_IncludesPhotoCountAndPreviewPhotos()
-    {
-        var userId = Guid.NewGuid();
-        var familyId = Guid.NewGuid();
-        var photoIds = Enumerable.Range(0, 15).Select(_ => Guid.NewGuid()).ToList();
-
-        await using var db = CreateDb();
-        db.UserAccounts.Add(new UserAccount { Id = userId, Email = "u@test.com", PasswordHash = "x", IsActive = true });
-        db.Families.Add(new Family { Id = familyId, OwnerUserId = userId, Name = "F" });
-        db.FamilyMemberships.Add(new FamilyMembership { FamilyId = familyId, UserId = userId, Role = "owner" });
-        foreach (var id in photoIds)
-        {
-            db.Photos.Add(new Photo
-            {
-                Id = id,
-                FamilyId = familyId,
-                UploadedByUserId = userId,
-                S3Key = $"{id}.jpg"
-            });
-        }
-
-        var activity = new ActivityAlbum
-        {
-            FamilyId = familyId,
-            ExternalId = "act_feed",
-            Title = "Party",
-            Type = ActivityAlbumType.Gathering,
-            Status = ActivityAlbumStatus.InProgress,
-            StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
-            CreatorUserId = userId
-        };
-        db.ActivityAlbums.Add(activity);
-        var sort = 0;
-        foreach (var id in photoIds)
-        {
-            db.ActivityAlbumPhotos.Add(new ActivityAlbumPhoto
-            {
-                ActivityAlbumId = activity.Id,
-                PhotoId = id,
-                SortOrder = sort++
-            });
-        }
-
-        await db.SaveChangesAsync();
-
-        var service = new ActivityService(
+        var service = new PhotoService(
             db,
-            new FixedUser(userId, familyId),
+            new FixedUser(viewerId, familyId),
             new SummaryPhotoUrlResolver(),
-            new StubAvatarUrlResolver());
+            new StubS3Storage(),
+            Options.Create(new MediaStorageSettings()),
+            new StubPhotoAlbumService());
 
-        var result = await service.GetInProgressAsync();
-        var item = Assert.Single(result.Data!.Data.Items);
-        Assert.Equal(15, item.PhotoCount);
-        Assert.Equal(12, item.PreviewPhotos.Count);
-
-        var photos = await service.GetActivityPhotosAsync(activity.ExternalId, limit: 5);
-        Assert.True(photos.Success);
-        Assert.Equal(15, photos.Data!.Data.Total);
-        Assert.Equal(5, photos.Data.Data.Items.Count);
+        var batch = await service.BatchGetPhotosAsync(new PhotoBatchRequestDto { Ids = [photoId.ToString()] });
+        Assert.True(batch.Success);
+        var summary = Assert.Single(batch.Data!.Items);
+        Assert.Equal(uploaderId, summary.UploadedBy);
+        Assert.Equal("Bob", summary.UploaderNickname);
+        Assert.Equal("Bob", summary.UploaderDisplayName);
+        Assert.NotNull(summary.Uploader);
     }
 
     private static MemoressaDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<MemoressaDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
             .Options;
         return new MemoressaDbContext(options);
     }
@@ -188,28 +128,14 @@ public class StreamFeedPerformanceTests
             Photo photo,
             PhotoUrlPurpose purpose = PhotoUrlPurpose.ApiResponse,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(new PhotoDto
-            {
-                Id = photo.Id,
-                ThumbnailUrl = "thumb",
-                RemoteUrl = "remote",
-                FullUrl = "full",
-                UploadedBy = photo.UploadedByUserId
-            });
+            Task.FromResult(new PhotoDto { Id = photo.Id, UploadedBy = photo.UploadedByUserId });
 
         public Task<IReadOnlyList<PhotoDto>> ToDtosAsync(
             IEnumerable<Photo> photos,
             PhotoUrlPurpose purpose = PhotoUrlPurpose.ApiResponse,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<PhotoDto>>(
-                photos.Select(p => new PhotoDto
-                {
-                    Id = p.Id,
-                    ThumbnailUrl = "thumb",
-                    RemoteUrl = "remote",
-                    FullUrl = "full",
-                    UploadedBy = p.UploadedByUserId
-                }).ToList());
+                photos.Select(p => new PhotoDto { Id = p.Id, UploadedBy = p.UploadedByUserId }).ToList());
 
         public Task<string?> GetPresignedUrlAsync(
             Photo photo,

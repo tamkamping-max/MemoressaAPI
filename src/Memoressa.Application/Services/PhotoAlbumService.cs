@@ -633,26 +633,38 @@ public class PhotoAlbumService : IPhotoAlbumService
         if (includePhotoSummaries && photoIds.Count > 0)
         {
             var photos = await PhotoViewerAccess.ApplyViewerFilter(
-                    _db.Photos.AsNoTracking().Where(p => photoIds.Contains(p.Id)),
+                    _db.Photos.AsNoTracking()
+                        .Where(p => photoIds.Contains(p.Id))
+                        .Include(p => p.UploadedBy),
                     _currentUser.UserId ?? Guid.Empty,
                     _db)
                 .ToListAsync(cancellationToken);
 
+            var dtos = await PhotoUploaderEnrichment.EnrichPhotoDtosAsync(
+                _db,
+                photos,
+                await _photoUrls.ToDtosAsync(photos, cancellationToken: cancellationToken),
+                cancellationToken);
+            var dtoById = dtos.ToDictionary(d => d.Id);
+
             var summaryList = new List<PhotoAlbumPhotoSummaryDto>();
             foreach (var id in photoIds)
             {
-                var photo = photos.FirstOrDefault(p => p.Id == id);
-                if (photo is null)
+                if (!dtoById.TryGetValue(id, out var dto))
                 {
                     continue;
                 }
 
-                var dto = await _photoUrls.ToDtoAsync(photo, cancellationToken: cancellationToken);
                 summaryList.Add(new PhotoAlbumPhotoSummaryDto
                 {
-                    Id = photo.Id,
-                    TakenAt = photo.TakenAt,
-                    ThumbnailUrl = dto.ThumbnailUrl
+                    Id = dto.Id,
+                    TakenAt = dto.TakenAt,
+                    ThumbnailUrl = dto.ThumbnailUrl,
+                    UploadedBy = dto.UploadedBy,
+                    UploaderNickname = dto.UploaderNickname,
+                    UploaderEmail = dto.UploaderEmail,
+                    Uploader = dto.Uploader,
+                    UploaderDisplayName = dto.UploaderDisplayName
                 });
             }
 

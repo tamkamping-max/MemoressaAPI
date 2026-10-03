@@ -8,6 +8,11 @@ public record PhotoAlbumPhotoSummaryDto
     [JsonPropertyName("id")] public Guid Id { get; init; }
     [JsonPropertyName("takenAt")] public DateTime? TakenAt { get; init; }
     [JsonPropertyName("thumbnailUrl")] public string? ThumbnailUrl { get; init; }
+    [JsonPropertyName("uploadedBy")] public Guid UploadedBy { get; init; }
+    [JsonPropertyName("uploaderNickname")] public string? UploaderNickname { get; init; }
+    [JsonPropertyName("uploaderEmail")] public string? UploaderEmail { get; init; }
+    [JsonPropertyName("uploader")] public PhotoUploaderDto? Uploader { get; init; }
+    [JsonPropertyName("uploaderDisplayName")] public string? UploaderDisplayName { get; init; }
 }
 
 public record PhotoAlbumDto
